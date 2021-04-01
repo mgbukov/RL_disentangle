@@ -4,7 +4,7 @@ qspin_path = os.path.join(os.getcwd(),"../../")
 sys.path.insert(0,qspin_path)
 #
 from quspin.operators import hamiltonian # Hamiltonians and operators
-from quspin.basis import spin_basis_1d # Hilbert space spin basis
+from quspin.basis import spin_basis_general # Hilbert space spin basis
 import numpy as np # generic math functions
 from scipy.sparse.linalg import expm
 
@@ -18,9 +18,10 @@ np.set_printoptions(precision=2,suppress=True,) # print two decimals, suppress s
 
 L=2 # two qubits
 
-basis=spin_basis_1d(L)
+basis=spin_basis_general(L)
 
 print(basis)
+
 
 
 # define random two-qubit state
@@ -29,9 +30,11 @@ psi/=np.linalg.norm(psi)
 
 print(psi)
 
+
 # compute enranglement of psi
 Sent = basis.ent_entropy(psi,sub_sys_A=[0,],density=True)['Sent_A']
 print(Sent)
+
 
 # define single-particle gate generators
 no_checks=dict(check_symm=False, check_herm=False, check_pcon=False)
@@ -42,7 +45,7 @@ H_xI=hamiltonian([['x',qubit_0],],[],basis=basis,**no_checks)
 H_yI=hamiltonian([['y',qubit_0],],[],basis=basis,**no_checks)
 H_zI=hamiltonian([['z',qubit_0],],[],basis=basis,**no_checks)
 
-# acting only on qubit 0
+# acting only on qubit 1
 qubit_1=[[1.0,1]]
 H_Ix=hamiltonian([['x',qubit_1],],[],basis=basis,**no_checks)
 H_Iy=hamiltonian([['y',qubit_1],],[],basis=basis,**no_checks)
@@ -78,20 +81,23 @@ print()
 print(U_xx)
 print()
 
+
 # apply gate on the quantum state
 psi_new = U_Iy.dot(psi)
+#psi_new=psi
+#psi_new = U_xx.dot(psi)
 
 # compute enranglement of psi
 Sent = basis.ent_entropy(psi_new,sub_sys_A=[0,],density=True)['Sent_A']
 print(Sent)
 
-
+#exit()
 
 # given a gate, find angle which minimizes entanglement
 
 from scipy.optimize import minimize
 
-def compute_Sent(angle,H,psi):
+def compute_Sent(angle,  H,psi):
 	U=expm(-1j*angle*H.toarray())
 	psi_new=U.dot(psi)
 	Sent = basis.ent_entropy(psi_new,sub_sys_A=[0,],density=True)['Sent_A']
