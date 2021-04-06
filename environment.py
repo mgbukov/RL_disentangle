@@ -1,6 +1,5 @@
 import numpy as np
 
-np.random.seed(45)
 from itertools import combinations
 from quspin.basis import spin_basis_general
 from quspin.operators import hamiltonian
@@ -13,7 +12,7 @@ from scipy.optimize import minimize
 ## 3. Actions
 ## 4. Examine current state
 ## 5. Calculate entropy
-# 6. Calculate reward
+## 6. Calculate reward
 ## 7. Take action
 ## 8. Reset with random state
 
@@ -21,21 +20,45 @@ class Environment:
 
     def __init__(self, N=2, entanglement_tol=1e-4):
         self.N = int(N)
-        self.basis = spin_basis_general(N)
+        self.basis = spin_basis_general(int(N))
         self.entanglement_tol = entanglement_tol
         self.reset()
         self._bind_action_set()
 
+    def seed(self, seed):
+        """Set the NumPy random seed."""
+        np.random.seed(seed)
+
     def reset(self):
         self.state = self._construct_random_pure_state()
+
+    def entropy(self):
+        ent = self.basis.ent_entropy(self.state)['Sent_A']
+        return ent.astype(np.float32).reshape(1)[0]
+
+    def step_(self, action):
+        H = self.generators[action]
+        U = self._make_unitary_gate(H)
+        return U.dot(self.state)
+
+    def step(self, action):
+        """Modifyes ``self.state`` and returns (newstate, reward, done) tuple"""
+        s = self.step_(action)
+        self.state = s
+        done = self._is_terminal(s)
+        reward = 1 if done else 0
+        return s, reward, done
+
+    def terminal(self):
+        return self._is_terminal(self.state)
 
     def _construct_random_pure_state(self):
         N = self.basis.Ns
         real = np.random.uniform(-1, 1, N).astype(np.float32)
         imag = np.random.uniform(-1, 1, N).astype(np.float32)
         s = real + 1j * imag
-        norm = np.sum(s.conj() * s).real
-        return s / np.sqrt(norm)
+        norm = np.sqrt(np.sum(s.conj() * s).real)
+        return s / norm
 
     def _construct_gate_generators(self):
         N = self.N
@@ -51,22 +74,23 @@ class Environment:
             H_yI = hamiltonian([['y', q]], [], basis=basis, **no_checks)
             H_zI = hamiltonian([['z', q]], [], basis=basis, **no_checks)
             p = str(i)
-            generators.append((p + 'x', H_xI))
-            generators.append((p + 'y', H_yI))
-            generators.append((p + 'z', H_zI))
+            generators.append((p + 'x', H_xI.toarray()))
+            generators.append((p + 'y', H_yI.toarray()))
+            generators.append((p + 'z', H_zI.toarray()))
 
-        # Two-qubit gate generators
-        q = [[1.0, 0, 0]]
-        for t in combinations(range(N), 2):
-            q[0][1:] = t
-            H_xI = hamiltonian([['xx', q]], [], basis=basis, **no_checks)
-            H_yI = hamiltonian([['yy', q]], [], basis=basis, **no_checks)
-            H_zI = hamiltonian([['zz', q]], [], basis=basis, **no_checks)
-            # TODO This will break if N > 9
-            p = '%d%d' % t
-            generators.append((p + 'xx', H_xI))
-            generators.append((p + 'yy', H_yI))
-            generators.append((p + 'zz', H_zI))
+        if self.N > 1:
+            # Two-qubit gate generators
+            q = [[1.0, 0, 0]]
+            for t in combinations(range(N), 2):
+                q[0][1:] = t
+                H_xI = hamiltonian([['xx', q]], [], basis=basis, **no_checks)
+                H_yI = hamiltonian([['yy', q]], [], basis=basis, **no_checks)
+                H_zI = hamiltonian([['zz', q]], [], basis=basis, **no_checks)
+                # TODO This will break if N > 9
+                p = '%d%d' % t
+                generators.append((p + 'xx', H_xI.toarray()))
+                generators.append((p + 'yy', H_yI.toarray()))
+                generators.append((p + 'zz', H_zI.toarray()))
 
         # What about more than two-gate generators?
         #
@@ -78,11 +102,7 @@ class Environment:
         angle = optstate.x
         return expm(-1j * angle * G)
 
-    def entropy(self):
-        return self.basis.ent_entropy(self.state)['Sent_A']
-
-    @staticmethod
-    def _compute_state_entropy_after_gate(angle, H, state):
+    def _compute_entropy_after_gate(self, angle, H, state):
         """Compute and return ``state``'s S_entropy"""
         U = expm(-1j * angle * H.toarray())
         psi = U.dot(state)
@@ -93,7 +113,7 @@ class Environment:
         angle = np.pi
         state = self.state.copy()
         return minimize(
-            Environment._compute_state_entropy_after_gate,
+            self._compute_entropy_after_gate,
             angle,
             args=(G, state),
             method='Nelder-Mead',
@@ -102,30 +122,17 @@ class Environment:
 
     def _bind_action_set(self):
         G = self._construct_gate_generators()
-        id_to_name = {}
+        idx_to_name = {}
+        name_to_idx = {}
         generators = []
         for i, (name, H) in enumerate(G):
-            id_to_name[i] = name
+            idx_to_name[i] = name
+            name_to_idx[name] = i
             generators.append(H)
-        self.actions = id_to_name
+        self.action_to_idx = name_to_idx
+        self.idx_to_action = idx_to_name
         self.generators = np.array(generators)
 
-    def step_(self, action):
-        H = self.generators[action]
-        U = self._make_unitary_gate(H)
-        return U.dot(self.state)
-
-    def step(self, action):
-        """Modifyes ``self.state`` and returns (newstate, reward, done) tuple"""
-        s = self.step_(action)
-        self.state = s
-        done = Environment._is_terminal(s)
-        reward = 1 if done, else 0
-        return s, reward, done
-
-    @staticmethod
-    def _is_terminal(state):
-        ent = self.basis.ent_entropy(self.state)
+    def _is_terminal(self, state):
+        ent = self.basis.ent_entropy(state)['Sent_A']
         return np.isclose(0.0, ent, atol=self.entanglement_tol)
-
-
