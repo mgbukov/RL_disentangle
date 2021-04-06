@@ -37,7 +37,7 @@ class Environment:
         return ent.astype(np.float32).reshape(1)[0]
 
     def step_(self, action):
-        H = self.generators[action]
+        H = self.operators[action]
         U = self._make_unitary_gate(H)
         return U.dot(self.state)
 
@@ -51,6 +51,10 @@ class Environment:
 
     def terminal(self):
         return self._is_terminal(self.state)
+
+    def unitary_gate_from_operator(self, i, angle=np.pi/2):
+        op = self.operators[i]
+        return expm(-1j * angle * op)
 
     def _construct_random_pure_state(self):
         N = self.basis.Ns
@@ -96,15 +100,16 @@ class Environment:
         #
         return generators
 
-    def _make_unitary_gate(self, G):
+    def _make_unitary_gate(self, G, angle=None):
         """Create and return unit gate from generator ``G``"""
-        optstate = self._compute_optimal_angle(G)
-        angle = optstate.x
-        return expm(-1j * angle * G)
+        if angle is None:
+            optstate = self._compute_optimal_angle(G)
+            angle = optstate.x
+        return expm(-1j * float(angle) * G)
 
     def _compute_entropy_after_gate(self, angle, H, state):
         """Compute and return ``state``'s S_entropy"""
-        U = expm(-1j * angle * H.toarray())
+        U = expm(-1j * angle * H)
         psi = U.dot(state)
         return self.basis.ent_entropy(psi)['Sent_A']
 
@@ -129,9 +134,9 @@ class Environment:
             idx_to_name[i] = name
             name_to_idx[name] = i
             generators.append(H)
-        self.action_to_idx = name_to_idx
-        self.idx_to_action = idx_to_name
-        self.generators = np.array(generators)
+        self.operator_to_idx = name_to_idx
+        self.idx_to_operator = idx_to_name
+        self.operators = np.array(generators)
 
     def _is_terminal(self, state):
         ent = self.basis.ent_entropy(state)['Sent_A']
