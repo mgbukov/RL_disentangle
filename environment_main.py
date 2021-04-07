@@ -6,7 +6,7 @@ from scipy.sparse.linalg import expm
 from scipy.optimize import minimize
 
 
-class QubitSystem:
+class QubitsEnvironment:
     """
     Representation of a multi-qubit quantum system.
     The state of the system is represented as a numpy array giving the

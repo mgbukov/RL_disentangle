@@ -4,24 +4,24 @@ from itertools import combinations, chain, product
 from quspin.operators import hamiltonian
 from scipy.linalg import expm
 
-from environment_main import QubitSystem
+from environment_main import QubitsEnvironment
 
 
-class TestQubitSystem(unittest.TestCase):
+class TestQubitsEnvironment(unittest.TestCase):
 
     def test_initialization(self):
         """Test default initialization and initialization with N qubits"""
-        E = QubitSystem()
+        E = QubitsEnvironment()
         self.assertEqual(E.N, 2)
         self.assertEqual(len(E.state), 4)
-        E = QubitSystem(4)
+        E = QubitsEnvironment(4)
         self.assertEqual(len(E.state), 16)
-        E = QubitSystem(10)
+        E = QubitsEnvironment(10)
         self.assertEqual(len(E.state), 1024)
 
     def test_state(self):
         """Test if the state is a unit vector."""
-        E = QubitSystem()
+        E = QubitsEnvironment()
         for _ in range(100):
             norm = np.sum(np.abs(E.state) ** 2)
             self.assertTrue(np.isclose(norm.imag, 0.0))
@@ -29,7 +29,7 @@ class TestQubitSystem(unittest.TestCase):
             E.reset()
 
     def test_action_space(self):
-        envs = (QubitSystem(), QubitSystem(4), QubitSystem(8))
+        envs = (QubitsEnvironment(), QubitsEnvironment(4), QubitsEnvironment(8))
         operators1 = [' x', ' y', ' z']
         operators2 = [' xx', ' yy', ' zz']
         for E in envs:
@@ -44,7 +44,7 @@ class TestQubitSystem(unittest.TestCase):
             self.assertEqual(len(O), len(E.operator_to_idx))
 
     def test_operators(self):
-        envs = [QubitSystem(), QubitSystem(4), QubitSystem(8)]
+        envs = [QubitsEnvironment(), QubitsEnvironment(4), QubitsEnvironment(8)]
         no_checks = dict(check_symm=False, check_herm=False, check_pcon=False)
         for E in envs:
             for i in range(E.N):
@@ -103,7 +103,7 @@ class TestQubitSystem(unittest.TestCase):
 
     def test_entropy(self):
         """Test the entanglement entropy calculation."""
-        E = QubitSystem(2)
+        E = QubitsEnvironment(2)
         C = 1 / np.sqrt(2)
 
         # Bell states
@@ -135,7 +135,7 @@ class TestQubitSystem(unittest.TestCase):
         self.assertTrue(np.isclose(E.entropy(), expected))
 
     def test_disentangled(self):
-        E = QubitSystem()
+        E = QubitsEnvironment()
         C = 1 / np.sqrt(2)
 
         # Bell states
@@ -189,7 +189,7 @@ class TestQubitSystem(unittest.TestCase):
         self.assertTrue(E.disentangled())
 
     def test_unitary_gates(self):
-        envs = [QubitSystem(), QubitSystem(4)]
+        envs = [QubitsEnvironment(), QubitsEnvironment(4)]
         angles = 2 * np.pi / np.arange(1, 7)
         single = ('x', 'y', 'z')
         two = ('xx', 'yy', 'zz')
