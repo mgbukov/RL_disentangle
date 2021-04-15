@@ -23,10 +23,12 @@ class TestQubitsEnvironment(unittest.TestCase):
         """Test if the state is a unit vector."""
         E = QubitsEnvironment()
         for _ in range(100):
+            # TODO
+            # Use np.linalg.norm
             norm = np.sum(np.abs(E.state) ** 2)
             self.assertTrue(np.isclose(norm.imag, 0.0))
             self.assertTrue(np.isclose(norm.real, 1.0))
-            E.reset()
+            E.set_random_state()
 
     def test_action_space(self):
         envs = (QubitsEnvironment(), QubitsEnvironment(4), QubitsEnvironment(8))

@@ -90,6 +90,7 @@ class QubitsEnvironment:
         self.basis = spin_basis_1d(N)
         self.reset()
         self._construct_operators()
+        self.alpha_0 = np.pi / np.exp(1)
 
     @property
     def state(self):
@@ -149,9 +150,12 @@ class QubitsEnvironment:
         U = self._unitary_gate_factory(action)
         if angle is None:
             # Compute the optimal angle of rotation for the selected quantum gate.
-            alpha_0 = np.pi / np.exp(1)
+
             F = lambda angle, U: self.Entropy(U(angle).dot(self._state), self.basis),
-            res = minimize(F, alpha_0, args=(U,), method="Nelder-Mead", tol=1e-6)
+            # TODO
+            # Limit the maximum number of iterations
+            # Test if the method is deterministic
+            res = minimize(F, self.alpha_0, args=(U,), method="Nelder-Mead", tol=1e-6)
             if res.success:
                 angle = res.x[0]
             else:
@@ -187,6 +191,8 @@ class QubitsEnvironment:
         basis = self.basis
         no_checks=dict(check_symm=False, check_herm=False, check_pcon=False)
 
+        # TODO
+        # Replace with sparse operators
         generators = []
         # Single quibit gate generators
         q = [[1.0, 0]]
@@ -236,7 +242,7 @@ class QubitsEnvironment:
         real = np.random.uniform(-1, 1, N).astype(np.float32)
         imag = np.random.uniform(-1, 1, N).astype(np.float32)
         s = real + 1j * imag
-        norm = np.sqrt(np.sum(s.conj() * s).real)
+        norm = np.sqrt(np.sum(s.conj() * s).real) # TODO replace with np.linalg.norm
         return s / norm
 
 #
