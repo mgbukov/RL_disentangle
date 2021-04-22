@@ -17,7 +17,7 @@ rng = random.PRNGKey(seed)
 ########
 
 # define system size
-L=10	
+L=2	
 N_trials = 100	
 
 # define subsystem
@@ -41,14 +41,14 @@ psi = np.einsum('ij,i->ij', psi, 1.0/norms)
 def ent_entropy(psi,):
 
 	# reshape state
-	psi = psi.reshape((2,)*L)
-	psi = psi.transpose(system)
+	psi = psi.reshape((2,)*L)   # (2,2,2, | 2,...,2)
+	psi = psi.transpose(system) # sub_sus_A = [0,2,4] (transpose)--> (0,2,4, | 1,3,5) # shift sub_sys_A to the left
 	psi = psi.reshape(2**L_A, 2**L_B)
 
-	# compute rdm
-	rdm_A = psi @ psi.T.conj()
-
 	# ### faster for L >= 14
+	# #compute rdm
+	# rdm_A = psi @ psi.T.conj()
+
 	# # get eigenvalues of rdm
 	# lmbda = jnp.linalg.eigvalsh(rdm_A)
 	# lmbda += jnp.finfo(lmbda.dtype).eps
@@ -58,7 +58,7 @@ def ent_entropy(psi,):
 
 	### faster for L < 14
 	lmbda = jnp.linalg.svd(psi, full_matrices=False, compute_uv=False)
-	lmbda += jnp.finfo(lmbda.dtype).eps
+	lmbda += jnp.finfo(lmbda.dtype).eps # shift lmbda to be positive within machine precision
 	Sent = -2.0/L_A * ( lmbda**2 @ jnp.log(lmbda) )
 
 	return Sent
@@ -72,10 +72,11 @@ def ent_entropies(psi,):
 	psi = psi.transpose(system2)
 	psi = psi.reshape(N_trials, 2**L_A, 2**L_B,)
 
-	# compute rdm
-	rdm_A = jnp.einsum('aij,akj->aik', psi, psi.conj() )
-
 	# ### faster for L >= 14
+
+	# #compute rdm
+	# rdm_A = jnp.einsum('aij,akj->aik', psi, psi.conj() )
+
 	# # get eigenvalues of rdm
 	# lmbda = jnp.linalg.eigvalsh(rdm_A) 
 	# lmbda += jnp.finfo(lmbda.dtype).eps
@@ -158,6 +159,7 @@ for j in range(N_trials):
 print("\nquspin: total per-state calculation took {0:4f} secs.".format(np.sum(t_vec)) )
 
 
+#psi.T = (basis.Ns, N)
 
 t_i=time.time()
 Sent = basis.ent_entropy(psi.T, sub_sys_A, enforce_pure=True)['Sent_A']
