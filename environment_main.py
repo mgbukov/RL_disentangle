@@ -113,11 +113,17 @@ class QubitsEnvironment:
     def set_random_state(self):
         """ Set the current state of the environment to a random pure state. """
         self._state = self._construct_random_pure_state()
+        self._last_action = None
+        self._total_angle_iterations = 0
+        self._times_angle_is_optimized = 0
 
     def reset(self):
         """ Set the current state of the environment to a disentangled state. """
         self._state = np.zeros(shape=self.basis.Ns, dtype=np.complex64)
         self._state[0] = 1.0
+        self._last_action = None
+        self._times_angle_is_optimized = 0
+        self._total_angle_iterations = 0
 
     def entropy(self):
         """ Compute the entanglement entropy for the current state. """
