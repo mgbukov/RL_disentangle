@@ -1,0 +1,43 @@
+Using device: cuda
+Episode (1/10) took 22.460 seconds.
+    Mean final reward: 2.8205
+    Mean final entropy: 0.0002
+    Pseudo loss: -0.01459
+Episode (2/10) took 22.397 seconds.
+    Mean final reward: 2.8104
+    Mean final entropy: 0.0004
+    Pseudo loss: 0.67951
+Episode (3/10) took 22.408 seconds.
+    Mean final reward: 2.8209
+    Mean final entropy: 0.0002
+    Pseudo loss: -0.28276
+Episode (4/10) took 22.474 seconds.
+    Mean final reward: 2.8281
+    Mean final entropy: 0.0001
+    Pseudo loss: 0.11822
+Episode (5/10) took 22.555 seconds.
+    Mean final reward: 2.8136
+    Mean final entropy: 0.0005
+    Pseudo loss: 0.28471
+Episode (6/10) took 22.056 seconds.
+    Mean final reward: 2.8043
+    Mean final entropy: 0.0005
+    Pseudo loss: 0.21143
+Episode (7/10) took 22.014 seconds.
+    Mean final reward: 2.8299
+    Mean final entropy: 0.0002
+    Pseudo loss: 0.14306
+Episode (8/10) took 22.116 seconds.
+    Mean final reward: 2.8090
+    Mean final entropy: 0.0005
+    Pseudo loss: -0.27198
+Episode (9/10) took 22.118 seconds.
+    Mean final reward: 2.8271
+    Mean final entropy: 0.0002
+    Pseudo loss: -0.52431
+Episode (10/10) took 22.127 seconds.
+    Mean final reward: 2.8214
+    Mean final entropy: 0.0002
+    Pseudo loss: 0.18245
+Solved states: 2389 / 2560 = 93.320 %
+Training took 445.663 seconds
