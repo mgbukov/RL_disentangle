@@ -91,7 +91,8 @@ psi_new = U_Iy.dot(psi)
 Sent = basis.ent_entropy(psi_new,sub_sys_A=[0,],density=True)['Sent_A']
 print(Sent)
 
-#exit()
+#print(psi_new[0], psi_new[1], psi_new[2], psi_new[3])
+
 
 # given a gate, find angle which minimizes entanglement
 
