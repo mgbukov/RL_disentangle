@@ -25,6 +25,8 @@ class FileLogger:
 
     def flush(self):
         """ Delete the contents of the file, or create a new file if it doesn't exist. """
+        if not os.path.exists(self._log_dir):
+            os.makedirs(self._log_dir)
         f = open(os.path.join(self._log_dir, self._filename), "w")
         f.close()
 
