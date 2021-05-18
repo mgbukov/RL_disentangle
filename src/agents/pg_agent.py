@@ -1,11 +1,17 @@
-import numpy as np
 import time
+
+import numpy as np
 import torch
 import torch.nn.functional as F
 
+from agents.base_agent import BaseAgent
+from utils.logger import FileLogger
 
-class PGAgent:
-    """ Policy-gradient agent. """
+
+class PGAgent(BaseAgent):
+    """ Policy-gradient agent implementation of a reinforcement learning agent.
+    The agent uses vanilla policy gradient update to improve its policy.
+    """
 
     def __init__(self, env, policy):
         """ Initialize policy gradient agent.
@@ -15,55 +21,13 @@ class PGAgent:
         """
         self.env = env
         self.policy = policy
-        self.history = []
-
-
-    def rollout(self, steps, greedy=False):
-        """ Starting from the current environment state perform a rollout using
-        the current policy.
-
-        @param steps (int): Number of steps to rollout the policy.
-        @param greedy (bool): If true, select the next action deterministically.
-                If false, select the next action probabilistically.
-        @return states (Tensor): Tensor of shape (b, t, q), giving the states
-                produced during policy rollout, where
-                b = batch size, t = number of time steps,
-                q = size of the quantum system (2 ** num_qubits).
-        @return actions (Tensor): Tensor of shape (b, t), giving the actions
-                selected by the policy during rollout.
-        @return rewards (Tensor): Tensor of shape (b, t), giving the rewards
-                obtained during policy rollout.
-        @return done (Tensor): Tensor of shape (b, t),
-        """
-        device = self.policy.device
-        num_actions = self.env.num_actions
-        batch_size = self.env.batch_size  # number of trajectories
-
-        # Allocate numpy arrays to store the data from the rollout.
-        states = np.ndarray(shape=(steps,) + self.env.state.shape, dtype=np.float32)
-        actions = np.ndarray(shape=(steps, batch_size), dtype=np.int64)
-        rewards = np.ndarray(shape=(steps, batch_size), dtype=np.float32)
-        done = np.ndarray(shape=(steps, batch_size), dtype=np.bool_)
-
-        # Perform parallel rollout along all trajectories.
-        for i in range(steps):
-            acts = self.policy.get_action(self.env.state, greedy)
-            states[i] = self.env.state
-            actions[i] = acts
-            s, r, d = self.env.step(acts)
-            rewards[i] = r
-            done[i] = d
-
-        # Convert numpy arrays to torch tensors and send them to device.
-        return (torch.from_numpy(states.transpose(1,0,2)).to(device),
-                torch.from_numpy(actions.transpose(1,0)).to(device),
-                torch.from_numpy(rewards.transpose(1,0)).to(device),
-                torch.from_numpy(done.transpose(1,0)).to(device))
+        self.train_history = {}
+        self.logger = FileLogger("logs", "log_final.txt")
 
 
     @torch.no_grad()
     def reward_to_go(self, rewards):
-        return rewards + torch.sum(rewards, keepdims=True, axis=1) - torch.cumsum(rewards,axis=1)
+        return rewards + torch.sum(rewards, keepdims=True, dim=1) - torch.cumsum(rewards,dim=1)
 
 
     @torch.no_grad()
@@ -77,55 +41,77 @@ class PGAgent:
         return torch.mean(self.reward_to_go(rewards), dim=0, keepdim=True)
 
 
-    def train(self, num_episodes, steps, learning_rate, reg, verbose=True):
+    def train(self, num_episodes, steps, learning_rate, lr_decay=1.0, reg=0.0,
+              log_every=1, verbose=False):
         """ Train the agent using vanilla policy-gradient algorithm.
 
         @param num_episodes (int): Number of episodes to train the agent for.
         @param steps (int): Number of steps to rollout the policy for.
         @param learning_rate (float): Learning rate for gradient decent.
+        @param lr_decay (float): Multiplicative factor of learning rate decay.
         @param reg (float): L2 regularization strength.
+        @param log_every (int): Every @log_every iterations write the results
+                to the log file.
         @param verbose (bool): If true, prinout logging information.
         """
         self.policy.train()
         device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-        print("Using device: %s" % device)
+        self.logger.verboseLogging(verbose)
+        self.logger.logTxt("Using device: {}".format(device))
         self.policy = self.policy.to(device)
 
-        # Initialize the optimizer.
+        # Initialize the optimizer and the scheduler.
         optimizer = torch.optim.Adam(self.policy.parameters(), lr=learning_rate, weight_decay=reg)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=lr_decay)
 
-        num_trajectories = self.env.batch_size
+        trajects = self.env.batch_size   # number of trajectories
         for i in range(num_episodes):
             tic = time.time()
 
+            # Perform policy roll-out.
             self.env.set_random_state()
             states, actions, rewards, done = self.rollout(steps)
-            q_values = self.reward_to_go(rewards) - self.reward_baseline(rewards, done)
 
             # Compute the loss.
+            q_values = self.reward_to_go(rewards) - self.reward_baseline(rewards, done)
             logits = self.policy(states)
+            logits = self.policy.mask_logits(logits, actions)
             nll = F.cross_entropy(logits.permute(0,2,1), actions, reduction="none")
             weighted_nll = torch.mul(nll, q_values)
-            loss = torch.mean(torch.sum(weighted_nll, axis=1))
+            loss = torch.mean(torch.sum(weighted_nll, dim=1))
 
             # Perform backward pass.
             optimizer.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.policy.parameters(), 10.0)
+            # torch.nn.utils.clip_grad_norm_(self.policy.parameters(), 1.0)
             optimizer.step()
+            scheduler.step()
 
             # Book-keeping.
             entropies = self.env.entropy()
-            self.history.append((entropies.min(), entropies.max(),
-                                 entropies.mean(), entropies.std()))
+            self.train_history[i] = {
+                "entropy": (entropies.min(), entropies.max(), entropies.mean(), entropies.std()),
+                "states" : states.cpu().numpy(),
+                "loss" : loss.item(),
+                "nsteps" : np.argmax(done.cpu().numpy(), axis=1) + 1
+            }
 
             toc = time.time()
 
-            # Printout results.
-            if verbose:
-                print("Episode (%d/%d) took %.3f seconds." % (i + 1, num_episodes, (toc-tic)))
-                print("    Mean final reward: %.4f" % torch.mean(rewards[:,-1]))
-                print("    Mean final entropy: %.4f" % entropies.mean())
-                print("    Pseudo loss: %.5f" % loss.item())
+            # Log results to file.
+            if (i + 1) % log_every == 0:
+                self.logger.logTxt("Episode ({}/{}) took {:.3f} seconds.".format(
+                    i + 1, num_episodes, (toc-tic)))
+                self.logger.logTxt("  Mean final reward: {:.4f}".format(
+                    torch.mean(rewards[:,-1])))
+                self.logger.logTxt("  Mean return: {:.4f}".format(
+                    torch.mean(torch.sum(rewards, dim=1), dim=0)))
+                self.logger.logTxt("  Mean final entropy: {:.4f}".format(entropies.mean()))
+                self.logger.logTxt("  Max final entropy: {:.4f}".format(entropies.max()))
+                self.logger.logTxt("  Pseudo loss: {:.5f}".format(loss))
+                self.logger.logTxt("  Solved trajectories: {} / {}".format(
+                    sum(done[:, -1]).item(), trajects))
+                self.logger.logTxt("  Avg steps to disentangle: {:.3f}".format(
+                    (np.argmax(done.cpu().numpy(), axis=1) + 1).mean()))
 
 #

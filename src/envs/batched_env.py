@@ -1,6 +1,7 @@
-import numpy as np
 from itertools import combinations
 from itertools import product
+
+import numpy as np
 from quspin.basis import spin_basis_1d
 from quspin.operators import hamiltonian
 from scipy.optimize import minimize
@@ -67,13 +68,27 @@ class QubitsEnvironment:
         # What are possible/optimal choices for state_space, reward_space,action_space?
         # Choose the reward function here.
 
-        # Compute the entropy of a system by considering each individual qubit
-        # as a sub-system. Evaluate the reward as the maximum sub-system entropy.
+        # Compute the entropy of a system by considering each individual qubit as a
+        # sub-system. Evaluate the reward as the negative maximum sub-system entropy.
         N = basis.N
         entropies = [cls.Entropy(states, basis, sub_sys=[i,]) for i in range(N)]
         entropies = np.vstack(entropies).max(axis=0)
         entropies = np.maximum(entropies, epsi)
-        rewards = -np.log10(entropies / np.log(2))
+        rewards = -(entropies / np.log(2))
+        return rewards
+
+    @classmethod
+    def RewardDifferences(cls, states, prev_states, basis, epsi=1e-5):
+        N = basis.N
+        entropies = [cls.Entropy(states, basis, sub_sys=[i,]) for i in range(N)]
+        entropies = np.vstack(entropies).max(axis=0)
+        entropies = np.maximum(entropies, epsi)
+
+        old_entropies = [cls.Entropy(prev_states, basis, sub_sys=[i,]) for i in range(N)]
+        old_entropies = np.vstack(old_entropies).max(axis=0)
+        old_entropies = np.maximum(old_entropies, epsi)
+
+        rewards = (entropies - old_entropies) / np.log(2)
         return rewards
 
 
@@ -97,7 +112,7 @@ class QubitsEnvironment:
         return cls.Entropy(states, basis) <= epsi
 
 
-    def __init__(self, num_qubits=2, epsi=1e-4, batch_size=1):
+    def __init__(self, num_qubits=2, epsi=1e-4, batch_size=1, pack_size=1):
         """
         Initialize a multi-Qubit system RL environment.
 
@@ -109,10 +124,14 @@ class QubitsEnvironment:
             Threshold bellow which the system is considered disentangled
         batch_size : int
             Number of states simultaneously represented by the environment.
+        pack_size : int
+            Number of state copies in the batch.
         """
         assert num_qubits >= 2
+        assert batch_size % pack_size == 0
         self.N = int(num_qubits)
         self.batch_size = batch_size
+        self.pack_size = pack_size
         self.epsi = epsi
         self.basis = spin_basis_1d(num_qubits)
 
@@ -124,12 +143,14 @@ class QubitsEnvironment:
         # If one argument is 3D and the second one is 2D, then the first argument
         # is treated as a stack of matrices and the second one is treated as
         # a conventional matrix and is broadcast accordingly.
-        self._state = np.ndarray((self.batch_size, self.basis.Ns, 1), dtype=np.float32)
-        self.reset()
+        self._state = np.ndarray((self.batch_size, self.basis.Ns, 1), dtype=np.complex64)
 
         # Create hermitian operators
         self._construct_operators()
         self.num_actions = len(self.operators)
+
+        # Reset the environment to a disentangled state.
+        self.reset()
 
 
     @property
@@ -141,7 +162,7 @@ class QubitsEnvironment:
 
         # The state of the system is represented as a concatenation of the real
         # and the imaginary parts.
-        states = np.concatenate((self._state.real, self._state.imag), axis=1, dtype=np.float32)
+        states = np.hstack([self._state.real, self._state.imag])
         states = np.squeeze(states, axis=-1)
         return states
 
@@ -153,16 +174,29 @@ class QubitsEnvironment:
         self._state = new_state.copy()
 
 
-    def set_random_state(self):
-        """ Set the current state of the environment to a random pure state. """
-        self.state = self._construct_random_pure_state()
-
-
     def reset(self):
-        """ Set the current state of the environment to a disentangled state. """
+        """ Set the current state of the environment to a disentangled state.
+        Set the batch of previous actions taken in the environment to None.
+        Set the discount factor to its initial value.
+        """
         zero_state = np.zeros(shape=(self.batch_size, self.basis.Ns, 1), dtype=np.complex64)
         zero_state[:, 0] = 1.0
         self.state = zero_state
+
+
+    def set_random_state(self):
+        """ Set the current state to a batch of random pure states. """
+        self.reset()
+        self.state = self._construct_random_pure_states(self.batch_size)
+
+
+    def set_random_pack_state(self):
+        """ Set the current state of the environment to a batch of random pure
+        states, where every state is repeated @pack_size times.
+        """
+        self.reset()
+        pack = self._construct_random_pure_states(self.batch_size // self.pack_size)
+        self.state = np.tile(pack, (self.pack_size, 1, 1))
 
 
     def entropy(self):
@@ -272,49 +306,11 @@ class QubitsEnvironment:
         return self.state, self.reward(), self.disentangled()
 
 
-    # def _construct_operators(self):
-    #     basis = self.basis
-    #     no_checks=dict(check_symm=False, check_herm=False, check_pcon=False)
-
-    #     generators = []
-
-    #     # Single quibit gate generators
-    #     q = [[1.0, 0]]
-    #     for i in range(self.N):
-    #         q[0][1] = i
-    #         H_x = hamiltonian([['x', q]], [], basis=basis, **no_checks)
-    #         H_y = hamiltonian([['y', q]], [], basis=basis, **no_checks)
-    #         H_z = hamiltonian([['z', q]], [], basis=basis, **no_checks)
-    #         p = '%d ' % i
-    #         generators.append((p + 'x', H_x.toarray()))
-    #         generators.append((p + 'y', H_y.toarray()))
-    #         generators.append((p + 'z', H_z.toarray()))
-
-    #     if self.N > 1:
-    #         # Two-qubit gate generators
-    #         q = [[1.0, 0, 0]]
-    #         for t in combinations(range(self.N), 2):
-    #             q[0][1:] = t
-    #             H_xx = hamiltonian([['xx', q]], [], basis=basis, **no_checks)
-    #             H_yy = hamiltonian([['yy', q]], [], basis=basis, **no_checks)
-    #             H_zz = hamiltonian([['zz', q]], [], basis=basis, **no_checks)
-    #             p = '%d %d ' % t
-    #             generators.append((p + 'xx', H_xx.toarray()))
-    #             generators.append((p + 'yy', H_yy.toarray()))
-    #             generators.append((p + 'zz', H_zz.toarray()))
-
-    #     # What about more than two-gate generators?
-    #     #
-    #     idx_to_name = {}
-    #     name_to_idx = {}
-    #     operators = []
-    #     for i, (name, H) in enumerate(generators):
-    #         idx_to_name[i] = name
-    #         name_to_idx[name] = i
-    #         operators.append(H)
-    #     self.operator_to_idx = name_to_idx
-    #     self.idx_to_operator = idx_to_name
-    #     self.operators = np.array(operators)
+    def step2(self, actions, angle=None):
+        next_state = self.next_state(actions, angle)
+        reward = self.RewardDifferences(next_state, self._state, self.basis, self.epsi)
+        self._state = next_state
+        return next_state, reward, self.disentangled()
 
 
     def _construct_operators(self, q=2):
@@ -365,17 +361,18 @@ class QubitsEnvironment:
         return U
 
 
-    def _construct_random_pure_state(self):
+    def _construct_random_pure_states(self, batch_size):
+        """ Construct a batch of size @batch_size of random pure states. """
         N = self.basis.Ns
-        batch = self.batch_size
-        real = np.random.uniform(-1, 1, (batch, N, 1)).astype(np.float32)
-        imag = np.random.uniform(-1, 1, (batch, N, 1)).astype(np.float32)
+        real = np.random.uniform(-1, 1, (batch_size, N, 1)).astype(np.float32)
+        imag = np.random.uniform(-1, 1, (batch_size, N, 1)).astype(np.float32)
         s = real + 1j * imag
         norm = np.linalg.norm(s, axis=1, keepdims=True)
         return s / norm
 
 
     def set_bellman_state(self):
+        self.reset()
         bellman_state = np.array([1/np.sqrt(2), 0, 0, 1/np.sqrt(2)])
         bellman_state = np.tile(bellman_state, (self.batch_size, 1))
         bellman_state = np.expand_dims(bellman_state, axis=-1)

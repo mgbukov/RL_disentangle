@@ -1,7 +1,7 @@
-import numpy as np
 import time
-import torch
 
+import numpy as np
+import torch
 
 from envs.batched_env import QubitsEnvironment
 from policies.fcnn_policy import FCNNPolicy
@@ -25,35 +25,36 @@ def main():
     num_qubits = 2
     epsi = 1e-3
     num_trajectories = 256
-    env = QubitsEnvironment(num_qubits, epsi, num_trajectories)
+    num_repetitions = 1
+    env = QubitsEnvironment(num_qubits, epsi=epsi, batch_size=num_trajectories, pack_size=num_repetitions)
 
     # Initialize the policy.
-    num_episodes = 10
-    steps = 10
-    learning_rate = 1e-5
-    reg = 1e-5
-    dropout_rate = 0.3
-    policy = FCNNPolicy(2 ** (num_qubits + 1), [256, 256], env.num_actions, dropout_rate)
+    input_size = 2 ** (num_qubits + 1)
+    hidden_dims = [2048, 2048]
+    output_size = env.num_actions
+    dropout_rate = 0.0
+    policy = FCNNPolicy(input_size, hidden_dims, output_size, dropout_rate)
 
     # Train the policy-gradient agent.
-    policy_save_path = "fcnn_policy.bin"
+    num_episodes = 2500
+    steps = 3
+    learning_rate = 1e-4
+    lr_decay = 0.95
+    reg = 0.0
+    log_every = 100
+    verbose = True
+    policy_save_path = "bin/vanilla_pg_final.bin"
     agent = PGAgent(env, policy)
-    agent.train(num_episodes, steps, learning_rate, reg)
+    agent.train(num_episodes, steps, learning_rate, lr_decay, reg, log_every, verbose)
+    agent.policy.save(policy_save_path)
 
     # Test the model.
-    num_test = 10
-    solved = 0
-    for i in range(num_test):
-        agent.env.set_random_state()
-        states, actions, rewards, done = agent.rollout(10, greedy=True)
-        solved += sum(done[:,-1])
-    solved = solved.item()
-    print("Solved states: %d / %d = %.3f %%" % (solved, num_test*num_trajectories,
-        solved/(num_test*num_trajectories)*100))
+    num_test = 1000
+    agent.test_accuracy(num_test, steps)
 
 
 if __name__ == "__main__":
     tic = time.time()
     main()
     toc = time.time()
-    print("Training took %.3f seconds" % (toc-tic))
+    print("Training took {:.3f} seconds".format(toc-tic))
