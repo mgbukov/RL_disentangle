@@ -1,6 +1,4 @@
-import numpy as np
 import torch
-import torch.nn.functional as F
 
 
 class BaseAgent:
@@ -59,7 +57,7 @@ class BaseAgent:
                 rewards.permute(1, 0), done.permute(1, 0))
 
 
-    def test_accuracy(self, steps, num_test):
+    def test_accuracy(self, num_test, steps):
         """ Test the accuracy of the agent using @num_test simulation rollouts.
 
         @param num_test (int): Number of simulations to test the agent.
@@ -72,14 +70,14 @@ class BaseAgent:
             self.env.set_random_state()
             states, actions, rewards, done = self.rollout(steps, greedy=True)
             solved += sum(done[:,-1])
-            entropies[i] = rewards[:, -1]
+            entropies[i] = - rewards[:, -1] * torch.log(torch.FloatTensor([2.]))
 
         self.logger.logTxt("##############################")
         self.logger.logTxt("Testing agent accuracy...")
         self.logger.logTxt("Solved states: {} / {} = {:.3f}%".format(
             solved, num_test*self.env.batch_size, solved/(num_test*self.env.batch_size)*100))
-        self.logger.logTxt("95%% entropy: {}".format(
-            np.percentile(entropies.reshape(-1).cpu().numpy(), 95)))
+        self.logger.logTxt("95 percentile entropy: {:.5f}".format(
+            torch.quantile(entropies.reshape(-1), 0.95)))
         self.logger.logTxt("##############################")
 
 #
