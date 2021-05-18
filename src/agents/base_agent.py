@@ -66,21 +66,20 @@ class BaseAgent:
         @param steps (int): Number of steps to rollout the policy during simulation.
         """
         solved = 0
-        entropies = np.zeros(size=(num_test, self.env.batch_size))
+        entropies = torch.zeros(size=(num_test, self.env.batch_size))
 
         for i in range(num_test):
             self.env.set_random_state()
             states, actions, rewards, done = self.rollout(steps, greedy=True)
             solved += sum(done[:,-1])
             entropies[i] = rewards[:, -1]
-        solved = solved.item()
-        entropies = entropies.reshape(-1)
 
         self.logger.logTxt("##############################")
         self.logger.logTxt("Testing agent accuracy...")
         self.logger.logTxt("Solved states: {} / {} = {:.3f}%".format(
             solved, num_test*self.env.batch_size, solved/(num_test*self.env.batch_size)*100))
-        self.logger.logTxt("95%% entropy: {}".format(np.percentile(entropies, 95)))
+        self.logger.logTxt("95%% entropy: {}".format(
+            np.percentile(entropies.reshape(-1).cpu().numpy(), 95)))
         self.logger.logTxt("##############################")
 
 #

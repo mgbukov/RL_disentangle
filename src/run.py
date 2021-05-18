@@ -36,7 +36,7 @@ def main():
     policy = FCNNPolicy(input_size, hidden_dims, output_size, dropout_rate)
 
     # Train the policy-gradient agent.
-    num_episodes = 2500
+    num_episodes = 100
     steps = 3
     learning_rate = 1e-4
     lr_decay = 0.95
@@ -58,3 +58,5 @@ if __name__ == "__main__":
     main()
     toc = time.time()
     print("Training took {:.3f} seconds".format(toc-tic))
+
+#
