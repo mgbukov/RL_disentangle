@@ -1,11 +1,13 @@
 from itertools import combinations
 from itertools import product
+import time
 
 import numpy as np
 from quspin.basis import spin_basis_1d
 from quspin.operators import hamiltonian
 from scipy.optimize import minimize
 from scipy.sparse.linalg import expm
+from scipy.stats import unitary_group
 
 
 class QubitsEnvironment:
@@ -46,11 +48,21 @@ class QubitsEnvironment:
 
 
     @classmethod
-    def Reward(cls, states, basis, epsi=1e-5):
+    def MixEntropy(cls, states, basis):
+        """
+        """
+        N = basis.N
+        entropies = [cls.Entropy(states, basis, sub_sys=[i,]) for i in range(N)]
+        entropies = np.vstack(entropies).mean(axis=0)
+        return entropies
+
+
+    @classmethod
+    def Reward(cls, states, basis, epsi=1e-5, reward_func=None):
         """
         Return the immediate reward on transition to state ``state``.
         The reward is calculated as the negative logarithm of the entropy.
-        The choice depends on the fact that the reward increases exponentialy,
+        The choice depends on the fact that the reward increases exponentially,
         when the entropy approaches 0, and thus encouraging the agent to
         disentangle the state.
 
@@ -65,30 +77,46 @@ class QubitsEnvironment:
         numpy.ndarray
         """
         # TODO :
-        # What are possible/optimal choices for state_space, reward_space,action_space?
+        # What are possible/optimal choices for state_space, reward_space, action_space?
         # Choose the reward function here.
 
         # Compute the entropy of a system by considering each individual qubit as a
-        # sub-system. Evaluate the reward as the negative maximum sub-system entropy.
+        # sub-system. Evaluate the reward as the negative log of the mean sub-system entropy.
         N = basis.N
         entropies = [cls.Entropy(states, basis, sub_sys=[i,]) for i in range(N)]
-        entropies = np.vstack(entropies).max(axis=0)
+        entropies = np.vstack(entropies).mean(axis=0)
         entropies = np.maximum(entropies, epsi)
-        rewards = -(entropies / np.log(2))
+
+        if reward_func == "-1+1":
+            rewards = 2 * np.array(cls.Disentangled(states, basis, epsi), dtype=np.float32) - 1.0
+        if reward_func == "log_entropy":
+            rewards = np.log(epsi / entropies)
+        if reward_func == "-entropy":
+            rewards = - entropies / np.log(2)
+        if reward_func == "log_1-entropy":
+            rewards = np.log(1 - entropies/np.log(2))
+        if reward_func == "log_log_1-entropy":
+            rewards = -np.log(-np.log(1-entropies/np.log(2)))
+
+
+        if reward_func == None:
+            rewards = -np.log(-np.log(1-entropies/np.log(2)))
+
+
         return rewards
 
     @classmethod
     def RewardDifferences(cls, states, prev_states, basis, epsi=1e-5):
         N = basis.N
         entropies = [cls.Entropy(states, basis, sub_sys=[i,]) for i in range(N)]
-        entropies = np.vstack(entropies).max(axis=0)
+        entropies = np.vstack(entropies).mean(axis=0)
         entropies = np.maximum(entropies, epsi)
 
         old_entropies = [cls.Entropy(prev_states, basis, sub_sys=[i,]) for i in range(N)]
-        old_entropies = np.vstack(old_entropies).max(axis=0)
+        old_entropies = np.vstack(old_entropies).mean(axis=0)
         old_entropies = np.maximum(old_entropies, epsi)
 
-        rewards = (entropies - old_entropies) / np.log(2)
+        rewards = (old_entropies - entropies) / old_entropies
         return rewards
 
 
@@ -112,7 +140,7 @@ class QubitsEnvironment:
         return cls.Entropy(states, basis) <= epsi
 
 
-    def __init__(self, num_qubits=2, epsi=1e-4, batch_size=1, pack_size=1):
+    def __init__(self, num_qubits=2, epsi=1e-4, batch_size=1, gamma=1.0, reward_func=None):
         """
         Initialize a multi-Qubit system RL environment.
 
@@ -124,16 +152,18 @@ class QubitsEnvironment:
             Threshold bellow which the system is considered disentangled
         batch_size : int
             Number of states simultaneously represented by the environment.
-        pack_size : int
-            Number of state copies in the batch.
+        gamma : float
+            Discount factor.
         """
         assert num_qubits >= 2
-        assert batch_size % pack_size == 0
         self.N = int(num_qubits)
         self.batch_size = batch_size
-        self.pack_size = pack_size
         self.epsi = epsi
         self.basis = spin_basis_1d(num_qubits)
+        self._gamma_init = gamma
+        self._gamma = gamma
+
+        self.reward_func = reward_func
 
         # The shape of the environment state is (batch_size, system_size, 1)
         # The shape of the stack of gates used to transition the environment
@@ -176,27 +206,31 @@ class QubitsEnvironment:
 
     def reset(self):
         """ Set the current state of the environment to a disentangled state.
-        Set the batch of previous actions taken in the environment to None.
         Set the discount factor to its initial value.
         """
         zero_state = np.zeros(shape=(self.batch_size, self.basis.Ns, 1), dtype=np.complex64)
         zero_state[:, 0] = 1.0
         self.state = zero_state
+        self._gamma = self._gamma_init
 
 
-    def set_random_state(self):
-        """ Set the current state to a batch of random pure states. """
-        self.reset()
-        self.state = self._construct_random_pure_states(self.batch_size)
-
-
-    def set_random_pack_state(self):
-        """ Set the current state of the environment to a batch of random pure
-        states, where every state is repeated @pack_size times.
+    def set_random_state(self, batch_mode=False):
+        """ Set the current state to a batch of random pure states.
+        When in `batch_mode`, all states in the batch are the same.
         """
         self.reset()
-        pack = self._construct_random_pure_states(self.batch_size // self.pack_size)
-        self.state = np.tile(pack, (self.pack_size, 1, 1))
+        if batch_mode:
+            sstate = self._construct_random_pure_states(1)
+            self.state = np.tile(sstate, (self.batch_size, 1, 1))
+        else:
+            self.state = self._construct_random_pure_states(self.batch_size)
+        self._phase_norm()
+
+
+    def set_unitary_random_state(self):
+        self.reset()
+        self.state = self._construct_random_unitary_pure_state()
+        self._phase_norm()
 
 
     def entropy(self):
@@ -211,7 +245,7 @@ class QubitsEnvironment:
 
     def reward(self):
         """ Returns the immediate reward on transitioning to the current state. """
-        return self.Reward(self._state, self.basis, self.epsi)
+        return self.Reward(self._state, self.basis, self.epsi, self.reward_func)
 
 
     def next_state(self, actions, angle=None):
@@ -237,13 +271,20 @@ class QubitsEnvironment:
         assert len(actions) == self.batch_size
         gates = []
         angles = []
+
+        step_time = 0.0
         for i in range(self.batch_size):
             U = self._unitary_gate_factory(actions[i])
             if angle is None:
                 # Compute the optimal angle of rotation for the selected quantum gate.
                 alpha_0 = np.pi / np.exp(1)
-                F = lambda angle, U: self.Entropy(np.matmul(U(angle), self._state[np.newaxis, i]), self.basis)[0]
+                F = lambda angle, U: self.MixEntropy(np.matmul(U(angle), self._state[np.newaxis, i]), self.basis)[0]
+
+                ####
+                tic = time.time()
                 res = minimize(F, alpha_0, args=(U,), method="Nelder-Mead", tol=self.epsi)
+                toc = time.time()
+                step_time += (toc-tic)
                 if res.success:
                     angle = res.x[0]
                 else:
@@ -253,6 +294,9 @@ class QubitsEnvironment:
             gates.append(U(angle))
             angles.append(angle)
             angle = None
+
+        step_time /= self.batch_size
+        # print("one step takes:", step_time)
         gates = np.vstack(gates)
         return np.matmul(gates, self._state)
 
@@ -303,6 +347,7 @@ class QubitsEnvironment:
         (new_state, reward, done) tuple
         """
         self._state = self.next_state(actions, angle)
+        self._phase_norm()
         return self.state, self.reward(), self.disentangled()
 
 
@@ -371,11 +416,75 @@ class QubitsEnvironment:
         return s / norm
 
 
+    def _construct_random_unitary_pure_state(self):
+        """
+        """
+        N = self.basis.Ns
+        k, r = divmod(self.batch_size, N)
+        s = [unitary_group.rvs(N).astype(np.complex64) for i in range(k)]
+        s.append(unitary_group.rvs(N).astype(np.complex64)[:r])
+        s = np.vstack(s)
+        s = s[:, :, np.newaxis]
+        return s
+
+
     def set_bellman_state(self):
         self.reset()
         bellman_state = np.array([1/np.sqrt(2), 0, 0, 1/np.sqrt(2)])
         bellman_state = np.tile(bellman_state, (self.batch_size, 1))
         bellman_state = np.expand_dims(bellman_state, axis=-1)
         self.state = bellman_state
+
+
+    @classmethod
+    def compute_best_path_single_state(cls, num_qubits, epsi, state, steps=None):
+        env = cls(num_qubits, batch_size=1, epsi=epsi)
+        env.state = state
+        frontier = [{"path":[], "state":env._state.copy()}]
+        result = []
+        done = False
+        # for i in range(steps):
+        it = 0
+        while True:
+            new_frontier = []
+            for d in frontier:
+                path = d["path"]
+                st = d["state"]
+                env.state = st
+                if env.disentangled():
+                    # path.extend([-1] * (steps-i)) #????
+                    result.append(path)
+                    done = True
+                    continue
+                if not done:
+                    for a in range(env.num_actions):
+                        next_st = env.next_state([a])
+                        new_path = path.copy()
+                        new_path.append(a)
+                        new_frontier.extend([{"path":new_path, "state":next_st}])
+            frontier = new_frontier
+            if done:
+                break
+
+            it += 1
+            if steps is not None and it > steps:
+                break
+        
+        return result, done
+
+
+    def compute_best_path(self, steps=None, batch_mode=False):
+        res = []
+        for st in self._state:
+            result, done = self.compute_best_path_single_state(self.N, self.epsi, st[np.newaxis], steps)
+            res.append({"paths":result, "success":done})
+        return res
+
+
+    def _phase_norm(self):
+        st = self._state.copy().astype(np.complex128)
+        phi = np.angle(st[:, 0])
+        z = np.expand_dims(np.cos(phi) - 1j * np.sin(phi), axis=1)
+        self.state = st * z
 
 #

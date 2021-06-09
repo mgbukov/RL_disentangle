@@ -1,9 +1,7 @@
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
-from policies.base_policy import BasePolicy
+from src.policies.base_policy import BasePolicy
 
 
 class FCNNPolicy(nn.Module, BasePolicy):
@@ -61,11 +59,11 @@ class FCNNPolicy(nn.Module, BasePolicy):
         """ Take a mini-batch of environment states and compute scores over
         the possible actions.
 
-        @param x (Tensor): Tensor of shape (b, q), or (b, t, q), giving the
+        @param x (torch.Tensor): Tensor of shape (b, q), or (b, t, q), giving the
                 current state of the environment, where
                 b = batch size, t = number of time steps,
                 q = size of the quantum system (2 ** num_qubits).
-        @return out (Tensor): Tensor of shape (batch_size, num_actions), or
+        @return out (torch.Tensor): Tensor of shape (batch_size, num_actions), or
                 (batch_size, time_steps, num_actions), giving a score to
                 every action from the action space.
         """

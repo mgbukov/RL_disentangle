@@ -1,11 +1,12 @@
+from collections import defaultdict
 import time
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
-from agents.base_agent import BaseAgent
-from utils.logger import FileLogger
+from src.agents.base_agent import BaseAgent
+from src.utils.logger import Logger
 
 
 class PGAgent(BaseAgent):
@@ -13,7 +14,7 @@ class PGAgent(BaseAgent):
     The agent uses vanilla policy gradient update to improve its policy.
     """
 
-    def __init__(self, env, policy):
+    def __init__(self, env, policy, log_dir="logs"):
         """ Initialize policy gradient agent.
 
         @param env (QubitsEnvironment object): Environment object.
@@ -22,96 +23,206 @@ class PGAgent(BaseAgent):
         self.env = env
         self.policy = policy
         self.train_history = {}
-        self.logger = FileLogger("logs", "log_final.txt")
+        self.test_history = defaultdict(lambda : [])
+        self.logger = Logger(log_dir)
 
 
-    @torch.no_grad()
+    def sum_to_go(self, t):
+        """ Sum-to-go returns the sum of the values starting from the current
+        index. Given an array `arr = {a_0, a_1, ..., a_(T-1)}` the sum-to-go is
+        an array `s` such that:
+            `s[0] = a_0 + a_1 + ... + a_(T-1)`
+            `s[1] = a_1 + ... + a_(T-1)`
+            ...
+            `s[i] = a_i + a_(i+1) + ... + a_(T-1)`
+
+        @param t (torch.Tensor): Tensor of shape (N1, N2, ..., Nk, steps),
+                where the values to be summed are along the last dimension.
+        @return sum_to_go (torch.Tensor): Tensor of shape (N1, N2, ..., Nk, steps)
+        """
+        return t + torch.sum(t, keepdims=True, dim=-1) - torch.cumsum(t, dim=-1)
+
+
     def reward_to_go(self, rewards):
-        return rewards + torch.sum(rewards, keepdims=True, dim=1) - torch.cumsum(rewards,dim=1)
-
-
-    @torch.no_grad()
-    def reward_baseline(self, rewards, done):
-        """ Compute the baseline as the average return at time-step t.
+        """ Compute the reward-to-go at every timestep t.
+        "Don't let the past destract you"
+        Taking a step with the gradient pushes up the log-probabilities of each
+        action in proportion to the sum of all rewards ever obtained. However,
+        agents should only reinforce actions based on rewards obtained after
+        they are taken.
+        Check out https://spinningup.openai.com/en/latest/spinningup/extra_pg_proof1.html
 
         @param rewards (torch.Tensor): Tensor of shape (batch_size, steps),
                 containing the rewards obtained at every step.
-        @param done (torch.Tensor): Tensor of shape (batch_size, steps).
+        @return reward_to_go (torch.Tensor): Tensor of shape (batch_size, steps).
         """
-        return torch.mean(self.reward_to_go(rewards), dim=0, keepdim=True)
+        return self.sum_to_go(rewards)
 
 
-    def train(self, num_episodes, steps, learning_rate, lr_decay=1.0, reg=0.0,
-              log_every=1, verbose=False):
+    def reward_baseline(self, rewards, mask=None):
+        """ Compute the baseline as the average return at timestep t.
+
+        The baseline is usually computed as the mean total return.
+            `b = E[sum(r_1, r_2, ..., r_t)]`
+        Subtracting the baseline from the total return has the effect of
+        centering the return, giving positive values to good trajectories and
+        negative values to bad trajectories.
+        However, when using reward-to-go, subtracting the mean total return
+        won't have the same effect. The most common choice of baseline is the
+        value function V(s_t). An approximation of V(s_t) is computed as the
+        mean reward-to-go.
+            `b[i] = E[sum(r_i, r_(i+1), ..., r_T)]`
+
+        @param rewards (torch.Tensor): Tensor of shape (batch_size, steps),
+                containing the rewards obtained at every step.
+        @param mask (torch.Tensor): Boolean tensor of shape (batch_size, steps),
+                that masks out the part of the trajectory after it has finished.
+        @return baseline (torch.Tensor): Tensor of shape (batch_size, steps),
+                giving the baseline term for every timestep.
+        """
+        if mask is None:
+            result = torch.mean(self.reward_to_go(rewards), dim=0, keepdim=True)
+        else:
+            result = torch.sum(self.reward_to_go(rewards), dim=0) / torch.maximum(torch.sum(mask, dim=0), torch.Tensor([1]))
+        return result
+        # if mask is None:
+        #     mask = torch.ones_like(rewards)
+        # return torch.sum(self.reward_to_go(rewards), dim=0) / torch.sum(mask, dim=0)
+
+
+    def entropy_term(self, logits, actions):
+        """ Compute the entropy regularization term.
+        Check out https://arxiv.org/pdf/1805.00909.pdf
+
+        @param logits (torch.Tensor): Tensor of shape (batch_size, steps, num_act),
+                giving the logits for every action at every time step.
+        @param actions (torch.Tensor): Tensor of shape (b, t), giving the actions
+                selected by the policy during rollout.
+        @return entropy_term (torch.Tensor): Tensor of shape (b, t), giving the
+                entropy regularization term for every timestep.
+        """
+        # log_probs = F.log_softmax(logits, dim=-1)
+        # https://medium.com/analytics-vidhya/understanding-indexing-with-pytorch-gather-33717a84ebc4
+        # ent = log_probs.gather(index=actions.unsqueeze(dim=2), dim=2).squeeze(dim=2)
+        ent = - F.cross_entropy(logits.permute(0,2,1), actions, reduction="none")
+        return - 0.5 * self.sum_to_go(ent)
+
+
+    def entropy_term_bukov(self, logits):
+        log_probs = F.log_softmax(logits, dim=-1)
+        return 0.5 * torch.mean(torch.sum(log_probs**2, dim=(1,2)))
+
+
+    def train(self, num_episodes, steps, learning_rate, lr_decay=1.0, clip_grad=10.0,
+              reg=0.0, entropy_reg=0.0, log_every=1, test_every=100, verbose=False,
+              initial_states=None, batch_mode=False):
         """ Train the agent using vanilla policy-gradient algorithm.
 
         @param num_episodes (int): Number of episodes to train the agent for.
         @param steps (int): Number of steps to rollout the policy for.
         @param learning_rate (float): Learning rate for gradient decent.
         @param lr_decay (float): Multiplicative factor of learning rate decay.
+        @param clip_grad (float): Threshold for gradient norm during backpropagation.
         @param reg (float): L2 regularization strength.
+        @param entropy_reg (float): Entropy regularization strength.
         @param log_every (int): Every @log_every iterations write the results
                 to the log file.
-        @param verbose (bool): If true, prinout logging information.
+        @param verbose (bool): If true, printout logging information.
+        @param initial_states (np.array): Numpy array giving the initial state of the
+                environment. If None, start at random initial states. (exploring starts)
+        @param batch_mode (bool): When in `batch_mode`, all states in the batch are the same.
         """
+        self.log_every = log_every
+        self.steps = steps
+
+        self.logger.setLogTxtFilename("test_history.txt")
+        self.logger.setLogTxtFilename("train_history.txt")
+        self.logger.verboseTxtLogging(verbose)
+
+        # Log hyperparameters information.
+        self.logger.logTxt("##############################")
+        self.logger.logTxt("Training parameters:")
+        self.logger.logTxt("  Number of trajectories:   {}".format(self.env.batch_size))
+        self.logger.logTxt("  Number of episodes:       {}".format(num_episodes))
+        self.logger.logTxt("  Learning rate:            {}".format(learning_rate))
+        self.logger.logTxt("  Final learning rate:      {}".format(
+            round(learning_rate * (lr_decay ** num_episodes), 7)))
+        self.logger.logTxt("  Weight regularization:    {}".format(reg))
+        self.logger.logTxt("  Entropy regularization:   {}".format(entropy_reg))
+        self.logger.logTxt("  Grad clipping threshold:  {}".format(clip_grad))
+        self.logger.logTxt("  Policy hidden dimensions: {}".format(self.policy.hidden_sizes))
+        self.logger.logTxt("  Policy dropout rate:      {}".format(self.policy.dropout_rate))
+
+        # Move the neural network to device and prepare for training.
         self.policy.train()
-        device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-        self.logger.verboseLogging(verbose)
-        self.logger.logTxt("Using device: {}".format(device))
+        # device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        device = torch.device("cpu")
+        self.logger.logTxt("\nUsing device: {}\n".format(device))
         self.policy = self.policy.to(device)
 
         # Initialize the optimizer and the scheduler.
         optimizer = torch.optim.Adam(self.policy.parameters(), lr=learning_rate, weight_decay=reg)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=lr_decay)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=lr_decay)
+        self.logger.logTxt("Using optimizer:\n{}\n".format(str(optimizer)))
 
-        trajects = self.env.batch_size   # number of trajectories
+        # Start the training loop.
         for i in range(num_episodes):
             tic = time.time()
 
-            # Perform policy roll-out.
+            # Set the initial state and perform policy roll-out.
             self.env.set_random_state()
             states, actions, rewards, done = self.rollout(steps)
+            mask = ~torch.cat((done[:, 0:1], done[:, 1:] & done[:, :-1]), dim=1)
 
             # Compute the loss.
-            q_values = self.reward_to_go(rewards) - self.reward_baseline(rewards, done)
             logits = self.policy(states)
-            logits = self.policy.mask_logits(logits, actions)
             nll = F.cross_entropy(logits.permute(0,2,1), actions, reduction="none")
-            weighted_nll = torch.mul(nll, q_values)
+            q_values = self.reward_to_go(rewards) + entropy_reg * self.entropy_term(logits, actions)
+            q_values = q_values - self.reward_baseline(q_values, mask)
+            weighted_nll = torch.mul(mask * nll, q_values)
             loss = torch.mean(torch.sum(weighted_nll, dim=1))
 
             # Perform backward pass.
             optimizer.zero_grad()
             loss.backward()
-            # torch.nn.utils.clip_grad_norm_(self.policy.parameters(), 1.0)
+            total_norm = torch.norm(torch.stack([torch.norm(p.grad) for p in self.policy.parameters()]))
+            torch.nn.utils.clip_grad_norm_(self.policy.parameters(), clip_grad)
             optimizer.step()
             scheduler.step()
 
             # Book-keeping.
-            entropies = self.env.entropy()
             self.train_history[i] = {
-                "entropy": (entropies.min(), entropies.max(), entropies.mean(), entropies.std()),
-                "states" : states.cpu().numpy(),
-                "loss" : loss.item(),
-                "nsteps" : np.argmax(done.cpu().numpy(), axis=1) + 1
+                "entropy"       : self.env.entropy().tolist(),
+                # "states"        : states.cpu().numpy().tolist(),
+                "rewards"       : rewards.cpu().numpy().tolist(),
+                "loss"          : loss.item(),
+                "total_norm"    : total_norm.cpu().numpy().tolist(),
+                "nsolved"       : sum(done[:, -1]).cpu().numpy().tolist(),
+                "nsteps"        : (np.argmax(done.cpu().numpy(), axis=1) + 1).tolist(),
             }
 
             toc = time.time()
 
             # Log results to file.
-            if (i + 1) % log_every == 0:
+            if i == 0 or (i+1) % log_every == 0:
                 self.logger.logTxt("Episode ({}/{}) took {:.3f} seconds.".format(
                     i + 1, num_episodes, (toc-tic)))
-                self.logger.logTxt("  Mean final reward: {:.4f}".format(
-                    torch.mean(rewards[:,-1])))
-                self.logger.logTxt("  Mean return: {:.4f}".format(
-                    torch.mean(torch.sum(rewards, dim=1), dim=0)))
-                self.logger.logTxt("  Mean final entropy: {:.4f}".format(entropies.mean()))
-                self.logger.logTxt("  Max final entropy: {:.4f}".format(entropies.max()))
-                self.logger.logTxt("  Pseudo loss: {:.5f}".format(loss))
-                self.logger.logTxt("  Solved trajectories: {} / {}".format(
-                    sum(done[:, -1]).item(), trajects))
-                self.logger.logTxt("  Avg steps to disentangle: {:.3f}".format(
-                    (np.argmax(done.cpu().numpy(), axis=1) + 1).mean()))
+                self.log_train_statistics(i)
+                probs = F.softmax(logits, dim=-1)
+                print("Timestep {}\nprobs: {}\n{}\n{}".format((i+1), probs[0][0], probs[0][1], probs[0][2]))
+
+            # Test the agent.
+            if i == 0 or (i+1) % test_every == 0:
+                self.logger.setLogTxtFilename("test_history.txt", append=True)
+                self.logger.logTxt("\n\niteration {}".format(i+1))
+                self.log_test_accuracy(num_test=10, steps=steps)
+                self.log_test_accuracy(num_test=10, steps=steps+1)
+                self.log_test_accuracy(num_test=10, steps=steps+2)
+                self.logger.setLogTxtFilename("train_history.txt", append=True)
+
+        self.plot_training_curves()
+        self.plot_distribution()
+        self.save_history()
+        self.save_policy()
 
 #

@@ -13,25 +13,27 @@ class BasePolicy:
 
 
     @torch.no_grad()
-    def get_action(self, state, disallowed=None, greedy=False):
+    def get_action(self, state, disallowed=None, greedy=False, beta=1.0):
         """ Return the action selected by the policy.
-        Using the scores returned by the network compute a probability
+        Using the scores returned by the network compute a boltzmann probability
         distribution over the actions from the action space. Select the next
         action probabilistically, or deterministically returning the action
         with the highest probability.
 
-        @param state (Tensor): Tensor of shape (batch_size, system_size),
+        @param state (torch.Tensor): Tensor of shape (batch_size, system_size),
                 giving the current state of the environment.
-        @param disallowed (Tensor): Tensor of shape (batch_size,),
+        @param disallowed (torch.Tensor): Tensor of shape (batch_size,),
                 giving the disallowed actions of the agent.
         @param greedy (bool): If true, select the next action deterministically.
                 If false, select the next action probabilistically.
-        @return acts (Tensor): Tensor of shape (batch_size,), giving
+        @param beta (float): Inverse value of the temperature for the boltzmann
+                distribution.
+        @return acts (torch.Tensor): Tensor of shape (batch_size,), giving
                 actions selected by the policy for every state of the batch.
         """
         state = state.to(self.device)
-        logits = self(state)
-        logits = self.mask_logits(logits, disallowed)
+        logits = self(state) * beta
+        # logits = self.mask_logits(logits, disallowed)
         probs = F.softmax(logits, dim=-1)
         if greedy:
             acts = torch.argmax(probs, dim=1, keepdim=True)
@@ -50,12 +52,12 @@ class BasePolicy:
         the shape of @logits equals the shape of @disallowed. In this case the
         disallowed actions at step ``i`` refer to the logits at step ``i+1``.
 
-        @param logits (Tensor): Tensor of shape (b, n), or (b, t, n), giving
-                the logits output of the policy network, where
+        @param logits (torch.Tensor): Tensor of shape (b, n), or (b, t, n),
+                giving the logits output of the policy network, where
                 b = batch size, t = number of time steps, n = number of actions.
-        @param disallowed (Tensor): Tensor of shape (b,), or (b, t), giving the
-                disallowed actions of the agent.
-        @return logits (Tensor):  Tensor of shape (b, n), or (b, t, n).
+        @param disallowed (torch.Tensor): Tensor of shape (b,), or (b, t),
+                giving the disallowed actions of the agent.
+        @return logits (torch.Tensor):  Tensor of shape (b, n), or (b, t, n).
         """
         if disallowed is not None:
             assert logits.shape[:-1] == disallowed.shape, "`logits` and `disallowed` must be of the same shape"
