@@ -6,12 +6,13 @@ from quspin.operators import hamiltonian # Hamiltonians and operators
 from quspin.basis import spin_basis_general # Hilbert space spin basis
 import numpy as np # generic math functions
 from scipy.sparse.linalg import expm
+from scipy.linalg import logm
 
 # fix seed of RNG for reproducibility
 seed=9
 np.random.seed(seed)
 
-np.set_printoptions(precision=2,suppress=True,) # print two decimals, suppress scientific notation
+np.set_printoptions(precision=6,suppress=True,) # print two decimals, suppress scientific notation
 
 ########################################
 
@@ -53,10 +54,17 @@ H_Iz=hamiltonian([['z',qubit_1],],[],basis=basis,**no_checks)
 # define two-qubit/entangling gates
 qubit_01=[[1.0,0,1]]
 H_xx=hamiltonian([['xx',qubit_01],],[],basis=basis,**no_checks)
+H_xy=hamiltonian([['xy',qubit_01],],[],basis=basis,**no_checks)
+H_xz=hamiltonian([['xz',qubit_01],],[],basis=basis,**no_checks)
+
+H_yx=hamiltonian([['yx',qubit_01],],[],basis=basis,**no_checks)
 H_yy=hamiltonian([['yy',qubit_01],],[],basis=basis,**no_checks)
+H_yz=hamiltonian([['yz',qubit_01],],[],basis=basis,**no_checks)
+
+H_zx=hamiltonian([['zx',qubit_01],],[],basis=basis,**no_checks)
+H_zy=hamiltonian([['zy',qubit_01],],[],basis=basis,**no_checks)
 H_zz=hamiltonian([['zz',qubit_01],],[],basis=basis,**no_checks)
 
-H_xz=hamiltonian([['xz',qubit_01],],[],basis=basis,**no_checks)
 
 
 # define gates
@@ -95,10 +103,35 @@ psi_new = U_Iy.dot(psi)
 #psi_new = U_xx.dot(psi)
 
 
+bell_1 = np.array([0.0,1.0,+1.0,0.0])/np.sqrt(2)
+bell_2 = np.array([0.0,1.0,-1.0,0.0])/np.sqrt(2)
+bell_3 = np.array([1.0,0.0,0.0,+1.0])/np.sqrt(2)
+bell_4 = np.array([1.0,0.0,0.0,-1.0])/np.sqrt(2)
+
 #psi_new = np.array([0.0,1.0,-1.0,0.0])/np.sqrt(2)
+psi_new = np.array([1.0,0.0,0.0,1.0])/np.sqrt(2)
 
 rho_new = np.outer(psi_new, psi_new.T.conj())
+
+# rho_new = 0.25 * (np.outer(bell_1, bell_1.T.conj()) + \
+# 				  np.outer(bell_2, bell_2.T.conj()) + \
+# 				  np.outer(bell_3, bell_3.T.conj()) + \
+# 				  np.outer(bell_4, bell_4.T.conj())
+# 				 )
+
+
+rho_new = 0.1*np.outer(bell_1, bell_1.T.conj()) + 1*np.outer(bell_2, bell_2.T.conj()) + 1*np.outer(bell_3, bell_3.T.conj()) + 0.2*np.outer(bell_4, bell_4.T.conj()) 
+
+rho_new /= np.trace(rho_new)
+
+
+E = np.linalg.eigvalsh(rho_new)
+
+print(E)
+#exit()
+
 # print( rho_new )
+# exit()
 # print()
 
 #rho_rdm = rho_new.reshape(2,8) @ rho_new.reshape(2,8).T.conj()
@@ -157,6 +190,14 @@ def compute_Sent(angle,  H,psi):
 	Sent = basis.ent_entropy(psi_new,sub_sys_A=[0,],density=True,alpha=1.0)['Sent_A']
 	return Sent
 
+def compute_Sent_rho(angle,  H,rho):
+	U=expm(-1j*angle*H.toarray())
+	rho_new=U @ rho @ U.conj().T
+	Sent = basis.ent_entropy(rho_new,sub_sys_A=[0,],enforce_pure=False,density=True,alpha=1.0)['Sent_A']
+	return Sent
+
+
+
 angle_0=np.pi/np.exp(1) # initial condition for solver
 res = minimize(compute_Sent, angle_0, args=(H_zz,psi_new), method='Nelder-Mead', tol=1e-12)
 
@@ -187,28 +228,65 @@ U_rot_yI = expm( +1j * np.pi/4 * (H_yI).toarray() )
 # print(U_rot_y @ U_zz @ U_rot_y.conj().T)
 
 
-print('optimal angle:', alpha_opt(U_rot_yy @ rho_new @ U_rot_yy.conj().T), 
-						alpha_opt(U_rot_yy @ rho_new @ U_rot_yy.conj().T) + np.pi/2,
-						minimize(compute_Sent, angle_0, args=(H_xx,psi_new), method='Nelder-Mead', tol=1e-12).x[0],
-						minimize(compute_Sent, angle_0, args=(H_xx,psi_new), method='Nelder-Mead', tol=1e-12).fun
-						 )
+# print('optimal angle:', alpha_opt(U_rot_yy @ rho_new @ U_rot_yy.conj().T), 
+# 						alpha_opt(U_rot_yy @ rho_new @ U_rot_yy.conj().T) + np.pi/2,
+# 						minimize(compute_Sent, angle_0, args=(H_xx,psi_new), method='Nelder-Mead', tol=1e-12).x[0],
+# 						minimize(compute_Sent, angle_0, args=(H_xx,psi_new), method='Nelder-Mead', tol=1e-12).fun
+# 						 )
 
 
 
-print('optimal angle:', alpha_opt(U_rot_xx @ rho_new @ U_rot_xx.conj().T), 
-						alpha_opt(U_rot_xx @ rho_new @ U_rot_xx.conj().T) + np.pi/2,
-						minimize(compute_Sent, angle_0, args=(H_yy,psi_new), method='Nelder-Mead', tol=1e-12).x[0],
-						minimize(compute_Sent, angle_0, args=(H_yy,psi_new), method='Nelder-Mead', tol=1e-12).fun
-						 )
+# print('optimal angle:', alpha_opt(U_rot_xx @ rho_new @ U_rot_xx.conj().T), 
+# 						alpha_opt(U_rot_xx @ rho_new @ U_rot_xx.conj().T) + np.pi/2,
+# 						minimize(compute_Sent, angle_0, args=(H_yy,psi_new), method='Nelder-Mead', tol=1e-12).x[0],
+# 						minimize(compute_Sent, angle_0, args=(H_yy,psi_new), method='Nelder-Mead', tol=1e-12).fun
+# 						 )
 
 
-print('optimal angle:', alpha_opt(U_rot_yI @ rho_new @ U_rot_yI.conj().T), 
-						alpha_opt(U_rot_yI @ rho_new @ U_rot_yI.conj().T) + np.pi/2,
-						minimize(compute_Sent, angle_0, args=(H_xz,psi_new), method='Nelder-Mead', tol=1e-12).x[0],
-						minimize(compute_Sent, angle_0, args=(H_xz,psi_new), method='Nelder-Mead', tol=1e-12).fun
-						 )
+# print('optimal angle:', alpha_opt(U_rot_yI @ rho_new @ U_rot_yI.conj().T), 
+# 						alpha_opt(U_rot_yI @ rho_new @ U_rot_yI.conj().T) + np.pi/2,
+# 						minimize(compute_Sent, angle_0, args=(H_xz,psi_new), method='Nelder-Mead', tol=1e-12).x[0],
+# 						minimize(compute_Sent, angle_0, args=(H_xz,psi_new), method='Nelder-Mead', tol=1e-12).fun, 
+						
+# 	 )
 
 
+
+
+
+print('Sent (2qubit):', -np.trace( rho_new @ logm(rho_new)).real  )
+
+print('optimal Sent (1qubit):', '\n',
+					'xx:',	minimize(compute_Sent_rho, angle_0, args=(H_xx,rho_new), method='Nelder-Mead', tol=1e-12).fun, '\n',
+					'xy:',	minimize(compute_Sent_rho, angle_0, args=(H_xy,rho_new), method='Nelder-Mead', tol=1e-12).fun, '\n',
+					'xz:',	minimize(compute_Sent_rho, angle_0, args=(H_xz,rho_new), method='Nelder-Mead', tol=1e-12).fun, '\n',
+					'yx:',	minimize(compute_Sent_rho, angle_0, args=(H_yx,rho_new), method='Nelder-Mead', tol=1e-12).fun, '\n',
+					'yy:',	minimize(compute_Sent_rho, angle_0, args=(H_yy,rho_new), method='Nelder-Mead', tol=1e-12).fun, '\n',
+					'yz:',	minimize(compute_Sent_rho, angle_0, args=(H_yz,rho_new), method='Nelder-Mead', tol=1e-12).fun, '\n',
+					'zx:',	minimize(compute_Sent_rho, angle_0, args=(H_zx,rho_new), method='Nelder-Mead', tol=1e-12).fun, '\n',
+					'zy:',	minimize(compute_Sent_rho, angle_0, args=(H_zy,rho_new), method='Nelder-Mead', tol=1e-12).fun, '\n',
+					'zz:',	minimize(compute_Sent_rho, angle_0, args=(H_zz,rho_new), method='Nelder-Mead', tol=1e-12).fun, '\n',
+	 )
+
+alpha_min = minimize(compute_Sent_rho, angle_0, args=(H_xy,rho_new), method='Nelder-Mead', tol=1e-12).x[0]
+U_min = expm(-1j*alpha_min*H_xy.toarray())
+
+rho_new_2 = U_min @ rho_new @ U_min.conj().T
+
+print(rho_new_2)
+
+
+print('optimal Sent (1qubit):', '\n',
+					'xx:',	minimize(compute_Sent_rho, angle_0, args=(H_xx,rho_new_2), method='Nelder-Mead', tol=1e-12).fun, '\n',
+					'xy:',	minimize(compute_Sent_rho, angle_0, args=(H_xy,rho_new_2), method='Nelder-Mead', tol=1e-12).fun, '\n',
+					'xz:',	minimize(compute_Sent_rho, angle_0, args=(H_xz,rho_new_2), method='Nelder-Mead', tol=1e-12).fun, '\n',
+					'yx:',	minimize(compute_Sent_rho, angle_0, args=(H_yx,rho_new_2), method='Nelder-Mead', tol=1e-12).fun, '\n',
+					'yy:',	minimize(compute_Sent_rho, angle_0, args=(H_yy,rho_new_2), method='Nelder-Mead', tol=1e-12).fun, '\n',
+					'yz:',	minimize(compute_Sent_rho, angle_0, args=(H_yz,rho_new_2), method='Nelder-Mead', tol=1e-12).fun, '\n',
+					'zx:',	minimize(compute_Sent_rho, angle_0, args=(H_zx,rho_new_2), method='Nelder-Mead', tol=1e-12).fun, '\n',
+					'zy:',	minimize(compute_Sent_rho, angle_0, args=(H_zy,rho_new_2), method='Nelder-Mead', tol=1e-12).fun, '\n',
+					'zz:',	minimize(compute_Sent_rho, angle_0, args=(H_zz,rho_new_2), method='Nelder-Mead', tol=1e-12).fun, '\n',
+	 )
 
 
 
