@@ -46,6 +46,16 @@ def random_entangle(L,M,psi,):
 	Sent=np.zeros(M)
 	traj = np.zeros((M,2),dtype=np.int8)
 
+	system=np.zeros((L,L),dtype=np.int8)
+	for k in range(L):
+		system[k,:]=[k,]+[l for l in range(L) if l!=k]
+
+	S = np.zeros(L)
+	for j in range(L):
+		#S[j]=basis.ent_entropy(psi,sub_sys_A=[j],)['Sent_A']
+		S[j]=ent_entropy_site(psi,L,system[j])
+
+
 	for i in range(M):
 		subsys = subsystems[np.random.choice(range(len(subsystems))) ]
 
@@ -65,16 +75,26 @@ def random_entangle(L,M,psi,):
 		# entropy = basis.ent_entropy(psi,)
 		# print(Sent[i], entropy['Sent_A'])
 
+
 		U = unitary_group.rvs(4)
 		psi = apply_2q_unitary(psi,U,subsys,L)
 
-		Sent_half_chain=ent_entropy(psi,L,'half')
+
+		for j in subsys:
+			#S[j]=basis.ent_entropy(psi,sub_sys_A=[j],)['Sent_A']
+			S[j]=ent_entropy_site(psi,L,system[j])
+
+		#Sent_cutoff=ent_entropy(psi,L,'half')
+
+		Sent_cutoff=np.mean(S)
 
 		#rdm = compute_rdm(psi,L,subsys)
 		#Sent_half_chain=basis_red.ent_entropy(rdm, enforce_pure=False,)['Sent_A']
 
-		Sent[i]=Sent_half_chain
+		Sent[i]=Sent_cutoff
 		traj[i,...]=subsys
+
+
 	
 
 

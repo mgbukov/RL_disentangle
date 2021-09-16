@@ -8,6 +8,7 @@ import numpy as np
 from mps_lib import *
 from disentangle import *
 from generate_states import *
+from random_entangle import *
 
 import matplotlib
 matplotlib.use('Qt5Agg')
@@ -25,11 +26,11 @@ np.random.seed(seed)
 
 ###############################
 
-save=True
+save=False
 figs_dir='./data/figs/'
 
 
-L=6
+L=18
 
 
 chi_max=4
@@ -39,15 +40,24 @@ psi, psi_trunc = trucated_random_MPS_state(L,seed,chi_max=chi_max,)
 # print(basis.ent_entropy(psi,)['Sent_A'])
 # print(basis.ent_entropy(psi_trunc,)['Sent_A'])
 
+# psi_0 = np.zeros(2**L)
+# psi_0[0]=1.0
 
+# M_ent=60
+# i_f_max, Smax, psi, traj_max = random_entangle(L,M_ent,psi_0)
+# print('last Smax', Smax[-1])
+
+
+#print(Smax)
+#exit()
 #####################
 
 
 # number of repetitions of trajectory
-N_reps = 4 #10	
+N_reps = 4	
 
 
-for prss in ['fixed-allcomb-traj', 'fixed-nnbond-traj',  'fixed-nbond-traj']:
+for prss in ['fixed-site-traj']: # ['fixed-site-traj', 'fixed-allcomb-traj', 'fixed-nnbond-traj',  'fixed-nbond-traj']:
 
 
 	if prss=='fixed-nbond-traj':
@@ -69,14 +79,18 @@ for prss in ['fixed-allcomb-traj', 'fixed-nnbond-traj',  'fixed-nbond-traj']:
 		## all tow-body terms trajectory
 		traj = list(combinations(range(L),2))
 
+	elif prss=='fixed-site-traj':
+
+		### simplest nearest-bond trajectory
+		traj =  [(0,(j+1)%L) for j in range(0,L-1,1)]
 
 
 	full_traj = N_reps*traj
 
 
 
-	i, Smin, psi, full_traj = disentangle(L,np.array(full_traj),psi_trunc)
-	t_disent=np.arange(i)
+	i, Smin, psi, full_traj = disentangle(L,np.array(full_traj),psi)
+	t_disent=np.arange(i+1)
 
 
 
@@ -93,7 +107,8 @@ for prss in ['fixed-allcomb-traj', 'fixed-nnbond-traj',  'fixed-nbond-traj']:
 	plt.legend(fontsize=14,)
 	plt.xlabel('$M$',fontsize=18)
 	#ylabel_str='$S_\\mathrm{ent}^{[0]}$'
-	ylabel_str='$S_\\mathrm{ent}^{[L/2]}$'
+	#ylabel_str='$S_\\mathrm{ent}^{[L/2]}$'
+	ylabel_str='$L^{-1}\\sum_{j=1}^L S_\\mathrm{ent}^{[j]}$'
 	plt.ylabel(ylabel_str,fontsize=18)
 	# plt.yscale('log')
 	# plt.xscale('log')

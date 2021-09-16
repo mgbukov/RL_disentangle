@@ -58,16 +58,16 @@ def chipoffsite_disentangle(L,M,psi,site=0,eps=1E-14):
 		_,U = np.linalg.eigh(rdm)
 
 		# entropy = basis.ent_entropy(psi,density=True)
-		# Sent_half_chain=entropy['Sent_A']
-		Sent_half_chain=ent_entropy(psi,L,'site',)
-		Smin[i]=Sent_half_chain
+		# Sent_cutoff=entropy['Sent_A']
+		Sent_cutoff=ent_entropy(psi,L,'site',)
+		Smin[i]=Sent_cutoff
 		traj[i,...]=subsys
 
 
 		psi = apply_2q_unitary(psi,U.conj().T,subsys,L)
 
 
-		if Sent_half_chain<eps:
+		if Sent_cutoff<eps:
 			break
 
 		print(i)

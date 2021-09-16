@@ -157,40 +157,42 @@ class MBL_model(template_model):
 
 ###################################################################################################
 
-# L=4
-# pauli=True
+if __name__ == "__main__":
 
-# #################################################
+	L=4
+	pauli=True
 
-# TFIM_model_params=dict(Jzz=1.0, hx=1.0, hz=1.0, )
-# TFIM = Ising_model(L,pauli,)
-# print(TFIM.compute_ground_state(TFIM_model_params))
+	#################################################
 
-# #################################################
+	TFIM_model_params=dict(Jzz=1.0, hx=1.0, hz=1.0, )
+	TFIM = Ising_model(L,pauli,)
+	print(TFIM.compute_ground_state(TFIM_model_params))
 
-# Heisenberg_model_params=dict(Jxx=1.0, Jyy=1.0, Jzz=1.0, hz=1.0 )
-# HM = Heisenberg_model(L,pauli,)
-# print(HM.compute_ground_state(Heisenberg_model_params))
+	#################################################
 
-# #################################################
+	Heisenberg_model_params=dict(Jxx=1.0, Jyy=1.0, Jzz=1.0, hz=1.0 )
+	HM = Heisenberg_model(L,pauli,)
+	print(HM.compute_ground_state(Heisenberg_model_params))
 
-# J1J2_model_params=dict(J1=1.0, J2=1.0, )
-# J1J2M = J1J2_model(L,pauli,)
-# print(J1J2M.compute_ground_state(J1J2_model_params))
+	#################################################
 
-# #################################################
+	J1J2_model_params=dict(J1=1.0, J2=1.0, )
+	J1J2M = J1J2_model(L,pauli,)
+	print(J1J2M.compute_ground_state(J1J2_model_params))
 
-# W=1.0
-# hz = np.random.uniform(-1,1,size=L)
-# disorder_params = {"hz"+str(i):W*hz[i] for i in range(L)}
+	#################################################
 
-# MBL_model_params = dict(Jzz=1.0, Jxx=1.0, hx=1.0, hz=1.0, )
-# MBL_model_params.update( disorder_params )
-		
+	W=1.0
+	hz = np.random.uniform(-1,1,size=L)
+	disorder_params = {"hz"+str(i):W*hz[i] for i in range(L)}
 
-# MBLM = MBL_model(L,pauli,)
-# print(MBLM.compute_ground_state(MBL_model_params))
+	MBL_model_params = dict(Jzz=1.0, Jxx=1.0, hx=1.0, hz=1.0, )
+	MBL_model_params.update( disorder_params )
+			
 
-# #################################################
+	MBLM = MBL_model(L,pauli,)
+	print(MBLM.compute_ground_state(MBL_model_params))
+
+	#################################################
 
 

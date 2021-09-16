@@ -31,42 +31,46 @@ np.set_printoptions(precision=6,suppress=True,) # print two decimals, suppress s
 
 #######################
 
-L=13 # spins
 dtype=np.complex64 # np.complex128
 eps=1E-4
 
-#prss = 'random_disentangle'
+prss = 'random_disentangle'
 #prss = 'seq_disentangle'
-prss = 'chipoff_disentangle'
+#prss = 'chipoff_disentangle'
 
-M_disent=100000 # number of random entangling gates
+M_disent=100000 # cutoff number of random entangling gates
 
-psi=np.random.normal(size=(2**L,),) + 1j*np.random.normal(size=(2**L,), )
-psi = psi.astype(dtype)
-psi/=np.linalg.norm(psi)
 
-t_i=time.time()
+#for L in range(4,15): # spins
+for L in range(4,15,2):
 
-if prss == 'random_disentangle':
-	i_f_min, Smin, psi_f, traj = random_disentangle(L,M_disent,psi, eps=eps)
-elif prss == 'seq_disentangle':
-	i_f_min, Smin, psi_f, traj = seq_disentangle(L,M_disent,psi, eps=eps)
-elif prss == 'chipoff_disentangle':
-	site=0
-	i_f_min, Smin, psi_f, traj = chipoffsite_disentangle(L,M_disent,psi, site, eps=eps)
 
-t_disent = np.arange(i_f_min)
+	psi=np.random.normal(size=(2**L,),) + 1j*np.random.normal(size=(2**L,), )
+	psi = psi.astype(dtype)
+	psi/=np.linalg.norm(psi)
 
-t_f=time.time()
+	t_i=time.time()
 
-print('simulation took {0:0.4} secs. for {1:d} gates at L={2:d}.'.format(t_f-t_i, i_f_min, L))
+	if prss == 'random_disentangle':
+		i_f_min, Smin, psi_f, traj = random_disentangle(L,M_disent,psi, eps=eps)
+	elif prss == 'seq_disentangle':
+		i_f_min, Smin, psi_f, traj = seq_disentangle(L,M_disent,psi, eps=eps)
+	elif prss == 'chipoff_disentangle':
+		site=0
+		i_f_min, Smin, psi_f, traj = chipoffsite_disentangle(L,M_disent,psi, site, eps=eps)
 
-########
-save_dir = './data/'+prss+'/'
+	t_disent = np.arange(i_f_min)
 
-file_name=save_dir+prss+"_L={0:d}_seed={1:d}.pkl".format(L,seed)
+	t_f=time.time()
 
-with open(file_name, 'wb') as handle:
-    pickle.dump([Smin,t_disent,psi,psi_f,L,dtype,eps,seed], handle, protocol=pickle.HIGHEST_PROTOCOL)
+	print('simulation took {0:0.4} secs. for {1:d} gates at L={2:d}.'.format(t_f-t_i, i_f_min, L))
+
+	########
+	save_dir = './data/'+prss+'/'
+
+	file_name=save_dir+prss+"_L={0:d}_seed={1:d}.pkl".format(L,seed)
+
+	with open(file_name, 'wb') as handle:
+	    pickle.dump([Smin,t_disent,psi,psi_f,L,dtype,eps,seed], handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 

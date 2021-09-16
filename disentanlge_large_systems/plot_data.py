@@ -30,14 +30,17 @@ def exp_func(x, a, b):
 save=True
 figs_dir='./data/figs/'
 
-#prss = 'random_disentangle'
+prss = 'random_disentangle'
 #prss = 'seq_disentangle'
-prss = 'chipoff_disentangle'
+#prss = 'chipoff_disentangle'
 
 seed=0
 
-#Ls=np.array([6,8,10,12,14,])
-Ls=np.arange(6,15,1)
+if prss == 'chipoff_disentangle':
+    Ls=np.arange(4,15,1)
+else:
+    Ls=np.array([4,6,8,10,12,14,])
+
 
 popts = np.zeros((Ls.shape[0],2), ) 
 pcovs = np.zeros((Ls.shape[0],2,2), ) 
@@ -51,6 +54,8 @@ for j,L in enumerate(Ls):
 
     with open(file_name, 'rb') as handle:
         Smin,t_disent,psi,psi_f,L,dtype,eps,seed = pickle.load(handle)
+
+    Smin=Smin[:-1]
 
    
     # fit data
@@ -69,7 +74,7 @@ if prss=='chipoff_disentangle':
     ylabel_str='$S_\\mathrm{ent}^{[0]}$'
     plt.vlines(t_disent_tot, 0.0, 1.0, colors='k', linewidth=1.0, linestyle='--', label='$t_\\mathrm{tot}'+'={0:d}$'.format(t_disent_tot) )
 else:
-    ylabel_str='$S_\\mathrm{ent}^{[L/2]}$'
+    ylabel_str='$L^{-1}\\sum_{j=1}^L S_\\mathrm{ent}^{[j]}$'
 
 plt.legend(fontsize=14,)
 plt.xlabel('$M$',fontsize=18)

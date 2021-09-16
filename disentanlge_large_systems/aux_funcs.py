@@ -22,6 +22,28 @@ def reshape_state(psi,L,L_A,subsys='half'):
 	return psi
 
 
+#@partial(jit, static_argnums=(2,))
+def ent_entropy_site(psi,L,system):
+
+	L_A=1
+
+	psi = psi.reshape((2,)*L,)
+	psi = psi.transpose(system) # sub_sus_A = [0,2,4] (transpose)--> (0,2,4, | 1,3,5) # shift sub_sys_A to the left
+	psi = psi.reshape(2, 2**(L-1))
+
+	#compute rdm
+	rdm_A = psi @ psi.T.conj()
+
+	# get eigenvalues of rdm
+	det = rdm_A[0,0]*(1.0-rdm_A[0,0]) - np.abs(rdm_A[0,1])**2
+	lmbda2 = 0.5 * (1.0 + np.sqrt(1.0 - 4.0*det).real)
+
+	# compute entanglement entorpy
+	if np.abs(lmbda2-1.0) <= 1E-13:
+		return 0.0
+	else:
+		return - ( lmbda2 * jnp.log(lmbda2) + (1.0-lmbda2) * jnp.log(1.0-lmbda2) )
+
 
 @partial(jit, static_argnums=(1,2))
 def ent_entropy(psi,L,subsys):

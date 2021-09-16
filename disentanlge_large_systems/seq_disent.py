@@ -46,6 +46,15 @@ def seq_disentangle(L,M,psi,eps=1E-14):
 	Smin=np.zeros(M*len(subsystems))
 	traj = np.zeros((M*len(subsystems),2),dtype=np.int8)
 
+	system=np.zeros((L,L),dtype=np.int8)
+	for k in range(L):
+		system[k,:]=[k,]+[l for l in range(L) if l!=k]
+
+	S = np.zeros(L)
+	for j in range(L):
+		#S[j]=basis.ent_entropy(psi,sub_sys_A=[j],)['Sent_A']
+		S[j]=ent_entropy_site(psi,L,system[j])
+
 
 	for i, subsys in enumerate(M*subsystems):
 
@@ -59,16 +68,25 @@ def seq_disentangle(L,M,psi,eps=1E-14):
 		_,U = np.linalg.eigh(rdm)
 
 		# entropy = basis.ent_entropy(psi,density=True)
-		# Sent_half_chain=entropy['Sent_A']
-		Sent_half_chain=ent_entropy(psi,L,'half')
-		Smin[i]=Sent_half_chain
+		# Sent_cutoff=entropy['Sent_A']
+		# Sent_cutoff=ent_entropy(psi,L,'half')
+		# Smin[i]=Sent_cutoff
+
+		for j in subsys:
+			#S[j]=basis.ent_entropy(psi,sub_sys_A=[j],)['Sent_A']
+			S[j]=ent_entropy_site(psi,L,system[j])
+
+		Sent_cutoff=np.sum(S)/L
+		Smin[i]=Sent_cutoff
+		
+
 		traj[i,...]=subsys
 
 
 		psi = apply_2q_unitary(psi,U.conj().T,subsys,L)
 
 
-		if Sent_half_chain<eps:
+		if Sent_cutoff<eps:
 			break
 
 		print(i)
@@ -82,7 +100,7 @@ def seq_disentangle(L,M,psi,eps=1E-14):
 
 	print("\nmin_ent={0:0.6f}, mean_ent={1:0.6f}, max_ent={2:0.6f}\n".format(np.min(Sall), np.mean(Sall), np.max(Sall)) )
 
-	return i, Smin[:i], psi, traj
+	return i, Smin[:i+1], psi, traj
 
 
 	

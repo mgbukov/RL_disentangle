@@ -46,6 +46,20 @@ def disentangle(L,traj,psi):
 
 	Smin=np.zeros(M)
 
+	S = np.zeros(L)
+
+	system=np.zeros((L,L),dtype=np.int8)
+	for k in range(L):
+		system[k,:]=[k,]+[l for l in range(L) if l!=k]
+
+
+	for j in range(L):
+		#S[j]=basis.ent_entropy(psi,sub_sys_A=[j],)['Sent_A']
+		S[j]=ent_entropy_site(psi,L,system[j])
+
+	print(S)
+
+
 	for i in range(M):
 
 		subsys = tuple(traj[i])
@@ -53,12 +67,23 @@ def disentangle(L,traj,psi):
 		rdm = compute_rdm(psi,L,subsys)
 		lmbdas,U = np.linalg.eigh(rdm)
 
+		
 		psi = apply_2q_unitary(psi,U.conj().T,subsys,L)
 
-		entropy = basis.ent_entropy(psi,density=True)
-		Sent_half_chain=ent_entropy(psi,L,'half')
+
+		for j in subsys:
+			#S[j]=basis.ent_entropy(psi,sub_sys_A=[j],)['Sent_A']
+			S[j]=ent_entropy_site(psi,L,system[j])
+
+		# print(S)
+		# print(np.mean(S))
+
+		#entropy = basis.ent_entropy(psi,density=True)
+		#Sent_half_chain=ent_entropy(psi,L,'half')
 		#Sent_half_chain=compute_Sent(lmbdas)
-		Smin[i]=Sent_half_chain
+		#Smin[i]=Sent_half_chain
+
+		Smin[i] = np.sum(S)/L
 	
 		#print(subsys, Sent_half_chain)
 		#exit()
@@ -67,17 +92,17 @@ def disentangle(L,traj,psi):
 		#print(i)
 
 
-	Sall=[]
-	for _i, subsys in enumerate(subsystems):
+	# Sall=[]
+	# for _i, subsys in enumerate(subsystems):
 
-		entropy = basis.ent_entropy(psi,sub_sys_A = subsys, return_rdm='A', return_rdm_EVs=True)
-		Sall.append( entropy['Sent_A'] )
-
-
-	print("\nmin_ent={0:0.6f}, mean_ent={1:0.6f}, max_ent={2:0.6f}\n".format(np.min(Sall), np.mean(Sall), np.max(Sall)) )
+	# 	entropy = basis.ent_entropy(psi,sub_sys_A = subsys, return_rdm='A', return_rdm_EVs=True)
+	# 	Sall.append( entropy['Sent_A'] )
 
 
-	return i, Smin[:i], psi, traj
+	#print("\nmin_ent={0:0.6f}, mean_ent={1:0.6f}, max_ent={2:0.6f}\n".format(np.min(Sall), np.mean(Sall), np.max(Sall)) )
+
+
+	return i, Smin, psi, traj
 
 #exit()
 
