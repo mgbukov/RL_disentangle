@@ -83,7 +83,7 @@ class PGAgent(BaseAgent):
         if mask is None:
             result = torch.mean(self.reward_to_go(rewards), dim=0, keepdim=True)
         else:
-            result = torch.sum(self.reward_to_go(rewards), dim=0) / torch.maximum(torch.sum(mask, dim=0), torch.Tensor([1]))
+            result = torch.sum(self.reward_to_go(rewards), dim=0) / torch.maximum(torch.sum(mask, dim=0), torch.Tensor([1]).to(self.policy.device))
         return result
         # if mask is None:
         #     mask = torch.ones_like(rewards)
@@ -114,8 +114,7 @@ class PGAgent(BaseAgent):
 
 
     def train(self, num_episodes, steps, learning_rate, lr_decay=1.0, clip_grad=10.0,
-              reg=0.0, entropy_reg=0.0, log_every=1, test_every=100, verbose=False,
-              initial_states=None, batch_mode=False):
+              reg=0.0, entropy_reg=0.0, log_every=1, test_every=100, verbose=False):
         """ Train the agent using vanilla policy-gradient algorithm.
 
         @param num_episodes (int): Number of episodes to train the agent for.
@@ -165,12 +164,15 @@ class PGAgent(BaseAgent):
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=lr_decay)
         self.logger.logTxt("Using optimizer:\n{}\n".format(str(optimizer)))
 
+        self.env.set_random_state(copy=False)
+        initial_state = self.env._state
         # Start the training loop.
         for i in range(num_episodes):
             tic = time.time()
 
             # Set the initial state and perform policy roll-out.
-            self.env.set_random_state()
+            # self.env.set_random_state()
+            self.env._state = initial_state
             states, actions, rewards, done = self.rollout(steps)
             mask = ~torch.cat((done[:, 0:1], done[:, 1:] & done[:, :-1]), dim=1)
 
@@ -191,6 +193,8 @@ class PGAgent(BaseAgent):
             scheduler.step()
 
             # Book-keeping.
+            d_mask = np.any(done.cpu().numpy(), axis=1)
+            d_steps = np.argmax(done.cpu().numpy()[d_mask], axis=1) + 1
             self.train_history[i] = {
                 "entropy"       : self.env.entropy().tolist(),
                 # "states"        : states.cpu().numpy().tolist(),
@@ -198,7 +202,8 @@ class PGAgent(BaseAgent):
                 "loss"          : loss.item(),
                 "total_norm"    : total_norm.cpu().numpy().tolist(),
                 "nsolved"       : sum(done[:, -1]).cpu().numpy().tolist(),
-                "nsteps"        : (np.argmax(done.cpu().numpy(), axis=1) + 1).tolist(),
+                # "nsteps"        : (np.argmax(done.cpu().numpy(), axis=1) + 1).tolist(),
+                "nsteps"        : d_steps.tolist(),
             }
 
             toc = time.time()
@@ -209,20 +214,19 @@ class PGAgent(BaseAgent):
                     i + 1, num_episodes, (toc-tic)))
                 self.log_train_statistics(i)
                 probs = F.softmax(logits, dim=-1)
-                print("Timestep {}\nprobs: {}\n{}\n{}".format((i+1), probs[0][0], probs[0][1], probs[0][2]))
+                print("Timestep {}\nprobs: {}\n{}\n{}\n{}\n{}\n".format(
+                    (i+1), probs[0][0], probs[0][1], probs[0][2], probs[0][3], probs[0][4]))
 
             # Test the agent.
             if i == 0 or (i+1) % test_every == 0:
                 self.logger.setLogTxtFilename("test_history.txt", append=True)
                 self.logger.logTxt("\n\niteration {}".format(i+1))
-                self.log_test_accuracy(num_test=10, steps=steps)
-                self.log_test_accuracy(num_test=10, steps=steps+1)
-                self.log_test_accuracy(num_test=10, steps=steps+2)
+                self.log_test_accuracy(num_test=1, steps=steps, initial_state=initial_state)
                 self.logger.setLogTxtFilename("train_history.txt", append=True)
 
         self.plot_training_curves()
         self.plot_distribution()
-        self.save_history()
         self.save_policy()
+        # self.save_history()
 
 #

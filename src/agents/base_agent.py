@@ -53,10 +53,9 @@ class BaseAgent:
         done = torch.zeros(size=(steps, batch_size), dtype=torch.bool, device=device)
 
         # Perform parallel rollout along all trajectories.
-        acts = None
         for i in range(steps):
             states[i] = torch.from_numpy(self.env.state)    # states is (T, B, 2**q)
-            acts = self.policy.get_action(states[i], acts, greedy, beta)
+            acts = self.policy.get_action(states[i], greedy=greedy, beta=beta)
             actions[i] = acts
             s, r, d = self.env.step(acts)
             rewards[i] = torch.from_numpy(r)
@@ -73,8 +72,6 @@ class BaseAgent:
             np.mean(np.array(self.train_history[i]["rewards"])[:,-1])))
         self.logger.logTxt("  Mean return:              {:.4f}".format(
             np.mean(np.sum(self.train_history[i]["rewards"], axis=1))))
-        self.logger.logTxt("  Mean return policy ent:   {:.4f}".format(
-            self.train_history[i]["entropy_term"]))
         self.logger.logTxt("  Mean final entropy:       {:.4f}".format(
             np.mean(self.train_history[i]["entropy"])))
         self.logger.logTxt("  Max final entropy:        {:.4f}".format(
@@ -91,7 +88,7 @@ class BaseAgent:
             np.mean(self.train_history[i]["nsteps"])))
 
 
-    def log_test_accuracy(self, num_test, steps):
+    def log_test_accuracy(self, num_test, steps, initial_state=None):
         """ Test the accuracy of the agent using @num_test simulation rollouts.
 
         @param num_test (int): Number of simulations to test the agent.
@@ -108,10 +105,13 @@ class BaseAgent:
         returns = torch.zeros(size=(num_test, batch_size))
         nsolved = torch.zeros(size=(num_test, batch_size))
         for i in range(num_test):
-            disentangled = True
-            while disentangled:
+            # disentangled = True
+            # while disentangled:
+            if initial_state is None:
                 self.env.set_random_state()
-                disentangled = self.env.disentangled().any()
+            else:
+                self.env._state = initial_state
+                # disentangled = self.env.disentangled().any()
             # self.env.set_random_state()
             states, actions, rewards, done = self.rollout(steps, greedy=True)
             solved += sum(done[:,-1])
@@ -191,21 +191,14 @@ class BaseAgent:
         nsolved = [self.train_history[i]["nsolved"] / batch_size for i in range(num_train)]
         avg_nsolved = np.insert(np.mean(np.array(nsolved[1:]).reshape(-1, log_every), axis=1), 0, nsolved[0])
         tst_nsolved = [self.test_history[steps][i]["nsolved"] for i in range(num_test)]
-        tst_nsolved1 = [self.test_history[steps+1][i]["nsolved"] for i in range(num_test)]
-        tst_nsolved2 = [self.test_history[steps+2][i]["nsolved"] for i in range(num_test)]
         self.logger.logPlot(xs=[np.arange(num_train),
                                 np.arange(0, num_train, log_every),
-                                np.arange(0, num_train, test_every),
-                                np.arange(0, num_train, test_every),
                                 np.arange(0, num_train, test_every)],
-                            funcs=[nsolved, avg_nsolved, tst_nsolved, tst_nsolved1, tst_nsolved2],
-                            legends=["nsolved", "avg_nsolved",
-                                     "test_nsolved_{}".format(steps),
-                                     "test_nsolved_{}".format(steps+1),
-                                     "test_nsolved_{}".format(steps+2)],
+                            funcs=[nsolved, avg_nsolved, tst_nsolved],
+                            legends=["nsolved", "avg_nsolved", "test_nsolved_{}".format(steps)],
                             labels={"x":"Episode", "y":"nsolved"},
-                            fmt=["--r", "-k", "-b", "-g", "-y"],
-                            lw=[1.0, 4.0, 4.0, 4.0, 4.0],
+                            fmt=["--r", "-k", "-b"],
+                            lw=[1.0, 4.0, 4.0],
                             figtitle="Agent accuracy of solved states",
                             figname="nsolved.png")
 
@@ -221,7 +214,7 @@ class BaseAgent:
             while disentangled:
                 self.env.set_random_state()
                 disentangled = self.env.disentangled().any()
-            st = torch.from_numpy(self.env.state).type(torch.float32)
+            st = torch.from_numpy(self.env.state).type(torch.float32).to(self.policy.device)
             logits = self.policy(st)
             probs[i] = F.softmax(logits, dim=-1).detach().numpy()
         probs = probs.reshape(num_test * self.env.batch_size, self.env.num_actions)
