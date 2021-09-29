@@ -36,10 +36,10 @@ np.set_printoptions(precision=6,suppress=True,) # print two decimals, suppress s
 
 def disentangle(L,traj,psi):
 
-	subsystems = list(combinations(range(L),2))
+	# subsystems = list(combinations(range(L),2))
 
-	basis=spin_basis_general(L)
-	basis_red=spin_basis_general(2)
+	# basis=spin_basis_general(L)
+	# basis_red=spin_basis_general(2)
 
 	M=traj.shape[0]
 
@@ -57,7 +57,7 @@ def disentangle(L,traj,psi):
 		#S[j]=basis.ent_entropy(psi,sub_sys_A=[j],)['Sent_A']
 		S[j]=ent_entropy_site(psi,L,system[j])
 
-	print(S)
+	#print(S)
 
 
 	for i in range(M):
@@ -75,7 +75,7 @@ def disentangle(L,traj,psi):
 			#S[j]=basis.ent_entropy(psi,sub_sys_A=[j],)['Sent_A']
 			S[j]=ent_entropy_site(psi,L,system[j])
 
-		# print(S)
+		#print(S)
 		# print(np.mean(S))
 
 		#entropy = basis.ent_entropy(psi,density=True)
@@ -103,6 +103,72 @@ def disentangle(L,traj,psi):
 
 
 	return i, Smin, psi, traj
+
+
+
+def disentangle_site(L,traj,psi):
+
+	traj=np.atleast_2d(traj)
+	M=traj.shape[0]
+
+
+	Smin=np.zeros(M)
+
+	system=np.arange(L)
+
+
+
+	for i in range(M):
+
+		subsys = tuple(traj[i])
+
+		rdm = compute_rdm(psi,L,subsys)
+		lmbdas,U = np.linalg.eigh(rdm)
+
+		
+		psi = apply_2q_unitary(psi,U.conj().T,subsys,L)
+
+
+		Smin[i] = ent_entropy_site(psi,L,system)
+	
+
+
+	return i, Smin, psi, traj
+
+
+
+def chip_off(L,traj,psi):
+
+
+	M=traj.shape[0]
+
+
+	Smin=np.zeros(M)
+
+	system=np.arange(L)
+
+
+	for i in range(M):
+
+		subsys = tuple(traj[i])
+
+		rdm = compute_rdm(psi,L,subsys)
+		lmbdas,U = np.linalg.eigh(rdm)
+
+		
+		psi = apply_2q_unitary(psi,U.conj().T,subsys,L)
+
+
+		S = ent_entropy_site(psi,L,system)
+
+		Smin[i] = S
+
+
+
+
+	return i, Smin, psi, traj
+
+
 
 #exit()
 

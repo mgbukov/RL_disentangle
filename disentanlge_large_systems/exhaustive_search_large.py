@@ -31,7 +31,7 @@ save=False
 figs_dir='./data/figs/'
 
 
-L=5
+L=4
 
 
 # traj_universal = ((0, 1), (2, 3), (0, 2), (1, 2), (2, 3))
@@ -64,49 +64,58 @@ traj = list(combinations(range(L),2))
 #traj =  [(0,j) for j in range(1,L,1)]
 
 
+best_traj=()
 
+for M in range(1,100,1):
 
-M=5
+	#N_traj=(L*(L-1)//2)**M
+	#N_traj=(L-1)**M
 
-N_traj=(L*(L-1)//2)**M
-#N_traj=(L-1)**M
-
-Smin=np.zeros(N_traj)
-
-all_traj=list(product(traj,repeat=M))
-
-print(N_traj)
-#exit()
-
-
-for j, t in enumerate(all_traj):
-
-	_, S, _, _ = disentangle(L,np.array(t),psi)
-	#_, S, _, _ = chip_off(L,np.array(t),psi)
-
-	Smin[j]=S[-1]
-
-	print(j, S[-1] )
 	
 
+	all_traj=[ best_traj+(pair,) for pair in traj]
 
-best_ind = np.where(Smin==Smin.min() )[0]
+	N_traj = len(all_traj)
+	Smin=np.zeros(N_traj)
 
-
-print('\n\n')
-
-for ind in best_ind:
-	best_traj=all_traj[ind]
-	print(best_traj)
-
-
-print(Smin.min(), Smin.max() )
-print(Smin[best_ind])
-
-
-_, Sent, _, _ = disentangle(L,np.array(best_traj),psi)
-#_, Sent, _, _ = chip_off(L,np.array(best_traj),psi)
+	# print(N_traj)
+	
+	# print(traj)
+	
+	if M==6:
+		# print(all_traj)
+		print(best_traj)
+		exit()
 
 
-print(Sent)
+	for j, t in enumerate(all_traj):
+
+		#print(t)
+
+		_, S, _, _ = disentangle_site(L,np.array(t),psi)
+
+		Smin[j]=S[-1]
+
+		#print(j, S[-1] )
+		
+
+
+	best_ind = np.where(Smin==Smin.min() )[0]
+
+
+	print('\n\n')
+
+	for ind in best_ind:
+		best_traj=all_traj[ind]
+		print(best_traj)
+
+
+	print(Smin.min(), Smin.max() )
+	print(Smin[best_ind])
+
+
+	_, Sent, _, _ = disentangle_site(L,np.array(best_traj),psi)
+
+
+	print(Sent)
 
