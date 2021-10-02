@@ -1,6 +1,20 @@
 import numpy as np
-from math import log2
 from itertools import combinations
+
+
+_QSYSTEMS_P = {}
+_QSYSTEMS_INV_P = {}
+_SINGLE_ENTROPY_P = {}
+for L in range(2, 15):
+    for q0, q1 in combinations(range(L), 2):
+        sysA = [q0, q1]
+        sysB = [q for q in range(L) if q not in sysA]
+        P = sysA + sysB
+        _QSYSTEMS_P[(L, q0, q1)] = np.array(P, dtype=np.int8)
+        _QSYSTEMS_INV_P[(L, q0, q1)] = np.argsort(P).astype(np.int8)
+    for q0 in range(L):
+        p = [0] + [q0 + 1] + [q + 1 for q in range(L) if q != q0]
+        _SINGLE_ENTROPY_P[(L, q0)] = np.array(p, dtype=np.int8)
 
 
 class QubitsEnvironment:
@@ -22,17 +36,17 @@ class QubitsEnvironment:
 
         Parameters
         ----------
-        states : numpy.ndarray
+        states : numpy.ndarray, shape=(B, Ns)
         sub_sys : List[int]
 
         Returns
         -------
-        numpy.ndarray
+        numpy.ndarray, shape=(B, L)
         """
         # The entropy is computed separately for every state of the batch.
         if subsys is None:
             L = int(np.log2(states.shape[1]))
-            entropies = [_ent_entropy(states, [i]) for i in range(L)]
+            entropies = [_ent_entropy_single(states, i, L) for i in range(L)]
             return np.stack(entropies).T
         else:
             return _ent_entropy(states, subsys)
@@ -40,7 +54,7 @@ class QubitsEnvironment:
     @classmethod
     def Reward(cls, states, epsi=1e-5, entropies=None):
         """
-        Return the immediate reward on transition to state ``state``.
+        Return the immediate reward on transition to ``states``.
         The reward is calculated as the negative logarithm of the entropy.
         The choice depends on the fact that the reward increases exponentialy,
         when the entropy approaches 0, and thus encouraging the agent to
@@ -48,25 +62,21 @@ class QubitsEnvironment:
 
         Parameters
         ----------
-        states : numpy.ndarray
-            Batch of states, dimension = (B, Ns)
+        states : numpy.ndarray, shape=(B, Ns)
         epsi : float
-            Tolerance below which state is considered disentangled
-        entropies : numpy.ndarray, default=None
-            Precomputed entropies
+            Tolerance below which state is considered disentangled.
+        entropies : numpy.ndarray, shape=(B, L), default=None
+            Precomputed entropies for each single qubit subsystem.
 
         Returns
         -------
-        numpy.ndarray
-            Shape = (B,)
+        numpy.ndarray, shape=(B,)
         """
         # Compute the entropy of a system by considering each individual qubit
         # as a sub-system. Evaluate the reward as the maximum sub-system entropy.
         if entropies is None:
             entropies = cls.Entropy(states)
-        entropies = entropies.mean(axis=1)
-        # rewards = -entropies / 0.6931471805599453  # log(2)
-        entropies = np.maximum(entropies, epsi)
+        entropies = np.maximum(entropies.mean(axis=1), epsi)
         rewards = np.log(epsi / entropies)
         return rewards
 
@@ -78,14 +88,15 @@ class QubitsEnvironment:
 
         Parameters
         ----------
-        states : numpy.ndarray
+        states : numpy.ndarray, shape=(B, Ns)
         epsi : float
-        entopies : numpy.ndarray
-            Precomputed entropies for each subsystem
+            Tolerance below which state is considered disentangled.
+        entopies : numpy.ndarray, shape=(B, L)
+            Precomputed entropies for each single qubit subsystem.
 
         Returns
         -------
-        np.array[bool]
+        numpy.array[bool], shape=(B,)
         """
         if entropies is None:
             entropies = cls.Entropy(states)
@@ -93,14 +104,14 @@ class QubitsEnvironment:
 
     def __init__(self, num_qubits=2, epsi=1e-4, batch_size=1):
         """
-        Initialize a multi-Qubit system RL environment.
+        Initializes a multi-qubit RL environment.
 
         Parameters
         ----------
         num_qubits : int
-            Number of qubits
+            Number of qubits.
         epsi : float
-            Threshold bellow which the system is considered disentangled
+            Threshold bellow which the system is considered disentangled.
         batch_size : int
             Number of states simultaneously represented by the environment.
         """
@@ -113,18 +124,20 @@ class QubitsEnvironment:
         self.actions = dict(enumerate(combinations(range(num_qubits), 2)))
         self.reset()  # bounds `_state` and `_entropies_cache` attributes
 
+    # TODO: Unify setter and getter. One returns array of type np.float32,
+    # the other takes np.complex64 as argument.
+    # Do we need setter and getter ??
     @property
     def state(self):
-        """ Return the current state of the environment. """
-        # TODO
-        # What are possible/optimal choices for state_space, reward_space, action_space?
-        # Choose representation of the state of the system here.
-
         # The state of the system is represented as a concatenation of the real
         # and the imaginary parts.
         states = np.hstack([self._state.real, self._state.imag])
         return states
 
+    @state.setter
+    def state(self, newstate):
+        self._state = _phase_norm(np.atleast_2d(newstate.copy()))
+        self._entropies_cache = self.Entropy(self._state)
 
     def set_random_state(self, copy=False):
         """
@@ -152,22 +165,17 @@ class QubitsEnvironment:
 
     def entropy(self):
         """ Compute the entanglement entropy for the current state. """
-        # return self._entropies_cache
-        entropies = self.Entropy(self._state)
-        entropies = entropies.mean(axis=1)
-        return entropies
+        return self._entropies_cache.mean(axis=1)
 
     def disentangled(self):
         """ Returns True if the current state is disentangled. """
-        # return self.Disentangled(self._state, self.epsi, self._entropies_cache)
-        return self.Disentangled(self._state, self.epsi)
+        return self.Disentangled(self._state, self.epsi, self._entropies_cache)
 
     def reward(self):
         """ Returns the immediate reward on transitioning to the current state. """
-        # return self.Reward(self._state, self.epsi, self._entropies_cache)
-        return self.Reward(self._state, self.epsi)
+        return self.Reward(self._state, self.epsi, self._entropies_cache)
 
-    def _next_state(self, actions):
+    def next_state(self, actions):
         """
         Applies `actions` to a copy of `self._state` and returns the next
         environment state. `self._state` is not modified.
@@ -175,42 +183,96 @@ class QubitsEnvironment:
         Parameters
         ----------
         actions : array_like
-            Indices in `self.actions`
+            Indices in `self.actions`. Must have length equal to ``self.batch_size``.
+
+        Returns
+        -------
+        np.ndarray[np.complex64], shape=(B, Ns)
+            The next state (with phase norm).
         """
         actions = np.atleast_1d(actions)
         if len(actions) != self.batch_size:
             raise ValueError('Expected actions of shape ({},)'.format(self.batch_size))
-
-        nextstates = []
-        for i, a in enumerate(actions):
-            q0, q1 = self.actions[a]
-            psi = self._state[i]
-            U = _optimal_U(psi, q0, q1)
-            phi = _apply_unitary_gate(psi, U, q0, q1)
-            nextstates.append(phi)
-        return np.stack(nextstates)
-    
-    def next_state(self, actions):
-        return _phase_norm(self._next_state(actions))
+        L = self.L
+        B = self.batch_size
+        states = self._state
+        nextstates = np.zeros((B, self.Ns), dtype=np.complex64)
+        rdms = np.zeros((B, 4, 4), dtype=np.complex64)
+        qubits = [self.actions[a] for a in actions]
+        for i in range(B):
+            q0, q1 = qubits[i]
+            rdms[i] = _rdm(states[i], q0, q1, self.L)
+        Us = _optimal_Us_rmds(rdms)
+        for i in range(B):
+            q0, q1 = qubits[i]
+            nextstates[i] = _apply_unitary_gate(states[i], Us[i], q0, q1, L)
+        return _phase_norm(nextstates)
 
     def step(self, actions):
         """
-        Applies `actions` to the current state and transitions the
-        environment to the next state.
+        Applies `actions` to `self._state` and transitions the environment.
 
         Parameters
         ----------
         actions : array_like
-            Indices in `self.actions`
+            Indices in `self.actions`. Must have length equal to ``self.batch_size``.
+
+        Returns
+        -------
+        Tuple[np.ndarray[np.complex64], np.ndarray[np.float32], np.ndarray[bool]]
+            (state, reward, done) tuple.
+                *state* : A copy of `self._state` after environment
+                  transition (with phase norm), shape=(B, Ns).
+                *reward* : Current reward, shape=(B,).
+                *done* : Boolean mask of disentangled states, shape=(B,).
         """
         actions = np.atleast_1d(actions)
-        self._state = self.next_state(actions)
-        # Update entropies
-        for i, a in enumerate(actions):
-            q0, q1 = self.actions[a]
-            self._entropies_cache[i, q0] = _ent_entropy(self._state[i], [q0])
-            self._entropies_cache[i, q1] = _ent_entropy(self._state[i], [q1])
+        if len(actions) != self.batch_size:
+            raise ValueError('Expected actions of shape ({},)'.format(self.batch_size))
+        L = self.L
+        B = self.batch_size
+        states = self._state
+        rdms = np.zeros((B, 4, 4), dtype=np.complex64)
+        qubits = [self.actions[a] for a in actions]
+        for i in range(B):
+            q0, q1 = qubits[i]
+            rdms[i] = _rdm(states[i], q0, q1, self.L)
+        # Eigh
+        rhos, Us = np.linalg.eigh(rdms)
+        a = rhos[:, 0] + rhos[:, 1]  # rho_{q0-1}
+        b = rhos[:, 2] + rhos[:, 3]  # rho_{q0-2}
+        c = rhos[:, 0] + rhos[:, 2]  # rho_{q1-1}
+        d = rhos[:, 1] + rhos[:, 3]  # rho_{q1-2}
+        Sent_q0 = -a*np.log(a + np.finfo(a.dtype).eps) - b*np.log(b + np.finfo(b.dtype).eps)
+        Sent_q1 = -c*np.log(c + np.finfo(c.dtype).eps) - d*np.log(d + np.finfo(d.dtype).eps)
+        # Update entropies and environment states
+        for i in range(B):
+            q0, q1 = qubits[i]
+            self._entropies_cache[i, q0] = Sent_q0[i]
+            self._entropies_cache[i, q1] = Sent_q1[i]
+            self._state[i] = _apply_unitary_gate(states[i], Us[i].conj().T, q0, q1, L)
+        self._state = _phase_norm(self._state)
         return self._state, self.reward(), self.disentangled()
+
+    # def step(self, actions):
+    #     """
+    #     Applies `actions` to the current state and transitions the
+    #     environment to the next state.
+
+    #     Parameters
+    #     ----------
+    #     actions : array_like
+    #         Indices in `self.actions`
+    #     """
+    #     actions = np.atleast_1d(actions)
+    #     self._state = self.next_state(actions)
+    #     # Update entropies
+    #     L = self.L
+    #     for i, a in enumerate(actions):
+    #         q0, q1 = self.actions[a]
+    #         self._entropies_cache[i, q0] = _ent_entropy_single(self._state[i], q0, L)
+    #         self._entropies_cache[i, q1] = _ent_entropy_single(self._state[i], q1, L)
+    #     return self._state, self.reward(), self.disentangled()
 
     @classmethod
     def compute_best_path_single_state(cls, num_qubits, epsi, state, steps=None):
@@ -247,7 +309,7 @@ class QubitsEnvironment:
                 break
             # else:
             #     print("searching paths of length: ", it)
-        
+
         return result, done
 
     def compute_best_path(self, steps=None):
@@ -256,11 +318,9 @@ class QubitsEnvironment:
         for st in self._state:
             result, done = self.compute_best_path_single_state(self.L, self.epsi, st[np.newaxis], steps)
             res.append({"paths":result, "success":done})
-        
+
         self._state = cache
         return res
-
-
 
 
 def _random_pure_state(L):
@@ -278,7 +338,7 @@ def _random_batch(L, batch_size=1):
     return states.astype(np.complex64)
 
 
-def _apply_unitary_gate(state, U, qubit1, qubit2):
+def _apply_unitary_gate(state, U, qubit1, qubit2, L):
     """
     Applies ``U`` on ``(qubit1, qubit2)`` subsystem of ``state``.
 
@@ -293,21 +353,17 @@ def _apply_unitary_gate(state, U, qubit1, qubit2):
 
     Returns
     -------
-    numpy.ndarray
-    Complex vector in $R^{2^L}$
+    numpy.ndarray[complex64]
     """
-    L = int(log2(len(state)))
     psi = state.reshape((2,) * L)
     # Swap qubits
-    psi = np.swapaxes(psi, 0, qubit1)
-    psi = np.swapaxes(psi, 1, qubit2)
+    psi = np.transpose(psi, _QSYSTEMS_P[(L, qubit1, qubit2)])
     # Apply U
     psi = psi.reshape((4, -1)) if L > 2 else psi.reshape((4,))
-    phi = (U @ psi).reshape((2,) * L)
+    psi = (U @ psi).reshape((2,) * L)
     # Swap qubits back
-    phi = np.swapaxes(phi, 1, qubit2)
-    phi = np.swapaxes(phi, 0, qubit1)
-    return phi.reshape(-1)
+    psi = np.transpose(psi, _QSYSTEMS_INV_P[(L, qubit1, qubit2)])
+    return psi.reshape(-1)
 
 
 def _rdm_entropy(rdm):
@@ -318,11 +374,9 @@ def _rdm_entropy(rdm):
     return -np.sum(lmbda * np.log(lmbda), axis=1)
 
 
-def _rdm(state, qubit1, qubit2):
+def _rdm(state, qubit1, qubit2, L):
     """ Returns the reduced density matrix for `qubit1` and `qubit2` of `state`. """
-    L = int(log2(len(state)))
-    system = [qubit1, qubit2] + [q for q in range(L) if q not in (qubit1, qubit2)]
-    psi = state.reshape((2,) * L).transpose(system)
+    psi = state.reshape((2,) * L).transpose(_QSYSTEMS_P[(L, qubit1, qubit2)])
     psi = psi.reshape(4, 2 ** (L - 2))
     rdm = psi @ psi.T.conj()
     return rdm
@@ -334,7 +388,21 @@ def _optimal_U(state, qubit1, qubit2):
     return U.conj().T
 
 
-def _ent_entropy(states, subsys_A=None):
+def _optimal_Us_rmds(rdms):
+    _, U = np.linalg.eigh(rdms)
+    return np.swapaxes(U.conj(), 1, 2)
+
+
+def _ent_entropy_single(states, q, L):
+    states = np.atleast_2d(states).reshape((-1,) + (2,) * L)
+    states = np.transpose(states, _SINGLE_ENTROPY_P[(L, q)])
+    states = states.reshape((-1, 2, 2 ** (L - 1)))
+    lmbda = np.linalg.svd(states, full_matrices=False, compute_uv=False)
+    lmbda += np.finfo(lmbda.dtype).eps
+    return -2.0 * np.einsum('ai, ai->a', lmbda ** 2, np.log(lmbda))
+
+
+def _ent_entropy(states, subsys_A, L):
     """
     Returns the entanglement entropy for every state in the batch w.r.t
     `subsys_A`.
@@ -347,10 +415,6 @@ def _ent_entropy(states, subsys_A=None):
         Same for every state in the batch. If None, defaults to half subsystem.
     """
     states = np.atleast_2d(states)
-    L = int(log2(states.shape[1]))
-    # Default initialize ``sub_sys_A`` and ``sub_sys_B``
-    if subsys_A is None:
-        subsys_A = list(range(L // 2))
     subsys_B = [i for i in range(L) if i not in subsys_A]
     system = subsys_A + subsys_B
     subsys_A_size = len(subsys_A)
@@ -365,13 +429,46 @@ def _ent_entropy(states, subsys_A=None):
 
 
 def _phase_norm(state):
-    st = state.copy().astype(np.complex128)
-    phi = np.angle(st[:, 0])
+    phi = np.angle(state[:, 0])
     z = np.expand_dims(np.cos(phi) - 1j * np.sin(phi), axis=1)
-    return st * z
-
+    return state * z
 
 
 if __name__ == '__main__':
-    np.random.seed(44)
+    # -------------------------------------------------------------------------
+    #                           ROLLOUT  TEST
+    #
+    # E = QubitsEnvironment(8, batch_size=256)
+    # actions = np.random.uniform(0, E.num_actions, (100, 256)).astype(np.int32)
+    # for a in actions:
+    #     states, rewards, done = E.step(a)
+
+
+    # -------------------------------------------------------------------------
+    #                           EQUIVALENCE  TEST
+    #
+    # np.random.seed(32)
+    # E = QubitsEnvironment(6, batch_size=8)
+    # E.set_random_state()
+
+    # State = E._state
+    # actions = np.random.uniform(0, E.num_actions, (20, 8)).astype(np.int32)
+    # prev_states, now_states = [], []
+    # prev_ent, now_ent = [], []
+    # for a in actions:
+    #     states, rewards, done = E.step(a)
+    #     prev_states.append(states.copy())
+    #     prev_ent.append(E._entropies_cache.copy())
+
+    # E._state = State.copy()
+    # E._entropies_cache = E.Entropy(E._state)
+    # for a in actions:
+    #     states, rewards, done = E.transition(a)
+    #     now_states.append(states.copy())
+    #     now_ent.append(E._entropies_cache.copy())
+    # now_ent = np.array(now_ent)
+    # prev_ent = np.array(prev_ent)
+    # for i in range(len(actions)):
+    #     print('\n', np.isclose(now_states[i].round(7), prev_states[i].round(7), atol=1e-7))
+    #     print('\n', np.isclose(now_ent[i], prev_ent[i], atol=1e-7))
     pass
