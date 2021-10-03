@@ -1,0 +1,11 @@
+
+
+iteration 1
+##############################
+Testing agent accuracy for 5 steps...
+  Solved states:         0 / 256 = 0.000%
+  95 percentile entropy: 0.60326
+  Max entropy:           0.64190
+  Mean return:           -31.3700
+  Testing took:          0.374 seconds
+##############################

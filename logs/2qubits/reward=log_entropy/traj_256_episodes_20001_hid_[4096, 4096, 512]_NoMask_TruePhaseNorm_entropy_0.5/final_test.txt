@@ -1,0 +1,24 @@
+##############################
+Testing agent accuracy for 3 steps...
+  Solved states:         2398 / 2560 = 93.672%
+  95 percentile entropy: 0.00116
+  Max entropy:           0.00718
+  Mean return:           -2.0628
+  Testing took:          124.368 seconds
+##############################
+##############################
+Testing agent accuracy for 4 steps...
+  Solved states:         2507 / 2560 = 97.930%
+  95 percentile entropy: 0.00055
+  Max entropy:           0.00381
+  Mean return:           -2.0730
+  Testing took:          163.860 seconds
+##############################
+##############################
+Testing agent accuracy for 5 steps...
+  Solved states:         2537 / 2560 = 99.102%
+  95 percentile entropy: 0.00031
+  Max entropy:           0.00300
+  Mean return:           -2.0555
+  Testing took:          203.335 seconds
+##############################
