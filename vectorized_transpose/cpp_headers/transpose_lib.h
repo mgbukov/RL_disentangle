@@ -4,7 +4,7 @@ using namespace std;
 
 
 // function to do general tracing
-void transpose_2d(std::complex<double>  *array, int dim, std::complex<double> *out){
+void transpose_2d(int dim, std::complex<double>* array, std::complex<double>* out){
 
     for(int i=0;i<dim;i++){
         for(int j=0;j<dim;j++){

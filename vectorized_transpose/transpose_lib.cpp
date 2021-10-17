@@ -1432,16 +1432,6 @@ static struct __pyx_vtabstruct__memoryviewslice *__pyx_vtabptr__memoryviewslice;
 #define __Pyx_CLEAR(r)    do { PyObject* tmp = ((PyObject*)(r)); r = NULL; __Pyx_DECREF(tmp);} while(0)
 #define __Pyx_XCLEAR(r)   do { if((r) != NULL) {PyObject* tmp = ((PyObject*)(r)); r = NULL; __Pyx_DECREF(tmp);}} while(0)
 
-/* PyObjectGetAttrStr.proto */
-#if CYTHON_USE_TYPE_SLOTS
-static CYTHON_INLINE PyObject* __Pyx_PyObject_GetAttrStr(PyObject* obj, PyObject* attr_name);
-#else
-#define __Pyx_PyObject_GetAttrStr(o,n) PyObject_GetAttr(o,n)
-#endif
-
-/* GetBuiltinName.proto */
-static PyObject *__Pyx_GetBuiltinName(PyObject *name);
-
 /* RaiseArgTupleInvalid.proto */
 static void __Pyx_RaiseArgtupleInvalid(const char* func_name, int exact,
     Py_ssize_t num_min, Py_ssize_t num_max, Py_ssize_t num_found);
@@ -1479,6 +1469,16 @@ static CYTHON_INLINE int __pyx_sub_acquisition_count_locked(
 #define __PYX_XDEC_MEMVIEW(slice, have_gil) __Pyx_XDEC_MEMVIEW(slice, have_gil, __LINE__)
 static CYTHON_INLINE void __Pyx_INC_MEMVIEW(__Pyx_memviewslice *, int, int);
 static CYTHON_INLINE void __Pyx_XDEC_MEMVIEW(__Pyx_memviewslice *, int, int);
+
+/* PyObjectGetAttrStr.proto */
+#if CYTHON_USE_TYPE_SLOTS
+static CYTHON_INLINE PyObject* __Pyx_PyObject_GetAttrStr(PyObject* obj, PyObject* attr_name);
+#else
+#define __Pyx_PyObject_GetAttrStr(o,n) PyObject_GetAttr(o,n)
+#endif
+
+/* GetBuiltinName.proto */
+static PyObject *__Pyx_GetBuiltinName(PyObject *name);
 
 /* GetTopmostException.proto */
 #if CYTHON_USE_EXC_INFO_STACK
@@ -1950,9 +1950,6 @@ static int __Pyx_ValidateAndInit_memviewslice(
 /* ObjectToMemviewSlice.proto */
 static CYTHON_INLINE __Pyx_memviewslice __Pyx_PyObject_to_MemoryviewSlice_dc___pyx_t_double_complex(PyObject *, int writable_flag);
 
-/* CIntToPy.proto */
-static CYTHON_INLINE PyObject* __Pyx_PyInt_From_int(int value);
-
 /* RealImag.proto */
 #if CYTHON_CCOMPLEX
   #ifdef __cplusplus
@@ -2065,6 +2062,9 @@ static CYTHON_INLINE int __Pyx_PyInt_As_int(PyObject *);
 static CYTHON_INLINE long __Pyx_PyInt_As_long(PyObject *);
 
 /* CIntToPy.proto */
+static CYTHON_INLINE PyObject* __Pyx_PyInt_From_int(int value);
+
+/* CIntToPy.proto */
 static CYTHON_INLINE PyObject* __Pyx_PyInt_From_long(long value);
 
 /* CIntFromPy.proto */
@@ -2170,11 +2170,11 @@ extern int __pyx_module_is_main_transpose_lib;
 int __pyx_module_is_main_transpose_lib = 0;
 
 /* Implementation of 'transpose_lib' */
-static PyObject *__pyx_builtin_range;
 static PyObject *__pyx_builtin_ImportError;
 static PyObject *__pyx_builtin_ValueError;
 static PyObject *__pyx_builtin_MemoryError;
 static PyObject *__pyx_builtin_enumerate;
+static PyObject *__pyx_builtin_range;
 static PyObject *__pyx_builtin_TypeError;
 static PyObject *__pyx_builtin_Ellipsis;
 static PyObject *__pyx_builtin_id;
@@ -2232,6 +2232,7 @@ static const char __pyx_k_reduce_ex[] = "__reduce_ex__";
 static const char __pyx_k_swap_axes[] = "swap_axes";
 static const char __pyx_k_IndexError[] = "IndexError";
 static const char __pyx_k_ValueError[] = "ValueError";
+static const char __pyx_k_array_size[] = "array_size";
 static const char __pyx_k_batch_size[] = "batch_size";
 static const char __pyx_k_pyx_result[] = "__pyx_result";
 static const char __pyx_k_pyx_vtable[] = "__pyx_vtable__";
@@ -2303,6 +2304,7 @@ static PyObject *__pyx_n_s_ValueError;
 static PyObject *__pyx_n_s_View_MemoryView;
 static PyObject *__pyx_n_s_allocate_buffer;
 static PyObject *__pyx_n_s_array;
+static PyObject *__pyx_n_s_array_size;
 static PyObject *__pyx_n_s_base;
 static PyObject *__pyx_n_s_batch_size;
 static PyObject *__pyx_n_s_c;
@@ -2377,7 +2379,7 @@ static PyObject *__pyx_kp_s_unable_to_allocate_array_data;
 static PyObject *__pyx_kp_s_unable_to_allocate_shape_and_str;
 static PyObject *__pyx_n_s_unpack;
 static PyObject *__pyx_n_s_update;
-static PyObject *__pyx_pf_13transpose_lib_swap_axes(CYTHON_UNUSED PyObject *__pyx_self, int __pyx_v_batch_size, int __pyx_v_dim, __Pyx_memviewslice __pyx_v_array, __Pyx_memviewslice __pyx_v_out); /* proto */
+static PyObject *__pyx_pf_13transpose_lib_swap_axes(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED int __pyx_v_batch_size, int __pyx_v_dim, __Pyx_memviewslice __pyx_v_array, __Pyx_memviewslice __pyx_v_out); /* proto */
 static int __pyx_array___pyx_pf_15View_dot_MemoryView_5array___cinit__(struct __pyx_array_obj *__pyx_v_self, PyObject *__pyx_v_shape, Py_ssize_t __pyx_v_itemsize, PyObject *__pyx_v_format, PyObject *__pyx_v_mode, int __pyx_v_allocate_buffer); /* proto */
 static int __pyx_array___pyx_pf_15View_dot_MemoryView_5array_2__getbuffer__(struct __pyx_array_obj *__pyx_v_self, Py_buffer *__pyx_v_info, int __pyx_v_flags); /* proto */
 static void __pyx_array___pyx_pf_15View_dot_MemoryView_5array_4__dealloc__(struct __pyx_array_obj *__pyx_v_self); /* proto */
@@ -2459,19 +2461,20 @@ static PyObject *__pyx_codeobj__22;
 static PyObject *__pyx_codeobj__29;
 /* Late includes */
 
-/* "transpose_lib.pyx":28
- * @cython.boundscheck(False) # turn off bounds-checking for entire function
- * @cython.wraparound(False)  # turn off negative index wrapping for entire function
- * def swap_axes(int batch_size, int dim, np.complex128_t[::1] array, np.complex128_t[::1] out): #np.ndarray[np.complex128_t, ndim=1+_L, mode='c']             # <<<<<<<<<<<<<<
+/* "transpose_lib.pyx":27
  * 
- *     cdef int j,n
+ * 
+ * def swap_axes(int batch_size, int dim, np.complex128_t[::1] array, np.complex128_t[::1] out):             # <<<<<<<<<<<<<<
+ *     """
+ * 
  */
 
 /* Python wrapper */
 static PyObject *__pyx_pw_13transpose_lib_1swap_axes(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static PyMethodDef __pyx_mdef_13transpose_lib_1swap_axes = {"swap_axes", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_13transpose_lib_1swap_axes, METH_VARARGS|METH_KEYWORDS, 0};
+static char __pyx_doc_13transpose_lib_swap_axes[] = "\n    \n    !!! \n    * memory allocation is always best managed by python, i.e. all variables are preallocated in the python script\n    and we pass references to their memory addesses;\n\n    * [::1] above defines a reference to the first element of the memory view in a c-contiguous np.array.  \n    \n    ";
+static PyMethodDef __pyx_mdef_13transpose_lib_1swap_axes = {"swap_axes", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_13transpose_lib_1swap_axes, METH_VARARGS|METH_KEYWORDS, __pyx_doc_13transpose_lib_swap_axes};
 static PyObject *__pyx_pw_13transpose_lib_1swap_axes(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
-  int __pyx_v_batch_size;
+  CYTHON_UNUSED int __pyx_v_batch_size;
   int __pyx_v_dim;
   __Pyx_memviewslice __pyx_v_array = { 0, 0, { 0 }, { 0 }, { 0 } };
   __Pyx_memviewslice __pyx_v_out = { 0, 0, { 0 }, { 0 }, { 0 } };
@@ -2508,23 +2511,23 @@ static PyObject *__pyx_pw_13transpose_lib_1swap_axes(PyObject *__pyx_self, PyObj
         case  1:
         if (likely((values[1] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_dim)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("swap_axes", 1, 4, 4, 1); __PYX_ERR(0, 28, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("swap_axes", 1, 4, 4, 1); __PYX_ERR(0, 27, __pyx_L3_error)
         }
         CYTHON_FALLTHROUGH;
         case  2:
         if (likely((values[2] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_array)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("swap_axes", 1, 4, 4, 2); __PYX_ERR(0, 28, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("swap_axes", 1, 4, 4, 2); __PYX_ERR(0, 27, __pyx_L3_error)
         }
         CYTHON_FALLTHROUGH;
         case  3:
         if (likely((values[3] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_out)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("swap_axes", 1, 4, 4, 3); __PYX_ERR(0, 28, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("swap_axes", 1, 4, 4, 3); __PYX_ERR(0, 27, __pyx_L3_error)
         }
       }
       if (unlikely(kw_args > 0)) {
-        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "swap_axes") < 0)) __PYX_ERR(0, 28, __pyx_L3_error)
+        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "swap_axes") < 0)) __PYX_ERR(0, 27, __pyx_L3_error)
       }
     } else if (PyTuple_GET_SIZE(__pyx_args) != 4) {
       goto __pyx_L5_argtuple_error;
@@ -2534,14 +2537,14 @@ static PyObject *__pyx_pw_13transpose_lib_1swap_axes(PyObject *__pyx_self, PyObj
       values[2] = PyTuple_GET_ITEM(__pyx_args, 2);
       values[3] = PyTuple_GET_ITEM(__pyx_args, 3);
     }
-    __pyx_v_batch_size = __Pyx_PyInt_As_int(values[0]); if (unlikely((__pyx_v_batch_size == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 28, __pyx_L3_error)
-    __pyx_v_dim = __Pyx_PyInt_As_int(values[1]); if (unlikely((__pyx_v_dim == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 28, __pyx_L3_error)
-    __pyx_v_array = __Pyx_PyObject_to_MemoryviewSlice_dc___pyx_t_double_complex(values[2], PyBUF_WRITABLE); if (unlikely(!__pyx_v_array.memview)) __PYX_ERR(0, 28, __pyx_L3_error)
-    __pyx_v_out = __Pyx_PyObject_to_MemoryviewSlice_dc___pyx_t_double_complex(values[3], PyBUF_WRITABLE); if (unlikely(!__pyx_v_out.memview)) __PYX_ERR(0, 28, __pyx_L3_error)
+    __pyx_v_batch_size = __Pyx_PyInt_As_int(values[0]); if (unlikely((__pyx_v_batch_size == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 27, __pyx_L3_error)
+    __pyx_v_dim = __Pyx_PyInt_As_int(values[1]); if (unlikely((__pyx_v_dim == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 27, __pyx_L3_error)
+    __pyx_v_array = __Pyx_PyObject_to_MemoryviewSlice_dc___pyx_t_double_complex(values[2], PyBUF_WRITABLE); if (unlikely(!__pyx_v_array.memview)) __PYX_ERR(0, 27, __pyx_L3_error)
+    __pyx_v_out = __Pyx_PyObject_to_MemoryviewSlice_dc___pyx_t_double_complex(values[3], PyBUF_WRITABLE); if (unlikely(!__pyx_v_out.memview)) __PYX_ERR(0, 27, __pyx_L3_error)
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("swap_axes", 1, 4, 4, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 28, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("swap_axes", 1, 4, 4, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 27, __pyx_L3_error)
   __pyx_L3_error:;
   __Pyx_AddTraceback("transpose_lib.swap_axes", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
@@ -2554,9 +2557,10 @@ static PyObject *__pyx_pw_13transpose_lib_1swap_axes(PyObject *__pyx_self, PyObj
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_13transpose_lib_swap_axes(CYTHON_UNUSED PyObject *__pyx_self, int __pyx_v_batch_size, int __pyx_v_dim, __Pyx_memviewslice __pyx_v_array, __Pyx_memviewslice __pyx_v_out) {
+static PyObject *__pyx_pf_13transpose_lib_swap_axes(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED int __pyx_v_batch_size, int __pyx_v_dim, __Pyx_memviewslice __pyx_v_array, __Pyx_memviewslice __pyx_v_out) {
   int __pyx_v_j;
   int __pyx_v_n;
+  int __pyx_v_array_size;
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   int __pyx_t_1;
@@ -2566,12 +2570,21 @@ static PyObject *__pyx_pf_13transpose_lib_swap_axes(CYTHON_UNUSED PyObject *__py
   Py_ssize_t __pyx_t_5;
   __Pyx_RefNannySetupContext("swap_axes", 0);
 
-  /* "transpose_lib.pyx":32
- *     cdef int j,n
+  /* "transpose_lib.pyx":39
  * 
- *     with nogil:             # <<<<<<<<<<<<<<
- *         for j in range(batch_size): # change to prange to enable OMP parallelization
- *             n=j*dim*dim
+ *     cdef int j,n
+ *     cdef int array_size = dim*dim             # <<<<<<<<<<<<<<
+ * 
+ *     with nogil: # realeases the gil (i.e., python's global interpereter lock) --> extra speed, but no python objects
+ */
+  __pyx_v_array_size = (__pyx_v_dim * __pyx_v_dim);
+
+  /* "transpose_lib.pyx":41
+ *     cdef int array_size = dim*dim
+ * 
+ *     with nogil: # realeases the gil (i.e., python's global interpereter lock) --> extra speed, but no python objects             # <<<<<<<<<<<<<<
+ *         # loop over batch
+ *         for j in prange(batch_size): # prange enables OMP parallelization over the batch, see https://cython.readthedocs.io/en/latest/src/userguide/parallelism.html
  */
   {
       #ifdef WITH_THREAD
@@ -2581,46 +2594,76 @@ static PyObject *__pyx_pf_13transpose_lib_swap_axes(CYTHON_UNUSED PyObject *__py
       #endif
       /*try:*/ {
 
-        /* "transpose_lib.pyx":33
- * 
- *     with nogil:
- *         for j in range(batch_size): # change to prange to enable OMP parallelization             # <<<<<<<<<<<<<<
- *             n=j*dim*dim
- *             transpose_2d(&array[n], dim, &out[n])
+        /* "transpose_lib.pyx":43
+ *     with nogil: # realeases the gil (i.e., python's global interpereter lock) --> extra speed, but no python objects
+ *         # loop over batch
+ *         for j in prange(batch_size): # prange enables OMP parallelization over the batch, see https://cython.readthedocs.io/en/latest/src/userguide/parallelism.html             # <<<<<<<<<<<<<<
+ *             n=j*array_size
+ *             transpose_2d(dim, &array[n], &out[n])
  */
         __pyx_t_1 = __pyx_v_batch_size;
-        __pyx_t_2 = __pyx_t_1;
-        for (__pyx_t_3 = 0; __pyx_t_3 < __pyx_t_2; __pyx_t_3+=1) {
-          __pyx_v_j = __pyx_t_3;
+        if ((1 == 0)) abort();
+        {
+            #if ((defined(__APPLE__) || defined(__OSX__)) && (defined(__GNUC__) && (__GNUC__ > 2 || (__GNUC__ == 2 && (__GNUC_MINOR__ > 95)))))
+                #undef likely
+                #undef unlikely
+                #define likely(x)   (x)
+                #define unlikely(x) (x)
+            #endif
+            __pyx_t_3 = (__pyx_t_1 - 0 + 1 - 1/abs(1)) / 1;
+            if (__pyx_t_3 > 0)
+            {
+                #ifdef _OPENMP
+                #pragma omp parallel private(__pyx_t_4, __pyx_t_5)
+                #endif /* _OPENMP */
+                {
+                    #ifdef _OPENMP
+                    #pragma omp for firstprivate(__pyx_v_j) lastprivate(__pyx_v_j) lastprivate(__pyx_v_n)
+                    #endif /* _OPENMP */
+                    for (__pyx_t_2 = 0; __pyx_t_2 < __pyx_t_3; __pyx_t_2++){
+                        {
+                            __pyx_v_j = (int)(0 + 1 * __pyx_t_2);
+                            /* Initialize private variables to invalid values */
+                            __pyx_v_n = ((int)0xbad0bad0);
 
-          /* "transpose_lib.pyx":34
- *     with nogil:
- *         for j in range(batch_size): # change to prange to enable OMP parallelization
- *             n=j*dim*dim             # <<<<<<<<<<<<<<
- *             transpose_2d(&array[n], dim, &out[n])
+                            /* "transpose_lib.pyx":44
+ *         # loop over batch
+ *         for j in prange(batch_size): # prange enables OMP parallelization over the batch, see https://cython.readthedocs.io/en/latest/src/userguide/parallelism.html
+ *             n=j*array_size             # <<<<<<<<<<<<<<
+ *             transpose_2d(dim, &array[n], &out[n])
  * 
  */
-          __pyx_v_n = ((__pyx_v_j * __pyx_v_dim) * __pyx_v_dim);
+                            __pyx_v_n = (__pyx_v_j * __pyx_v_array_size);
 
-          /* "transpose_lib.pyx":35
- *         for j in range(batch_size): # change to prange to enable OMP parallelization
- *             n=j*dim*dim
- *             transpose_2d(&array[n], dim, &out[n])             # <<<<<<<<<<<<<<
+                            /* "transpose_lib.pyx":45
+ *         for j in prange(batch_size): # prange enables OMP parallelization over the batch, see https://cython.readthedocs.io/en/latest/src/userguide/parallelism.html
+ *             n=j*array_size
+ *             transpose_2d(dim, &array[n], &out[n])             # <<<<<<<<<<<<<<
  * 
  * 
  */
-          __pyx_t_4 = __pyx_v_n;
-          __pyx_t_5 = __pyx_v_n;
-          transpose_2d((&(*((__pyx_t_double_complex *) ( /* dim=0 */ ((char *) (((__pyx_t_double_complex *) __pyx_v_array.data) + __pyx_t_4)) )))), __pyx_v_dim, (&(*((__pyx_t_double_complex *) ( /* dim=0 */ ((char *) (((__pyx_t_double_complex *) __pyx_v_out.data) + __pyx_t_5)) )))));
+                            __pyx_t_4 = __pyx_v_n;
+                            __pyx_t_5 = __pyx_v_n;
+                            transpose_2d(__pyx_v_dim, (&(*((__pyx_t_double_complex *) ( /* dim=0 */ ((char *) (((__pyx_t_double_complex *) __pyx_v_array.data) + __pyx_t_4)) )))), (&(*((__pyx_t_double_complex *) ( /* dim=0 */ ((char *) (((__pyx_t_double_complex *) __pyx_v_out.data) + __pyx_t_5)) )))));
+                        }
+                    }
+                }
+            }
         }
+        #if ((defined(__APPLE__) || defined(__OSX__)) && (defined(__GNUC__) && (__GNUC__ > 2 || (__GNUC__ == 2 && (__GNUC_MINOR__ > 95)))))
+            #undef likely
+            #undef unlikely
+            #define likely(x)   __builtin_expect(!!(x), 1)
+            #define unlikely(x) __builtin_expect(!!(x), 0)
+        #endif
       }
 
-      /* "transpose_lib.pyx":32
- *     cdef int j,n
+      /* "transpose_lib.pyx":41
+ *     cdef int array_size = dim*dim
  * 
- *     with nogil:             # <<<<<<<<<<<<<<
- *         for j in range(batch_size): # change to prange to enable OMP parallelization
- *             n=j*dim*dim
+ *     with nogil: # realeases the gil (i.e., python's global interpereter lock) --> extra speed, but no python objects             # <<<<<<<<<<<<<<
+ *         # loop over batch
+ *         for j in prange(batch_size): # prange enables OMP parallelization over the batch, see https://cython.readthedocs.io/en/latest/src/userguide/parallelism.html
  */
       /*finally:*/ {
         /*normal exit:*/{
@@ -2634,12 +2677,12 @@ static PyObject *__pyx_pf_13transpose_lib_swap_axes(CYTHON_UNUSED PyObject *__py
       }
   }
 
-  /* "transpose_lib.pyx":28
- * @cython.boundscheck(False) # turn off bounds-checking for entire function
- * @cython.wraparound(False)  # turn off negative index wrapping for entire function
- * def swap_axes(int batch_size, int dim, np.complex128_t[::1] array, np.complex128_t[::1] out): #np.ndarray[np.complex128_t, ndim=1+_L, mode='c']             # <<<<<<<<<<<<<<
+  /* "transpose_lib.pyx":27
  * 
- *     cdef int j,n
+ * 
+ * def swap_axes(int batch_size, int dim, np.complex128_t[::1] array, np.complex128_t[::1] out):             # <<<<<<<<<<<<<<
+ *     """
+ * 
  */
 
   /* function exit code */
@@ -17299,6 +17342,7 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_View_MemoryView, __pyx_k_View_MemoryView, sizeof(__pyx_k_View_MemoryView), 0, 0, 1, 1},
   {&__pyx_n_s_allocate_buffer, __pyx_k_allocate_buffer, sizeof(__pyx_k_allocate_buffer), 0, 0, 1, 1},
   {&__pyx_n_s_array, __pyx_k_array, sizeof(__pyx_k_array), 0, 0, 1, 1},
+  {&__pyx_n_s_array_size, __pyx_k_array_size, sizeof(__pyx_k_array_size), 0, 0, 1, 1},
   {&__pyx_n_s_base, __pyx_k_base, sizeof(__pyx_k_base), 0, 0, 1, 1},
   {&__pyx_n_s_batch_size, __pyx_k_batch_size, sizeof(__pyx_k_batch_size), 0, 0, 1, 1},
   {&__pyx_n_s_c, __pyx_k_c, sizeof(__pyx_k_c), 0, 0, 1, 1},
@@ -17376,11 +17420,11 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {0, 0, 0, 0, 0, 0, 0}
 };
 static CYTHON_SMALL_CODE int __Pyx_InitCachedBuiltins(void) {
-  __pyx_builtin_range = __Pyx_GetBuiltinName(__pyx_n_s_range); if (!__pyx_builtin_range) __PYX_ERR(0, 33, __pyx_L1_error)
   __pyx_builtin_ImportError = __Pyx_GetBuiltinName(__pyx_n_s_ImportError); if (!__pyx_builtin_ImportError) __PYX_ERR(1, 884, __pyx_L1_error)
   __pyx_builtin_ValueError = __Pyx_GetBuiltinName(__pyx_n_s_ValueError); if (!__pyx_builtin_ValueError) __PYX_ERR(2, 133, __pyx_L1_error)
   __pyx_builtin_MemoryError = __Pyx_GetBuiltinName(__pyx_n_s_MemoryError); if (!__pyx_builtin_MemoryError) __PYX_ERR(2, 148, __pyx_L1_error)
   __pyx_builtin_enumerate = __Pyx_GetBuiltinName(__pyx_n_s_enumerate); if (!__pyx_builtin_enumerate) __PYX_ERR(2, 151, __pyx_L1_error)
+  __pyx_builtin_range = __Pyx_GetBuiltinName(__pyx_n_s_range); if (!__pyx_builtin_range) __PYX_ERR(2, 180, __pyx_L1_error)
   __pyx_builtin_TypeError = __Pyx_GetBuiltinName(__pyx_n_s_TypeError); if (!__pyx_builtin_TypeError) __PYX_ERR(2, 2, __pyx_L1_error)
   __pyx_builtin_Ellipsis = __Pyx_GetBuiltinName(__pyx_n_s_Ellipsis); if (!__pyx_builtin_Ellipsis) __PYX_ERR(2, 404, __pyx_L1_error)
   __pyx_builtin_id = __Pyx_GetBuiltinName(__pyx_n_s_id); if (!__pyx_builtin_id) __PYX_ERR(2, 613, __pyx_L1_error)
@@ -17608,17 +17652,17 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __Pyx_GOTREF(__pyx_tuple__20);
   __Pyx_GIVEREF(__pyx_tuple__20);
 
-  /* "transpose_lib.pyx":28
- * @cython.boundscheck(False) # turn off bounds-checking for entire function
- * @cython.wraparound(False)  # turn off negative index wrapping for entire function
- * def swap_axes(int batch_size, int dim, np.complex128_t[::1] array, np.complex128_t[::1] out): #np.ndarray[np.complex128_t, ndim=1+_L, mode='c']             # <<<<<<<<<<<<<<
+  /* "transpose_lib.pyx":27
  * 
- *     cdef int j,n
+ * 
+ * def swap_axes(int batch_size, int dim, np.complex128_t[::1] array, np.complex128_t[::1] out):             # <<<<<<<<<<<<<<
+ *     """
+ * 
  */
-  __pyx_tuple__21 = PyTuple_Pack(6, __pyx_n_s_batch_size, __pyx_n_s_dim, __pyx_n_s_array, __pyx_n_s_out, __pyx_n_s_j, __pyx_n_s_n); if (unlikely(!__pyx_tuple__21)) __PYX_ERR(0, 28, __pyx_L1_error)
+  __pyx_tuple__21 = PyTuple_Pack(7, __pyx_n_s_batch_size, __pyx_n_s_dim, __pyx_n_s_array, __pyx_n_s_out, __pyx_n_s_j, __pyx_n_s_n, __pyx_n_s_array_size); if (unlikely(!__pyx_tuple__21)) __PYX_ERR(0, 27, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__21);
   __Pyx_GIVEREF(__pyx_tuple__21);
-  __pyx_codeobj__22 = (PyObject*)__Pyx_PyCode_New(4, 0, 6, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__21, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_transpose_lib_pyx, __pyx_n_s_swap_axes, 28, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__22)) __PYX_ERR(0, 28, __pyx_L1_error)
+  __pyx_codeobj__22 = (PyObject*)__Pyx_PyCode_New(4, 0, 7, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__21, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_transpose_lib_pyx, __pyx_n_s_swap_axes, 27, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__22)) __PYX_ERR(0, 27, __pyx_L1_error)
 
   /* "View.MemoryView":286
  *         return self.name
@@ -18082,16 +18126,16 @@ if (!__Pyx_RefNanny) {
   if (PyDict_SetItem(__pyx_d, __pyx_n_s_np, __pyx_t_1) < 0) __PYX_ERR(0, 10, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "transpose_lib.pyx":28
- * @cython.boundscheck(False) # turn off bounds-checking for entire function
- * @cython.wraparound(False)  # turn off negative index wrapping for entire function
- * def swap_axes(int batch_size, int dim, np.complex128_t[::1] array, np.complex128_t[::1] out): #np.ndarray[np.complex128_t, ndim=1+_L, mode='c']             # <<<<<<<<<<<<<<
+  /* "transpose_lib.pyx":27
  * 
- *     cdef int j,n
+ * 
+ * def swap_axes(int batch_size, int dim, np.complex128_t[::1] array, np.complex128_t[::1] out):             # <<<<<<<<<<<<<<
+ *     """
+ * 
  */
-  __pyx_t_1 = PyCFunction_NewEx(&__pyx_mdef_13transpose_lib_1swap_axes, NULL, __pyx_n_s_transpose_lib); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 28, __pyx_L1_error)
+  __pyx_t_1 = PyCFunction_NewEx(&__pyx_mdef_13transpose_lib_1swap_axes, NULL, __pyx_n_s_transpose_lib); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 27, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_swap_axes, __pyx_t_1) < 0) __PYX_ERR(0, 28, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_swap_axes, __pyx_t_1) < 0) __PYX_ERR(0, 27, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
   /* "transpose_lib.pyx":1
@@ -18298,34 +18342,6 @@ end:
     return (__Pyx_RefNannyAPIStruct *)r;
 }
 #endif
-
-/* PyObjectGetAttrStr */
-#if CYTHON_USE_TYPE_SLOTS
-static CYTHON_INLINE PyObject* __Pyx_PyObject_GetAttrStr(PyObject* obj, PyObject* attr_name) {
-    PyTypeObject* tp = Py_TYPE(obj);
-    if (likely(tp->tp_getattro))
-        return tp->tp_getattro(obj, attr_name);
-#if PY_MAJOR_VERSION < 3
-    if (likely(tp->tp_getattr))
-        return tp->tp_getattr(obj, PyString_AS_STRING(attr_name));
-#endif
-    return PyObject_GetAttr(obj, attr_name);
-}
-#endif
-
-/* GetBuiltinName */
-static PyObject *__Pyx_GetBuiltinName(PyObject *name) {
-    PyObject* result = __Pyx_PyObject_GetAttrStr(__pyx_b, name);
-    if (unlikely(!result)) {
-        PyErr_Format(PyExc_NameError,
-#if PY_MAJOR_VERSION >= 3
-            "name '%U' is not defined", name);
-#else
-            "name '%.200s' is not defined", PyString_AS_STRING(name));
-#endif
-    }
-    return result;
-}
 
 /* RaiseArgTupleInvalid */
 static void __Pyx_RaiseArgtupleInvalid(
@@ -18599,6 +18615,34 @@ static CYTHON_INLINE void __Pyx_XDEC_MEMVIEW(__Pyx_memviewslice *memslice,
     } else {
         memslice->memview = NULL;
     }
+}
+
+/* PyObjectGetAttrStr */
+#if CYTHON_USE_TYPE_SLOTS
+static CYTHON_INLINE PyObject* __Pyx_PyObject_GetAttrStr(PyObject* obj, PyObject* attr_name) {
+    PyTypeObject* tp = Py_TYPE(obj);
+    if (likely(tp->tp_getattro))
+        return tp->tp_getattro(obj, attr_name);
+#if PY_MAJOR_VERSION < 3
+    if (likely(tp->tp_getattr))
+        return tp->tp_getattr(obj, PyString_AS_STRING(attr_name));
+#endif
+    return PyObject_GetAttr(obj, attr_name);
+}
+#endif
+
+/* GetBuiltinName */
+static PyObject *__Pyx_GetBuiltinName(PyObject *name) {
+    PyObject* result = __Pyx_PyObject_GetAttrStr(__pyx_b, name);
+    if (unlikely(!result)) {
+        PyErr_Format(PyExc_NameError,
+#if PY_MAJOR_VERSION >= 3
+            "name '%U' is not defined", name);
+#else
+            "name '%.200s' is not defined", PyString_AS_STRING(name));
+#endif
+    }
+    return result;
 }
 
 /* GetTopmostException */
@@ -21305,37 +21349,6 @@ __pyx_fail:
     return result;
 }
 
-/* CIntToPy */
-  static CYTHON_INLINE PyObject* __Pyx_PyInt_From_int(int value) {
-    const int neg_one = (int) ((int) 0 - (int) 1), const_zero = (int) 0;
-    const int is_unsigned = neg_one > const_zero;
-    if (is_unsigned) {
-        if (sizeof(int) < sizeof(long)) {
-            return PyInt_FromLong((long) value);
-        } else if (sizeof(int) <= sizeof(unsigned long)) {
-            return PyLong_FromUnsignedLong((unsigned long) value);
-#ifdef HAVE_LONG_LONG
-        } else if (sizeof(int) <= sizeof(unsigned PY_LONG_LONG)) {
-            return PyLong_FromUnsignedLongLong((unsigned PY_LONG_LONG) value);
-#endif
-        }
-    } else {
-        if (sizeof(int) <= sizeof(long)) {
-            return PyInt_FromLong((long) value);
-#ifdef HAVE_LONG_LONG
-        } else if (sizeof(int) <= sizeof(PY_LONG_LONG)) {
-            return PyLong_FromLongLong((PY_LONG_LONG) value);
-#endif
-        }
-    }
-    {
-        int one = 1; int little = (int)*(unsigned char *)&one;
-        unsigned char *bytes = (unsigned char *)&value;
-        return _PyLong_FromByteArray(bytes, sizeof(int),
-                                     little, !is_unsigned);
-    }
-}
-
 /* Declarations */
   #if CYTHON_CCOMPLEX
   #ifdef __cplusplus
@@ -22087,6 +22100,37 @@ raise_neg_overflow:
     PyErr_SetString(PyExc_OverflowError,
         "can't convert negative value to long");
     return (long) -1;
+}
+
+/* CIntToPy */
+  static CYTHON_INLINE PyObject* __Pyx_PyInt_From_int(int value) {
+    const int neg_one = (int) ((int) 0 - (int) 1), const_zero = (int) 0;
+    const int is_unsigned = neg_one > const_zero;
+    if (is_unsigned) {
+        if (sizeof(int) < sizeof(long)) {
+            return PyInt_FromLong((long) value);
+        } else if (sizeof(int) <= sizeof(unsigned long)) {
+            return PyLong_FromUnsignedLong((unsigned long) value);
+#ifdef HAVE_LONG_LONG
+        } else if (sizeof(int) <= sizeof(unsigned PY_LONG_LONG)) {
+            return PyLong_FromUnsignedLongLong((unsigned PY_LONG_LONG) value);
+#endif
+        }
+    } else {
+        if (sizeof(int) <= sizeof(long)) {
+            return PyInt_FromLong((long) value);
+#ifdef HAVE_LONG_LONG
+        } else if (sizeof(int) <= sizeof(PY_LONG_LONG)) {
+            return PyLong_FromLongLong((PY_LONG_LONG) value);
+#endif
+        }
+    }
+    {
+        int one = 1; int little = (int)*(unsigned char *)&one;
+        unsigned char *bytes = (unsigned char *)&value;
+        return _PyLong_FromByteArray(bytes, sizeof(int),
+                                     little, !is_unsigned);
+    }
 }
 
 /* CIntToPy */
