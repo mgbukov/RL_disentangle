@@ -1,11 +1,20 @@
+from jax.config import config
+config.update("jax_enable_x64", True)
+
+from jax import jit
+import jax.numpy as jnp 
+
 import numpy as np
 from itertools import combinations
+
 
 
 _QSYSTEMS_P = {}
 _QSYSTEMS_INV_P = {}
 _SINGLE_ENTROPY_P = {}
+_QUBITS = {}
 for L in range(2, 15):
+    _QUBITS[L] = (2,)*L
     for q0, q1 in combinations(range(L), 2):
         sysA = [q0, q1]
         sysB = [q for q in range(L) if q not in sysA]
@@ -338,6 +347,8 @@ def _random_batch(L, batch_size=1):
     return states.astype(np.complex64)
 
 
+
+
 def _apply_unitary_gate(state, U, qubit1, qubit2, L):
     """
     Applies ``U`` on ``(qubit1, qubit2)`` subsystem of ``state``.
@@ -355,15 +366,16 @@ def _apply_unitary_gate(state, U, qubit1, qubit2, L):
     -------
     numpy.ndarray[complex64]
     """
-    psi = state.reshape((2,) * L)
+    psi = state.reshape((2,) * L) # redundant --> rm
     # Swap qubits
-    psi = np.transpose(psi, _QSYSTEMS_P[(L, qubit1, qubit2)])
+    psi = psi.transpose(_QSYSTEMS_P[(L, qubit1, qubit2)])
     # Apply U
     psi = psi.reshape((4, -1)) if L > 2 else psi.reshape((4,))
-    psi = (U @ psi).reshape((2,) * L)
+    psi = U @ psi
+    psi = psi.reshape((2,) * L)
     # Swap qubits back
     psi = np.transpose(psi, _QSYSTEMS_INV_P[(L, qubit1, qubit2)])
-    return psi.reshape(-1)
+    return psi.reshape(-1) # redundant --> rm
 
 
 def _rdm_entropy(rdm):
@@ -376,17 +388,18 @@ def _rdm_entropy(rdm):
 
 def _rdm(state, qubit1, qubit2, L):
     """ Returns the reduced density matrix for `qubit1` and `qubit2` of `state`. """
-    psi = state.reshape((2,) * L).transpose(_QSYSTEMS_P[(L, qubit1, qubit2)])
+    psi = state.reshape((2,) * L) # redundant --> rm
+    psi = psi.transpose(_QSYSTEMS_P[(L, qubit1, qubit2)])
     psi = psi.reshape(4, 2 ** (L - 2))
     rdm = psi @ psi.T.conj()
     return rdm
 
-
+'''
 def _optimal_U(state, qubit1, qubit2):
     rdm = _rdm(state, qubit1, qubit2)
     _, U = np.linalg.eigh(rdm)
     return U.conj().T
-
+'''
 
 def _optimal_Us_rmds(rdms):
     _, U = np.linalg.eigh(rdms)
