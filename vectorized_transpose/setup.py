@@ -18,7 +18,7 @@ def cython_files():
     cython_src = glob.glob(os.path.join(package_dir,"transpose_lib.pyx"))
 
     include_dirs = [numpy.get_include(),]
-    #include_dirs.append(os.path.join(package_dir,"_cpp_funcs")) # cpp headers, if any
+    include_dirs.append(os.path.join(package_dir,"cpp_headers")) # cpp headers, if any
 
     cythonize(cython_src,include_path=include_dirs)
 
@@ -34,11 +34,15 @@ def configuration(parent_package='', top_path=None):
 
 
     # OMP compiler flags
-    extra_compile_args=["-fno-strict-aliasing","-O0",'-fopenmp']
+    extra_compile_args=["-std=c++11", 
+                        "-fno-strict-aliasing",
+                        "-O0", 
+                        "-fopenmp",
+                        ]
+
     extra_link_args=['-fopenmp']  
       
-    #if sys.platform == "darwin":
-    extra_compile_args.append("-std=c++11")
+    #if sys.platform == "darwin": # can be used to specify the platform
 
 
     package_dir = os.path.dirname(os.path.realpath(__file__))
@@ -46,7 +50,7 @@ def configuration(parent_package='', top_path=None):
 
 
     include_dirs = [numpy.get_include(),] # boost_path, if needed
-    # include_dirs.append(os.path.join(package_dir,"_cpp_funcs")) # extra cpp headers
+    include_dirs.append(os.path.join(package_dir,"cpp_headers")) # extra cpp headers
 
     # mpi compiler
     # os.environ["CC"] = "mpicc"
@@ -57,7 +61,7 @@ def configuration(parent_package='', top_path=None):
 
 
 
-    #depends =[ os.path.join(package_dir,"_cpp_funcs","opcpp_utils_impl.h"), ]
+    depends =[ os.path.join(package_dir,"cpp_headers",), ] #"opcpp_utils_impl.h"
     src = [os.path.join(package_dir,lib_name+".cpp")]
 
     config.add_extension(   '',
@@ -65,7 +69,7 @@ def configuration(parent_package='', top_path=None):
                             include_dirs=include_dirs,
                             extra_compile_args=extra_compile_args,
                             extra_link_args=extra_link_args,
-                        #    depends=depends,
+                            depends=depends,
                             language="c++",
                         )
 
