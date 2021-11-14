@@ -45,8 +45,9 @@ class QubitsEnvironment:
         """
         # The entropy is computed separately for every state of the batch.
         if subsys is None:
-            L = int(np.log2(states.shape[1]))
-            entropies = [_ent_entropy_single(states, i, L) for i in range(L)]
+            L = len(states.shape) - 1
+            # Use ``_ent_entropy_single()`` if ``states`` is batch of vectors
+            entropies = [_ent_entropy_single2(states, i, L) for i in range(L)]
             return np.stack(entropies).T
         else:
             return _ent_entropy(states, subsys)
@@ -116,27 +117,26 @@ class QubitsEnvironment:
             Number of states simultaneously represented by the environment.
         """
         assert num_qubits >= 2
-        self.L = int(num_qubits)
-        self.Ns = 2 ** self.L
+        self.L = num_qubits
+        self.shape = (batch_size,) + (2,) * num_qubits
         self.num_actions = (self.L * (self.L - 1)) // 2
         self.batch_size = batch_size
         self.epsi = epsi
         self.actions = dict(enumerate(combinations(range(num_qubits), 2)))
         self.reset()  # bounds `_state` and `_entropies_cache` attributes
 
-    # TODO: Unify setter and getter. One returns array of type np.float32,
-    # the other takes np.complex64 as argument.
-    # Do we need setter and getter ??
     @property
     def state(self):
         # The state of the system is represented as a concatenation of the real
         # and the imaginary parts.
-        states = np.hstack([self._state.real, self._state.imag])
-        return states
+        return self._state.reshape(self.batch_size, -1)
+        # states = np.hstack([self._state.real, self._state.imag])
+        # return states
 
     @state.setter
     def state(self, newstate):
-        self._state = _phase_norm(np.atleast_2d(newstate.copy()))
+        # self._state = _phase_norm(newstate)
+        self._state = newstate.copy().reshape(self.shape)
         self._entropies_cache = self.Entropy(self._state)
 
     def set_random_state(self, copy=False):
@@ -150,17 +150,18 @@ class QubitsEnvironment:
         """
         if copy:
             psi = _random_pure_state(self.L)
-            self._state = np.tile(psi, (self.batch_size, 1))
+            psi = np.tile(psi, (self.batch_size, 1))
         else:
-            self._state = _random_batch(self.L, self.batch_size)
-        self._state = _phase_norm(self._state)
+            psi = _random_batch(self.L, self.batch_size)
+        # self._state = _phase_norm(self._state).reshape(shape)
+        self._state = psi.reshape(self.shape)
         self._entropies_cache = self.Entropy(self._state)
 
     def reset(self):
         """ Set the state of the environment to a disentangled state. """
-        psi = np.zeros((self.batch_size, self.Ns), dtype=np.complex64)
+        psi = np.zeros((self.batch_size, 2 ** self.L), dtype=np.complex64)
         psi[:, 0] = 1.0
-        self._state = psi
+        self._state = psi.reshape(self.shape)
         self._entropies_cache = self.Entropy(self._state)
 
     def entropy(self):
@@ -195,7 +196,7 @@ class QubitsEnvironment:
             raise ValueError('Expected actions of shape ({},)'.format(self.batch_size))
         L = self.L
         B = self.batch_size
-        states = self._state
+        states = self._state.reshape(B, 2 ** L)
         nextstates = np.zeros((B, self.Ns), dtype=np.complex64)
         rdms = np.zeros((B, 4, 4), dtype=np.complex64)
         qubits = [self.actions[a] for a in actions]
@@ -206,6 +207,7 @@ class QubitsEnvironment:
         for i in range(B):
             q0, q1 = qubits[i]
             nextstates[i] = _apply_unitary_gate(states[i], Us[i], q0, q1, L)
+        # return nextstates
         return _phase_norm(nextstates)
 
     def step(self, actions):
@@ -228,10 +230,10 @@ class QubitsEnvironment:
         """
         actions = np.atleast_1d(actions)
         if len(actions) != self.batch_size:
-            raise ValueError('Expected actions of shape ({},)'.format(self.batch_size))
+            raise ValueError('Expected array with shape=({},)'.format(self.batch_size))
         L = self.L
         B = self.batch_size
-        states = self._state
+        states = self._state.reshape(B, 2 ** L)
         rdms = np.zeros((B, 4, 4), dtype=np.complex64)
         qubits = [self.actions[a] for a in actions]
         for i in range(B):
@@ -250,9 +252,100 @@ class QubitsEnvironment:
             q0, q1 = qubits[i]
             self._entropies_cache[i, q0] = Sent_q0[i]
             self._entropies_cache[i, q1] = Sent_q1[i]
-            self._state[i] = _apply_unitary_gate(states[i], Us[i].conj().T, q0, q1, L)
-        self._state = _phase_norm(self._state)
+            x = _apply_unitary_gate(states[i], Us[i].conj().T, q0, q1, L)
+            self._state[i] = x.reshape((2,) * L)
+        # self._state = _phase_norm(self._state)
         return self._state, self.reward(), self.disentangled()
+
+    def step2(self, actions):
+        actions = np.atleast_1d(actions)
+        if len(actions) != self.batch_size:
+            raise ValueError('Expected array with shape=({},)'.format(self.batch_size))
+        L = self.L
+        B = self.batch_size
+        batch = self._state
+        qubit_indices = np.array([self.actions[a] for a in actions])
+        # ----
+        # Move qubits which are modified by ``actions`` at indices (0, 1)
+        _transpose_batch_inplace(batch, qubit_indices, self.L)
+        # ----
+        # Compute 2x2 reduced density matrices
+        batch = batch.reshape(B, 4, 2 ** (L - 2))
+        rdms = batch @ np.transpose(batch.conj(), [0, 2, 1])  # TODO jit
+        # ----
+        # Compute single qubit entropies
+        rhos, Us = np.linalg.eigh(rdms)  #TODO jit jax.lax.eigh
+        Us = np.swapaxes(Us.conj(), 1, 2)
+        # TODO Function & jit
+        a = rhos[:, 0] + rhos[:, 1]  # rho_{q0-1}
+        b = rhos[:, 2] + rhos[:, 3]  # rho_{q0-2}
+        c = rhos[:, 0] + rhos[:, 2]  # rho_{q1-1}
+        d = rhos[:, 1] + rhos[:, 3]  # rho_{q1-2}
+        Sent_q0 = -a*np.log(a + np.finfo(a.dtype).eps) - b*np.log(b + np.finfo(b.dtype).eps)
+        Sent_q1 = -c*np.log(c + np.finfo(c.dtype).eps) - d*np.log(d + np.finfo(d.dtype).eps)
+        # ----
+        # Apply unitary gates
+        batch = (Us @ batch).reshape(self.shape)  # TODO jit
+        # ----
+        # Undo qubit permutations
+        _transpose_batch_inplace(batch, qubit_indices, L, inverse=True)
+        # ----
+        # Update entropies
+        self._entropies_cache[:, qubit_indices[:, 0]] = Sent_q0
+        self._entropies_cache[:, qubit_indices[:, 1]] = Sent_q1
+        # ----
+        # Phase normalize states
+        # self._state = _phase_norm(self._state)
+        self._state = batch
+        return self._state, self.reward(), self.disentangled()
+
+    def peek(self, actions):
+        # TODO refactor
+        actions = np.atleast_1d(actions)
+        if len(actions) != self.batch_size:
+            raise ValueError('Expected array with shape=({},)'.format(self.batch_size))
+        L = self.L
+        B = self.batch_size
+        batch = self._state.copy()
+        qubit_indices = np.array([self.actions[a] for a in actions])
+        # ----
+        # Move qubits which are modified by ``actions`` at indices (0, 1)
+        _transpose_batch_inplace(batch, qubit_indices, self.L)
+        # ----
+        # Compute 2x2 reduced density matrices
+        batch = batch.reshape(B, 4, 2 ** (L - 2))
+        rdms = batch @ np.transpose(batch.conj(), [0, 2, 1])
+        # ----
+        # Compute single qubit entropies
+        rhos, Us = np.linalg.eigh(rdms)
+        Us = np.swapaxes(Us.conj(), 1, 2)
+        a = rhos[:, 0] + rhos[:, 1]  # rho_{q0-1}
+        b = rhos[:, 2] + rhos[:, 3]  # rho_{q0-2}
+        c = rhos[:, 0] + rhos[:, 2]  # rho_{q1-1}
+        d = rhos[:, 1] + rhos[:, 3]  # rho_{q1-2}
+        Sent_q0 = -a*np.log(a + np.finfo(a.dtype).eps) - b*np.log(b + np.finfo(b.dtype).eps)
+        Sent_q1 = -c*np.log(c + np.finfo(c.dtype).eps) - d*np.log(d + np.finfo(d.dtype).eps)
+        # ----
+        # Apply unitary gates
+        batch = (Us @ batch).reshape(self.shape)
+        # ----
+        # Undo qubit permutations
+        _transpose_batch_inplace(batch, qubit_indices, L, inverse=True)
+        # ----
+        # Temporarily update ``self._entropies_cache``
+        entropies = self._entropies_cache.copy()
+        self._entropies_cache[:, qubit_indices[:, 0]] = Sent_q0
+        self._entropies_cache[:, qubit_indices[:, 1]] = Sent_q1
+        # ----
+        # Compute rewards and done
+        reward = self.reward()
+        done = self.disentangled()
+        # ----
+        # Reset ``self._entropies_cache``
+        self._entropies_cache = entropies
+        # Phase normalize states
+        # self._state = _phase_norm(self._state)
+        return batch, reward, done
 
     # def step(self, actions):
     #     """
@@ -327,7 +420,6 @@ def _random_pure_state(L):
     # Sample from Gaussian distribution, as it gives uniformly distibuted
     # points in L dimensional unit sphere
     psi = np.random.randn(2 ** L) + 1j * np.random.randn(2 ** L)
-    # Normalize the state vector
     psi /= np.linalg.norm(psi)
     return psi.astype(np.complex64)
 
@@ -336,6 +428,12 @@ def _random_batch(L, batch_size=1):
     states = np.random.randn(batch_size, 2 ** L) + 1j * np.random.randn(batch_size, 2 ** L)
     states /= np.linalg.norm(states, axis=1, keepdims=True)
     return states.astype(np.complex64)
+
+
+def _transpose_batch_inplace(batch, qubits_indices, L, inverse=False):
+    P = _QSYSTEMS_INV_P if inverse else _QSYSTEMS_P
+    for i, (q0, q1) in enumerate(qubits_indices):
+        batch[i] = np.transpose(batch[i], P[(L, q0, q1)])
 
 
 def _apply_unitary_gate(state, U, qubit1, qubit2, L):
@@ -393,6 +491,22 @@ def _optimal_Us_rmds(rdms):
     return np.swapaxes(U.conj(), 1, 2)
 
 
+def _ent_entropy_single2(batch, q, L):
+    """
+    Calculates the entropy of qubit ``q`` with rest.
+    Parameters
+    ----------
+    batch : numpy.ndarray, shape=(B,2,2,...), dtype=np.complex32
+    q : int
+    L : int
+    """
+    batch = np.transpose(batch, _SINGLE_ENTROPY_P[(L, q)])
+    batch = batch.reshape((-1, 2, 2 ** (L - 1)))
+    lmbda = np.linalg.svd(batch, full_matrices=False, compute_uv=False)
+    lmbda += np.finfo(lmbda.dtype).eps
+    return -2.0 * np.einsum('ai, ai->a', lmbda ** 2, np.log(lmbda))
+
+
 def _ent_entropy_single(states, q, L):
     states = np.atleast_2d(states).reshape((-1,) + (2,) * L)
     states = np.transpose(states, _SINGLE_ENTROPY_P[(L, q)])
@@ -428,20 +542,67 @@ def _ent_entropy(states, subsys_A, L):
     return -2.0 / subsys_A_size * np.einsum('ai, ai->a', lmbda ** 2, np.log(lmbda))
 
 
+def _calculate_q0_q1_entropy_from_rhos(rhos):
+    a = rhos[:, 0] + rhos[:, 1]  # rho_{q0-1}
+    b = rhos[:, 2] + rhos[:, 3]  # rho_{q0-2}
+    c = rhos[:, 0] + rhos[:, 2]  # rho_{q1-1}
+    d = rhos[:, 1] + rhos[:, 3]  # rho_{q1-2}
+    Sent_q0 = -a*np.log(a + np.finfo(a.dtype).eps) - b*np.log(b + np.finfo(b.dtype).eps)
+    Sent_q1 = -c*np.log(c + np.finfo(c.dtype).eps) - d*np.log(d + np.finfo(d.dtype).eps)
+    return Sent_q0, Sent_q1
+
+
 def _phase_norm(state):
     phi = np.angle(state[:, 0])
     z = np.expand_dims(np.cos(phi) - 1j * np.sin(phi), axis=1)
     return state * z
 
 
+def _phase_norm2(state):
+    B = state.shape[0]
+    L = len(state) - 1
+    first = state.reshape(B, -1)[:, 0]
+    phi = np.angle(first)
+    z = np.cos(phi) - 1j * np.sin(phi)
+    return state * z.reshape((B,) + (1,) ** L)
+
+
 if __name__ == '__main__':
     # -------------------------------------------------------------------------
     #                           ROLLOUT  TEST
     #
-    # E = QubitsEnvironment(8, batch_size=256)
-    # actions = np.random.uniform(0, E.num_actions, (100, 256)).astype(np.int32)
+    # L = 4
+    # B = 1
+    # N = 10
+    # np.random.seed(34)
+    # E = QubitsEnvironment(L, batch_size=B)
+    # batch = _random_batch(L, B)
+    # E.state = batch
+    # assert np.all(E._state.ravel() == batch.ravel())
+    # rollout_old, rollout_new = [], []
+    # actions = np.random.uniform(0, E.num_actions, (N, B)).astype(np.int32)
     # for a in actions:
-    #     states, rewards, done = E.step(a)
+    #     states, rewards, done = E.step2(a)
+    #     rollout_new.append(states.copy())
+
+    # E.state = batch
+    # assert np.all(E._state.ravel() == batch.ravel())
+
+    # for a in actions:
+    #     s = E.next_state(a)
+    #     rollout_old.append(s)
+    #     E.state = s
+    #     # E.step(a)
+    #     # rollout_old.append(E._state.copy())
+
+    # for i in range(N):
+    #     print(i)
+    #     try:
+    #         assert np.all(np.isclose(rollout_old[i].ravel(), rollout_new[i].ravel(), rtol=1e-3))
+    #     except:
+    #         print(rollout_old[i].ravel())
+    #         print(rollout_new[i].ravel())
+
 
 
     # -------------------------------------------------------------------------
