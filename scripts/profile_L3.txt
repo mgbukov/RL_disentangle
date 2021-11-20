@@ -1,0 +1,64 @@
+         672404 function calls in 4.428 seconds
+
+   Ordered by: internal time
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+   179300    1.909    0.000    1.909    0.000 {method 'reshape' of 'numpy.ndarray' objects}
+    25600    0.687    0.000    2.207    0.000 rdm_environment.py:391(_apply_unitary_gate)
+    25600    0.620    0.000    1.676    0.000 rdm_environment.py:427(_rdm)
+    51200    0.452    0.000    0.452    0.000 {method 'conj' of 'numpy.ndarray' objects}
+      100    0.382    0.004    4.427    0.044 rdm_environment.py:212(step)
+    76800    0.165    0.000    0.165    0.000 {method 'transpose' of 'numpy.ndarray' objects}
+      100    0.046    0.000    0.046    0.000 rdm_environment.py:237(<listcomp>)
+    51200    0.033    0.000    0.229    0.000 <__array_function__ internals>:2(transpose)
+      100    0.032    0.000    0.036    0.000 linalg.py:1314(eigh)
+    51200    0.024    0.000    0.144    0.000 fromnumeric.py:55(_wrapfunc)
+    51500    0.022    0.000    0.226    0.000 {built-in method numpy.core._multiarray_umath.implement_array_function}
+    51200    0.022    0.000    0.166    0.000 fromnumeric.py:604(transpose)
+    51300    0.010    0.000    0.010    0.000 {built-in method builtins.getattr}
+    51200    0.008    0.000    0.008    0.000 fromnumeric.py:600(_transpose_dispatcher)
+      200    0.002    0.000    0.002    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+      100    0.002    0.000    0.004    0.000 _methods.py:134(_mean)
+      200    0.001    0.000    0.001    0.000 {method 'astype' of 'numpy.ndarray' objects}
+      100    0.001    0.000    0.006    0.000 rdm_environment.py:54(Reward)
+        1    0.001    0.001    4.428    4.428 profile_rdm_environment.py:27(do_rollout)
+      100    0.001    0.000    0.002    0.000 rdm_environment.py:83(Disentangled)
+      100    0.001    0.000    0.001    0.000 {built-in method numpy.zeros}
+      400    0.000    0.000    0.001    0.000 getlimits.py:365(__new__)
+      100    0.000    0.000    0.001    0.000 linalg.py:144(_commonType)
+      100    0.000    0.000    0.001    0.000 fromnumeric.py:73(_wrapreduction)
+      300    0.000    0.000    0.000    0.000 {built-in method numpy.array}
+      100    0.000    0.000    0.001    0.000 shape_base.py:25(atleast_1d)
+      100    0.000    0.000    0.000    0.000 _methods.py:50(_count_reduce_items)
+      100    0.000    0.000    0.006    0.000 rdm_environment.py:174(reward)
+      100    0.000    0.000    0.036    0.000 <__array_function__ internals>:2(eigh)
+      100    0.000    0.000    0.004    0.000 {method 'mean' of 'numpy.ndarray' objects}
+      100    0.000    0.000    0.001    0.000 linalg.py:116(_makearray)
+      100    0.000    0.000    0.000    0.000 linalg.py:111(get_linalg_error_extobj)
+      100    0.000    0.000    0.001    0.000 fromnumeric.py:2324(all)
+      100    0.000    0.000    0.002    0.000 <__array_function__ internals>:2(all)
+      100    0.000    0.000    0.000    0.000 linalg.py:209(_assert_stacked_square)
+      200    0.000    0.000    0.000    0.000 linalg.py:134(_realType)
+      600    0.000    0.000    0.000    0.000 {method 'get' of 'dict' objects}
+      100    0.000    0.000    0.001    0.000 <__array_function__ internals>:2(atleast_1d)
+      500    0.000    0.000    0.000    0.000 {built-in method builtins.issubclass}
+      100    0.000    0.000    0.000    0.000 linalg.py:203(_assert_stacked_2d)
+      100    0.000    0.000    0.002    0.000 rdm_environment.py:170(disentangled)
+      200    0.000    0.000    0.000    0.000 _asarray.py:88(asanyarray)
+      200    0.000    0.000    0.000    0.000 {built-in method builtins.isinstance}
+      200    0.000    0.000    0.000    0.000 linalg.py:121(isComplexType)
+      100    0.000    0.000    0.000    0.000 fromnumeric.py:74(<dictcomp>)
+      100    0.000    0.000    0.000    0.000 _asarray.py:16(asarray)
+      200    0.000    0.000    0.000    0.000 {built-in method builtins.len}
+      100    0.000    0.000    0.000    0.000 {method 'upper' of 'str' objects}
+      100    0.000    0.000    0.000    0.000 {method '__array_prepare__' of 'numpy.ndarray' objects}
+      100    0.000    0.000    0.000    0.000 {method 'items' of 'dict' objects}
+        1    0.000    0.000    4.428    4.428 {built-in method builtins.exec}
+      100    0.000    0.000    0.000    0.000 {method 'append' of 'list' objects}
+      100    0.000    0.000    0.000    0.000 linalg.py:1066(_eigvalsh_dispatcher)
+      100    0.000    0.000    0.000    0.000 fromnumeric.py:2320(_all_dispatcher)
+      100    0.000    0.000    0.000    0.000 shape_base.py:21(_atleast_1d_dispatcher)
+        1    0.000    0.000    4.428    4.428 <string>:1(<module>)
+        1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
+
+
