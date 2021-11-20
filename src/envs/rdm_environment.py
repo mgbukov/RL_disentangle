@@ -1,4 +1,6 @@
 import numpy as np
+import jax
+import jax.numpy as jnp
 from itertools import combinations
 
 
@@ -258,49 +260,24 @@ class QubitsEnvironment:
         return self._state, self.reward(), self.disentangled()
 
     def step2(self, actions):
-        actions = np.atleast_1d(actions)
-        if len(actions) != self.batch_size:
-            raise ValueError('Expected array with shape=({},)'.format(self.batch_size))
-        L = self.L
-        B = self.batch_size
-        batch = self._state
-        qubit_indices = np.array([self.actions[a] for a in actions])
         # ----
-        # Move qubits which are modified by ``actions`` at indices (0, 1)
-        _transpose_batch_inplace(batch, qubit_indices, self.L)
+        # Update state and entropies
+        self._state, self._entropies_cache = self._next_batch_and_entropies(actions)
         # ----
-        # Compute 2x2 reduced density matrices
-        batch = batch.reshape(B, 4, 2 ** (L - 2))
-        rdms = batch @ np.transpose(batch.conj(), [0, 2, 1])  # TODO jit
-        # ----
-        # Compute single qubit entropies
-        rhos, Us = np.linalg.eigh(rdms)  #TODO jit jax.lax.eigh
-        Us = np.swapaxes(Us.conj(), 1, 2)
-        # TODO Function & jit
-        a = rhos[:, 0] + rhos[:, 1]  # rho_{q0-1}
-        b = rhos[:, 2] + rhos[:, 3]  # rho_{q0-2}
-        c = rhos[:, 0] + rhos[:, 2]  # rho_{q1-1}
-        d = rhos[:, 1] + rhos[:, 3]  # rho_{q1-2}
-        Sent_q0 = -a*np.log(a + np.finfo(a.dtype).eps) - b*np.log(b + np.finfo(b.dtype).eps)
-        Sent_q1 = -c*np.log(c + np.finfo(c.dtype).eps) - d*np.log(d + np.finfo(d.dtype).eps)
-        # ----
-        # Apply unitary gates
-        batch = (Us @ batch).reshape(self.shape)  # TODO jit
-        # ----
-        # Undo qubit permutations
-        _transpose_batch_inplace(batch, qubit_indices, L, inverse=True)
-        # ----
-        # Update entropies
-        self._entropies_cache[:, qubit_indices[:, 0]] = Sent_q0
-        self._entropies_cache[:, qubit_indices[:, 1]] = Sent_q1
-        # ----
-        # Phase normalize states
-        # self._state = _phase_norm(self._state)
-        self._state = batch
         return self._state, self.reward(), self.disentangled()
 
     def peek(self, actions):
-        # TODO refactor
+        # ----
+        # Get batch and entropies after `actions`
+        batch, entropies = self._next_batch_and_entropies(actions)
+        # ----
+        # Compute rewards and done
+        reward = self.Reward(batch, self.epsi, entropies)
+        done = self.Disentangled(batch, self.epsi, entropies)
+        # ----
+        return batch, reward, done
+
+    def _next_batch_and_entropies(self, actions):
         actions = np.atleast_1d(actions)
         if len(actions) != self.batch_size:
             raise ValueError('Expected array with shape=({},)'.format(self.batch_size))
@@ -310,62 +287,32 @@ class QubitsEnvironment:
         qubit_indices = np.array([self.actions[a] for a in actions])
         # ----
         # Move qubits which are modified by ``actions`` at indices (0, 1)
-        _transpose_batch_inplace(batch, qubit_indices, self.L)
+        _transpose_batch_inplace(batch, qubit_indices, self.L)  #TODO Cython
         # ----
         # Compute 2x2 reduced density matrices
         batch = batch.reshape(B, 4, 2 ** (L - 2))
-        rdms = batch @ np.transpose(batch.conj(), [0, 2, 1])
+        rdms = batch @ np.transpose(batch.conj(), [0, 2, 1])  #TODO Try with jax
         # ----
         # Compute single qubit entropies
-        rhos, Us = np.linalg.eigh(rdms)
+        # rhos, Us = np.linalg.eigh(rdms)     #TODO Try @jit(jax.lax.eigh)
+        eigh_res = jax.jit(jnp.linalg.eigh)(rdms)
+        rhos, Us = np.asarray(eigh_res[0]), np.asarray(eigh_res[1])
         Us = np.swapaxes(Us.conj(), 1, 2)
-        a = rhos[:, 0] + rhos[:, 1]  # rho_{q0-1}
-        b = rhos[:, 2] + rhos[:, 3]  # rho_{q0-2}
-        c = rhos[:, 0] + rhos[:, 2]  # rho_{q1-1}
-        d = rhos[:, 1] + rhos[:, 3]  # rho_{q1-2}
-        Sent_q0 = -a*np.log(a + np.finfo(a.dtype).eps) - b*np.log(b + np.finfo(b.dtype).eps)
-        Sent_q1 = -c*np.log(c + np.finfo(c.dtype).eps) - d*np.log(d + np.finfo(d.dtype).eps)
+        Sent_q0, Sent_q1 = _calculate_q0_q1_entropy_from_rhos(rhos)  #TODO Try @jit
         # ----
         # Apply unitary gates
-        batch = (Us @ batch).reshape(self.shape)
+        batch = (Us @ batch).reshape(self.shape)  #TODO Try jax.jit
         # ----
         # Undo qubit permutations
         _transpose_batch_inplace(batch, qubit_indices, L, inverse=True)
         # ----
-        # Temporarily update ``self._entropies_cache``
+        # The new entropies
         entropies = self._entropies_cache.copy()
-        self._entropies_cache[:, qubit_indices[:, 0]] = Sent_q0
-        self._entropies_cache[:, qubit_indices[:, 1]] = Sent_q1
+        entropies[:, qubit_indices[:, 0]] = Sent_q0
+        entropies[:, qubit_indices[:, 1]] = Sent_q1
         # ----
-        # Compute rewards and done
-        reward = self.reward()
-        done = self.disentangled()
-        # ----
-        # Reset ``self._entropies_cache``
-        self._entropies_cache = entropies
-        # Phase normalize states
-        # self._state = _phase_norm(self._state)
-        return batch, reward, done
-
-    # def step(self, actions):
-    #     """
-    #     Applies `actions` to the current state and transitions the
-    #     environment to the next state.
-
-    #     Parameters
-    #     ----------
-    #     actions : array_like
-    #         Indices in `self.actions`
-    #     """
-    #     actions = np.atleast_1d(actions)
-    #     self._state = self.next_state(actions)
-    #     # Update entropies
-    #     L = self.L
-    #     for i, a in enumerate(actions):
-    #         q0, q1 = self.actions[a]
-    #         self._entropies_cache[i, q0] = _ent_entropy_single(self._state[i], q0, L)
-    #         self._entropies_cache[i, q1] = _ent_entropy_single(self._state[i], q1, L)
-    #     return self._state, self.reward(), self.disentangled()
+        # return _phase_norm2(batch), entropies
+        return batch, entropies
 
     @classmethod
     def compute_best_path_single_state(cls, num_qubits, epsi, state, steps=None):
@@ -541,6 +488,15 @@ def _ent_entropy(states, subsys_A, L):
     lmbda += np.finfo(lmbda.dtype).eps
     return -2.0 / subsys_A_size * np.einsum('ai, ai->a', lmbda ** 2, np.log(lmbda))
 
+@jax.jit
+def _calculate_q0_q1_entropy_from_rhos_jit(rhos):
+    a = jnp.asarray(rhos[:, 0] + rhos[:, 1])  # rho_{q0-1}
+    b = jnp.asarray(rhos[:, 2] + rhos[:, 3])  # rho_{q0-2}
+    c = jnp.asarray(rhos[:, 0] + rhos[:, 2])  # rho_{q1-1}
+    d = jnp.asarray(rhos[:, 1] + rhos[:, 3])  # rho_{q1-2}
+    Sent_q0 = -a*np.log(a + np.finfo(a.dtype).eps) - b*np.log(b + np.finfo(b.dtype).eps)
+    Sent_q1 = -c*np.log(c + np.finfo(c.dtype).eps) - d*np.log(d + np.finfo(d.dtype).eps)
+    return Sent_q0, Sent_q1
 
 def _calculate_q0_q1_entropy_from_rhos(rhos):
     a = rhos[:, 0] + rhos[:, 1]  # rho_{q0-1}
@@ -564,7 +520,7 @@ def _phase_norm2(state):
     first = state.reshape(B, -1)[:, 0]
     phi = np.angle(first)
     z = np.cos(phi) - 1j * np.sin(phi)
-    return state * z.reshape((B,) + (1,) ** L)
+    return state * z.reshape((B,) + (1,) * L)
 
 
 if __name__ == '__main__':
