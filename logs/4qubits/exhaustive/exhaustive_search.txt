@@ -1,5 +1,0 @@
-number of states solvable in 1 step(s): 0
-number of states solvable in 2 step(s): 0
-number of states solvable in 3 step(s): 0
-number of states solvable in 4 step(s): 0
-number of states solvable in 5 step(s): 20

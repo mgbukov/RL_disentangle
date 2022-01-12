@@ -1,8 +1,0 @@
-##############################
-Testing agent accuracy for 20 steps...
-  Solved states:         6077 / 12800 = 47.477%
-  95 percentile entropy: 0.32425
-  Max entropy:           0.48617
-  Mean return:           -6.9875
-  Testing took:          59.196 seconds
-##############################

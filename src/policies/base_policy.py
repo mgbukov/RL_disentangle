@@ -4,35 +4,34 @@ import torch.nn.functional as F
 
 class BasePolicy:
     """ An abstract class implementation of a policy function parametrization.
-    The function takes as input the current state of the environment and
-    returns a score for every action in the action space.
+    The function takes as input the current state of the environment and returns a score
+    for every action in the action space.
     """
 
     def __init__(self):
         raise NotImplementedError("This method must be implemented by the subclass")
 
-
     @torch.no_grad()
-    def get_action(self, state, disallowed=None, greedy=False, beta=1.0):
+    def get_action(self, states, disallowed=None, greedy=False, beta=1.0):
         """ Return the action selected by the policy.
         Using the scores returned by the network compute a boltzmann probability
-        distribution over the actions from the action space. Select the next
-        action probabilistically, or deterministically returning the action
-        with the highest probability.
+        distribution over the actions from the action space. Select the next action
+        probabilistically, or deterministically returning the action with the highest
+        probability.
 
-        @param state (torch.Tensor): Tensor of shape (batch_size, system_size),
-                giving the current state of the environment.
-        @param disallowed (torch.Tensor): Tensor of shape (batch_size,),
-                giving the disallowed actions of the agent.
-        @param greedy (bool): If true, select the next action deterministically.
-                If false, select the next action probabilistically.
+        @param states (torch.Tensor): Tensor of shape (batch_size, system_size), giving
+            the current states of the environment.
+        @param disallowed (torch.Tensor): Tensor of shape (batch_size,), giving the
+            disallowed actions of the agent.
+        @param greedy (bool): If true, select the next action deterministically. If false,
+            select the next action probabilistically.
         @param beta (float): Inverse value of the temperature for the boltzmann
-                distribution.
-        @return acts (torch.Tensor): Tensor of shape (batch_size,), giving
-                actions selected by the policy for every state of the batch.
+            distribution.
+        @return acts (torch.Tensor): Tensor of shape (batch_size,), giving actions
+            selected by the policy for every states of the batch.
         """
-        state = state.to(self.device)
-        logits = self(state) * beta
+        states = states.to(self.device)
+        logits = self(states) * beta
         # logits = self.mask_logits(logits, disallowed)
         probs = F.softmax(logits, dim=-1)
         if greedy:
@@ -43,20 +42,20 @@ class BasePolicy:
 
 
     def mask_logits(self, logits, disallowed):
-        """ Take a batch of logits and a batch of disallowed actions, and mark
-        the scores of the disallowed actions with ``-inf``.
-        Passing ``None`` in for the disallowed actions is also acceptable;
-        you'll just get the unmodified logits.
+        """ Take a batch of logits and a batch of disallowed actions, and mark the scores
+        of the disallowed actions with ``-inf``.
+        Passing ``None`` in for the disallowed actions is also acceptable; you'll just get
+        the unmodified logits.
 
-        When this function is used with a batch of time-series, make sure that
-        the shape of @logits equals the shape of @disallowed. In this case the
-        disallowed actions at step ``i`` refer to the logits at step ``i+1``.
+        When this function is used with a batch of time-series, make sure that the shape
+        of @logits equals the shape of @disallowed. In this case the disallowed actions at
+        step ``i`` refer to the logits at step ``i+1``.
 
-        @param logits (torch.Tensor): Tensor of shape (b, n), or (b, t, n),
-                giving the logits output of the policy network, where
-                b = batch size, t = number of time steps, n = number of actions.
-        @param disallowed (torch.Tensor): Tensor of shape (b,), or (b, t),
-                giving the disallowed actions of the agent.
+        @param logits (torch.Tensor): Tensor of shape (b, n), or (b, t, n), giving the
+            logits output of the policy network, where
+            b = batch size, t = number of time steps, n = number of actions.
+        @param disallowed (torch.Tensor): Tensor of shape (b,), or (b, t), giving the
+            disallowed actions of the agent.
         @return logits (torch.Tensor):  Tensor of shape (b, n), or (b, t, n).
         """
         if disallowed is not None:
@@ -74,12 +73,10 @@ class BasePolicy:
 
         return logits
 
-
     @property
     def device(self):
         """ Determine which device to place the Tensors upon, CPU or GPU. """
         return self.output_layer.weight.device
-
 
     @classmethod
     def load(cls, model_path):
@@ -89,7 +86,6 @@ class BasePolicy:
         model = cls(**kwargs)
         model.load_state_dict(params["state_dict"])
         return model
-
 
     def save(self, path):
         """ Save the model to a file. """

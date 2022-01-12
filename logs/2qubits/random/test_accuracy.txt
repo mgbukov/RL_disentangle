@@ -1,7 +1,0 @@
-##############################
-Testing agent accuracy...
-  Solved states: 5547 / 12800 = 43.336%
-  95 percentile entropy: 0.10422
-  Max entropy: 0.66853
-  Testing took 537.831 seconds
-##############################
