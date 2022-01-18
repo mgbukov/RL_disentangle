@@ -1,11 +1,11 @@
-import os
+import sys
 import time
 
 import torch
 import torch.nn.functional as F
 
 from src.agents.base_agent import BaseAgent
-from src.infrastructure.logging import logTxt, logPcolor, log_train_stats, log_test_stats
+from src.infrastructure.logging import log_train_stats, log_test_stats
 
 
 class PGAgent(BaseAgent):
@@ -13,7 +13,7 @@ class PGAgent(BaseAgent):
     The agent uses vanilla policy gradient update to improve its policy.
     """
 
-    def __init__(self, env, policy, log_dir="logs"):
+    def __init__(self, env, policy):
         """ Initialize policy gradient agent.
 
         @param env (QubitsEnvironment object): Environment object.
@@ -23,7 +23,6 @@ class PGAgent(BaseAgent):
         self.policy = policy
         self.train_history = {}
         self.test_history = {}
-        self.log_dir = log_dir
 
     def sum_to_go(self, t):
         """ Sum-to-go returns the sum of the values starting from the current index. Given
@@ -107,7 +106,7 @@ class PGAgent(BaseAgent):
         return - 0.5 * ent
 
     def train(self, num_iter, steps, learning_rate, lr_decay=1.0, clip_grad=10.0, reg=0.0,
-              entropy_reg=0.0, log_every=1, test_every=100, verbose=False):
+              entropy_reg=0.0, log_every=1, test_every=100, stdout=sys.stdout):
         """ Train the agent using vanilla policy-gradient algorithm.
 
         @param num_iter (int): Number of iterations to train the agent for.
@@ -118,35 +117,20 @@ class PGAgent(BaseAgent):
         @param reg (float): L2 regularization strength.
         @param entropy_reg (float): Entropy regularization strength.
         @param log_every (int): Every @log_every iterations write the results to the log file.
-        @param verbose (bool): If true, printout logging information.
+        @param stdout (file, optional): File object (stream) used for standard output of logging
+            information. Default value is `sys.stdout`.
         """
-        # Log hyperparameters information.
-        log_text_file = os.path.join(self.log_dir, "train_history.txt")
-        logTxt(f"""##############################
-Training parameters:
-    Number of trajectories:   {self.env.batch_size}
-    Number of iterations:     {num_iter}
-    Learning rate:            {learning_rate}
-    Final learning rate:      {round(learning_rate * (lr_decay ** num_iter), 7)}
-    Weight regularization:    {reg}
-    Entropy regularization:   {entropy_reg}
-    Grad clipping threshold:  {clip_grad}
-    Policy hidden dimensions: {self.policy.hidden_sizes}
-    Policy dropout rate:      {self.policy.dropout_rate}
-##############################\n
-            """, log_text_file, verbose=verbose, create=True)
-
         # Move the neural network to device and prepare for training.
         device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         # device = torch.device("cpu")
-        logTxt(f"Using device: {device}\n", log_text_file, verbose)
+        print(f"Using device: {device}\n", file=stdout)
         self.policy.train()
         self.policy = self.policy.to(device)
 
         # Initialize the optimizer and the scheduler.
         optimizer = torch.optim.Adam(self.policy.parameters(), lr=learning_rate, weight_decay=reg)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=lr_decay)
-        logTxt(f"Using optimizer:\n{str(optimizer)}\n", log_text_file, verbose)
+        print(f"Using optimizer:\n{str(optimizer)}\n", file=stdout)
 
         # self.env.set_random_states(copy=True)
         # initial_batch = self.env.states
@@ -196,13 +180,8 @@ Training parameters:
 
             # Log results to file.
             if i % log_every == 0:
-                logTxt(f"Iteration ({i}/{num_iter}) took {toc-tic:.3f} seconds.",
-                    log_text_file, verbose)
-                logPcolor(figname=os.path.join(self.log_dir, f"probs/policy_output_step_{i}.png"),
-                        func=self.train_history[i]["policy_output"].T, 
-                        figtitle=f"Probabilities of actions given by the policy at step {i}",
-                        labels={"x":"Step", "y":"Actions"})
-                log_train_stats(self.train_history[i], log_text_file, verbose)
+                print(f"Iteration ({i}/{num_iter}) took {toc-tic:.3f} seconds.", file=stdout)
+                log_train_stats(self.train_history[i], stdout)
 
             # Test the agent.
             if i % test_every == 0:
@@ -214,11 +193,8 @@ Training parameters:
                     "nsolved" : nsolved,
                 }
                 toc = time.time()
-                logTxt(f"Iteration {i}\nTesting agent accuracy for {steps} steps...", log_text_file, verbose)
-                logTxt(f"Testing took {toc-tic:.3f} seconds.", log_text_file, verbose)
-                log_test_stats((entropies, returns, nsolved), log_text_file, verbose)
-
-        self.save_policy()
-        self.save_history()
+                print(f"Iteration {i}\nTesting agent accuracy for {steps} steps...", file=stdout)
+                print(f"Testing took {toc-tic:.3f} seconds.", file=stdout)
+                log_test_stats((entropies, returns, nsolved), stdout)
 
 #

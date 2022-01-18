@@ -1,19 +1,10 @@
+import os
+
 import matplotlib.pyplot as plt
 import numpy as np
-import torch
-import torch.nn.functional as F
 
 
 #------------------------------ General logging functions -------------------------------#
-def logTxt(s, file_path, verbose=False, create=False):
-    """ Log a text string @s to a file. """
-    mode = "w" if create else "a"
-    with open(file_path, mode) as f:
-        f.write(s)
-        f.write("\n")
-    if verbose:
-        print(s)
-
 def logPlot(figname, xs=None, funcs=[], legends=[None], labels={}, fmt=["--k"], lw=[0.8],
             fills=[], figtitle="", logscaleX=False, logscaleY=False):
     """ Plot @funcs as curves on a figure and save the figure as @figname.
@@ -43,10 +34,7 @@ def logPlot(figname, xs=None, funcs=[], legends=[None], labels={}, fmt=["--k"], 
         fmt = fmt * len(funcs)
     if len(lw) == 1:
         lw = lw * len(funcs)
-    # xs = [np.arange(len(f)) for f in funcs] if xs is None else xs
-    # legends = legends * len(funcs) if len(legends) == 1 else legends
-    # fmt = fmt * len(funcs) if len(fmt) == 1 else fmt
-    # lw = lw * len(funcs) if len(lw) == 1 else lw
+
     # Set figure sizes.
     fig, ax = plt.subplots(figsize=(24, 18), dpi=170)
     ax.set_title(figtitle, fontsize=30, pad=30)
@@ -58,6 +46,7 @@ def logPlot(figname, xs=None, funcs=[], legends=[None], labels={}, fmt=["--k"], 
         ax.set_xscale("log")
     if logscaleY:
         ax.set_yscale("log")
+
     # Plot curves.
     for x, f, l, c, w in zip(xs, funcs, legends, fmt, lw):
         ax.plot(x, f, c, label=l, linewidth=w)
@@ -131,11 +120,16 @@ def logPcolor(figname, func, figtitle="", labels={}):
     plt.close(fig)
 
 #------------------------------ Specific logging functions ------------------------------#
-def log_train_stats(stats, file_path, verbose=False):
-    """ Append training statistics to the log file. """
+def log_train_stats(stats, stdout):
+    """ Append training statistics to the log file.
+
+    Args:
+        stdout (file, optional): File object (stream) used for standard output of logging
+            information. Default value is `sys.stdout`.
+    """
     batch_size = len(stats["rewards"])
     probs = stats["policy_output"]
-    logTxt(f"""    Mean final reward:        {np.mean(np.array(stats["rewards"])[:,-1]):.4f}
+    print(f"""    Mean final reward:        {np.mean(np.array(stats["rewards"])[:,-1]):.4f}
     Mean return:              {np.mean(np.sum(stats["rewards"], axis=1)):.4f}
     Mean exploration return:  {np.mean(np.sum(stats["exploration"], axis=1)):.4f}
     Mean final entropy:       {np.mean(stats["entropy"]):.4f}
@@ -146,19 +140,19 @@ def log_train_stats(stats, file_path, verbose=False):
     Total gradient norm:      {stats["total_norm"]:.5f}
     Solved trajectories:      {stats["nsolved"]} / {batch_size}
     Avg steps to disentangle: {np.mean(stats["nsteps"][stats["nsteps"].nonzero()]):.3f}
-    """, file_path, verbose)
+    """, file=stdout)
 
-def log_test_stats(stats, file_path, verbose=False):
+def log_test_stats(stats, stdout):
     entropies, returns, nsolved = stats
     num_trajects = len(returns)
     solved = sum(nsolved)
-    logTxt(f"""    Solved states:         {solved:.0f} / {num_trajects} = {solved/(num_trajects)*100:.3f}%
+    print(f"""    Solved states:         {solved:.0f} / {num_trajects} = {solved/(num_trajects)*100:.3f}%
     Min entropy:           {entropies.min():.5f}
     Mean final entropy:    {np.mean(entropies):.4f}
     95 percentile entropy: {np.quantile(entropies.mean(axis=-1).reshape(-1), 0.95):.5f}
     Max entropy:           {entropies.max():.5f}
     Mean return:           {np.mean(returns):.4f}
-    """, file_path, verbose)
+    """, file=stdout)
 
 def plot_entropy_curves(train_history, file_path):
     num_iter = len(train_history)
@@ -242,24 +236,12 @@ def plot_nsolved_curves(train_history, test_history, file_path):
             lw=[1.0, 4.0, 4.0],
             figtitle="Agent accuracy of solved states")
 
-def plot_distribution(env, policy):
-    """ Plot a heat map of the probability distribution over the actions returned by the
-    policy.
-    """
-    num_test = 100
-    probs = np.ndarray(shape=(num_test, env.batch_size, env.num_actions))
-    for i in range(num_test):
-        disentangled = True
-        while disentangled:
-            env.set_random_state(copy=False)
-            disentangled = env.disentangled().any()
-        st = torch.from_numpy(env.state).type(torch.float32).to(policy.device)
-        logits = policy(st)
-        probs[i] = F.softmax(logits, dim=-1).detach().numpy()
-    probs = probs.reshape(num_test * env.batch_size, env.num_actions)
-    logPcolor(figname="policy_distribution.png",
-              func=probs.T,
-              figtitle="Average distribution of actions given by the policy",
-              labels={"x":"Test No", "y":"Actions"})
+def plot_distribution(train_history, log_every, log_dir):
+    num_iter = len(train_history)
+    for i in range(0, num_iter, log_every):
+        logPcolor(figname=os.path.join(log_dir, f"policy_output_step_{i}.png"),
+                func=train_history[i]["policy_output"].T, 
+                figtitle=f"Probabilities of actions given by the policy at step {i}",
+                labels={"x":"Step", "y":"Actions"})
 
 #

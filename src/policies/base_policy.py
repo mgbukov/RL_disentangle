@@ -89,7 +89,6 @@ class BasePolicy:
 
     def save(self, path):
         """ Save the model to a file. """
-        print("save model parameters to [%s]" % path)
         params = {"kwargs": self.kwargs,
                   "state_dict": self.state_dict()
                  }

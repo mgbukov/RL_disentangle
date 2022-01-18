@@ -112,16 +112,15 @@ class BaseAgent:
         return (entropies.reshape(num_trajects, self.env.L),
                 returns.reshape(num_trajects), nsolved.reshape(num_trajects))
 
-    def save_policy(self):
+    def save_policy(self, filepath):
         """ Save the policy as .bin file to disk. """
-        self.policy.save(os.path.join(self.log_dir, "policy.bin"))
+        self.policy.save(os.path.join(filepath, "policy.bin"))
 
-    def save_history(self):
+    def save_history(self, filepath):
         """ Save the training history and the testing history as pickle dumps. """
-        log_dir = self.log_dir
-        with open(os.path.join(log_dir, "train_history.pickle"), "wb") as f:
+        with open(os.path.join(filepath, "train_history.pickle"), "wb") as f:
             pickle.dump(self.train_history, f, protocol=pickle.HIGHEST_PROTOCOL)
-        with open(os.path.join(log_dir, "test_history.pickle"), "wb") as f:
-            pickle.dump(dict(self.test_history), f, protocol=pickle.HIGHEST_PROTOCOL)   # can't pickle defaultdict
+        with open(os.path.join(filepath, "test_history.pickle"), "wb") as f:
+            pickle.dump(self.test_history, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 #
