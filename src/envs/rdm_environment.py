@@ -8,7 +8,7 @@ from src.envs.util import _QSYSTEMS_P, _QSYSTEMS_INV_P
 
 
 class QubitsEnvironment:
-    """ Representation of a multi-qubit quantum system.
+    """Representation of a multi-qubit quantum system.
     The states of the system are represented as a numpy array of shape (b, 2,2,...,2),
     giving for each state in the batch its decomposition in the computational basis.
 
@@ -21,14 +21,28 @@ class QubitsEnvironment:
     the rest of the system.
     The reward upon transition is defined as a function of the mean of the entropies of
     the new multi-qubit state.
+
+    Attributes:
+        L (int): Number of qubits in the quantum state.
+        epsi (float): Threshold for disentangling.
+        batch_size (int): Number of quantum states in the environment.
+        num_actions (int): Number of allowable actions.
+        actions (dict): A mapping from action index to action name.
+        actToKey (dict): A mapping from action name to action index.
+        shape (Tuple[Int]): A tuple of int giving the shape of the tensor representing the
+            environment.
     """
 
     def __init__(self, num_qubits=2, epsi=1e-4, batch_size=1):
-        """ Initialize an environment with a batch of multi-qubit states.
+        """Initialize an environment with a batch of multi-qubit states.
 
-        @param num_qubits (int): Number of qubits in a single state.
-        @param batch_size (int): Number of states in the environment.
-        @param epsi (float): Threshold below which the system is considered disentangled.
+        Args:
+            num_qubits (int, optional): Number of qubits in a single state.
+                Default value is 2.
+            epsi (float, optional): Threshold below which the system is considered disentangled.
+                Default value is 1e-4.
+            batch_size (int, optional): Number of states in the environment.
+                Default value is 1.
         """
         assert num_qubits >= 2
         self.L = num_qubits
@@ -48,7 +62,7 @@ class QubitsEnvironment:
         self.reset()
 
     def reset(self):
-        """ Prepare all states in the batch as | 000..00 > """
+        """Prepare all states in the batch as | 000..00 >"""
         psi = np.zeros((self.batch_size, 2 ** self.L), dtype=np.complex64)
         psi[:, 0] = 1.0
         self._states = psi.reshape(self.shape)
@@ -68,7 +82,7 @@ class QubitsEnvironment:
         self._entropies_cache = util._entropy(self._states)
 
     def set_random_states(self, copy=False):
-        """ Set all states of the environment to random pure states. If copy is True,
+        """Set all states of the environment to random pure states. If copy is True,
         all states in the batch are copies of a single state.
         Compute the entropy of the states and cache them for later use.
         """
@@ -81,18 +95,21 @@ class QubitsEnvironment:
         self._entropies_cache = util._entropy(self._states)
 
     def step(self, actions):
-        """ Applies a batch of actions to the states batch and transitions the environment
+        """Applies a batch of actions to the states batch and transitions the environment
         to the next batch of states. This function modifies the internal representation
         of the environment inplace.
 
-        @param actions (np.Array): A numpy array of shape (b, 1), giving the action
-            selected for each state of the environment states.
-        @return states (np.Array): A numpy array of shape (b, 2,2,...,2), giving the next
-            batch of states after taking the actions.
-        @return rewards (np.Array): A numpy array of shape (b,), giving the rewards after
-            transitioning into the new states.
-        @return done (np.Array): A numpy array of shape (b,) of boolean values, indicating
-            which states of the batch are disentangled.
+        Args:
+            actions (np.Array): A numpy array of shape (b, 1), giving the action selected
+                for each state of the environment states.
+
+        Returns:
+            states (np.Array): A numpy array of shape (b, 2,2,...,2), giving the next
+                batch of states after taking the actions.
+            rewards (np.Array): A numpy array of shape (b,), giving the rewards after
+                transitioning into the new states.
+            done (np.Array): A numpy array of shape (b,) of boolean values, indicating
+                which states of the batch are disentangled.
         """
         actions = np.atleast_1d(actions)
         if len(actions) != self.batch_size:
@@ -134,7 +151,7 @@ class QubitsEnvironment:
         return self._states, self.reward(), self.disentangled()
 
     def peek(self, actions, state_only=False):
-        """ Applies a batch of actions to the states batch and peeks at the next states of
+        """Applies a batch of actions to the states batch and peeks at the next states of
         the environment. This function has the same functionality as the `step` function,
         but it does not modify the internal representation of the environment.
         """
@@ -149,41 +166,52 @@ class QubitsEnvironment:
         return res
 
     def entropy(self):
-        """ Compute the entanglement entropy for the current states.
-        
-        @return entropies (np.Array): A numpy array of shape (b, L) giving the 
+        """Compute the entanglement entropy for the current states.
+
+        Returns:
+            entropies (np.Array): A numpy array of shape (b, L) giving the 
         """
         return self._entropies_cache.copy()
 
     def reward(self):
-        """ Returns a numpy array of shape (b,), giving immediate rewards on transitioning
-        into the current states of the batch."""
+        """Returns the rewards on transitioning into the current states of the batch.
+
+        Returns:
+            rewards (np.Array): A numpy array of shape (b,).
+        """
         return self.Reward(self._states, self.epsi, self._entropies_cache)
 
     def disentangled(self):
-        """ Returns a numpy array of shape (b,) of booleans indicating which states of the
-        batch are disentangled."""
+        """ Returns an array indicating which states of the batch are disentangled.
+
+        Returns:
+            done (np.Array): A numpy array of shape (b,).
+        """
         return self.Disentangled(self._states, self.epsi, self._entropies_cache)
 
     @staticmethod
     def Entropy(states):
-        """ For each state in the batch compute the entanglement entropies by considering
+        """For each state in the batch compute the entanglement entropies by considering
         each qubit as a subsystem.
 
-        @param states (np.array): A numpy array of shape (b, 2,2,...,2), giving the states
-            in the batch.
-        @return entropies (np.array): A numpy array of shape (b, L), giving single-qubit
-            entropies.
+        Args:
+            states (np.array): A numpy array of shape (b, 2,2,...,2), giving the states in
+                the batch.
+        
+        Returns:
+            entropies (np.array): A numpy array of shape (b, L), giving single-qubit entropies.
         """
         return util._entropy(states)
 
     @classmethod
     def Reward(cls, states, epsi=1e-4, entropies=None):
-        """ Returns a numpy array of shape (b,), giving the immediate rewards on
-        transition to `states`.
+        """Returns the immediate rewards on transition to `states`.
         The rewards are calculated as the negative logarithm of the entropies.
         The choice depends on the fact that the reward increases exponentially, when the
         entropy approaches 0, and thus encouraging the agent to disentangle the state.
+
+        Returns:
+            rewards (np.Array): A numpy array of shape (b,).
         """
         # return - 0.1 + 100 * cls.Disentangled(states, epsi, entropies)
         # Compute the entropy of a system by considering each individual qubit
@@ -196,8 +224,11 @@ class QubitsEnvironment:
 
     @staticmethod
     def Disentangled(states, epsi=1e-4, entropies=None):
-        """ Returns a numpy array of shape (b,) of booleans, yielding True for every state
-        in the batch whose mean "multi-qubit entropy" is smaller than `epsi`.
+        """ Returns an array of booleans, yielding True for every state in the batch whose
+        mean "multi-qubit entropy" is smaller than `epsi`.
+
+        Returns:
+            done (np.Array): A numpy array of shape (b,).
         """
         if entropies is None:
             entropies = util._entropy(states)
@@ -205,14 +236,21 @@ class QubitsEnvironment:
 
     @staticmethod
     def EntropyV2(states, subsys_A=None):
-        """ If `subsys_A` is given, then return the entanglement entropy for every state
+        """If `subsys_A` is given, then return the entanglement entropy for every state
         in the batch w.r.t. `subsys_A`. Otherwise, for every state in the batch the mean
         entanglement entropy of all one-qubit subsystems is calculated and returned.
 
-        @param states (np.array): A numpy array of shape (b, 2,2,...,2), giving the states
-            in the batch.
-        @return entropies (np.array): A numpy array of shape (b,), giving the entropies of
-            the states in the batch.
+        Args:
+            states (np.array): A numpy array of shape (b, 2,2,...,2), giving the states in
+                the batch.
+            subsys_A (list[int], optional): A list of ints specifying the indices of the
+                qubits to be considered as a subsystem. The subsystem is the same for
+                every state in the batch. If None, defaults to half of the system.
+                Default value is None.
+        
+        Returns:
+            entropies (np.array): A numpy array of shape (b,), giving the entropies of the
+                states in the batch.
         """
         if subsys_A is None:
             return util._entropy(states).mean()

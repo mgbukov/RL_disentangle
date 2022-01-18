@@ -6,7 +6,7 @@ import torch
 
 
 class BaseAgent:
-    """ An abstract class implementation of a reinforcement learning agent.
+    """An abstract class implementation of a reinforcement learning agent.
     The agent is initialized with a policy and an environment, and uses the policy to act
     in the environment.
     Concrete classes must implement their own training strategies.
@@ -28,25 +28,27 @@ class BaseAgent:
 
     @torch.no_grad()
     def rollout(self, steps, plan=None, greedy=False, beta=1.0):
-        """ Starting from the current environment state perform a rollout using the
+        """Starting from the current environment state perform a rollout using the
         current policy.
 
-        @param steps (int): Number of steps to rollout the policy.
-        @param plan (torch.Tensor): Tensor of shape (b, t), giving a plan of the actions
-            that the agent should take. If None, the agent uses the policy to pick actions.
-        @param greedy (bool): If true, select the next action deterministically. If false,
-            select the next action probabilistically.
-        @param beta (float): Inverse value of the temperature for the boltzmann distribution.
-        @return states (torch.Tensor): Tensor of shape (b, t, q), giving the states
-            produced during policy rollout, where
-            b = batch size, t = number of time steps,
-            q = size of the quantum system (2 ** num_qubits).
-        @return actions (torch.Tensor): Tensor of shape (b, t), giving the actions selected
-            by the policy during rollout.
-        @return rewards (torch.Tensor): Tensor of shape (b, t), giving the rewards obtained
-            during policy rollout.
-        @return masks (torch.Tensor): Tensor of shape (b, t), of boolean values, that
-            masks out the part of the trajectory after it has finished.
+        Args:
+            steps (int): Number of steps to rollout the policy.
+            plan (torch.Tensor): Tensor of shape (b, t), giving a plan of the actions that
+                the agent should take. If None, the agent uses the policy to pick actions.
+            greedy (bool): If true, select the next action deterministically. If false,
+                select the next action probabilistically.
+            beta (float): Inverse value of the temperature for the boltzmann distribution.
+
+        Returns:
+            states (torch.Tensor): Tensor of shape (b, t, q), giving the states produced
+                during policy rollout, where b = batch size, t = number of time steps,
+                q = size of the quantum system (2 ** num_qubits).
+            actions (torch.Tensor): Tensor of shape (b, t), giving the actions selected by
+                the policy during rollout.
+            rewards (torch.Tensor): Tensor of shape (b, t), giving the rewards obtained
+                during policy rollout.
+            masks (torch.Tensor): Tensor of shape (b, t), of boolean values, that masks
+                out the part of the trajectory after it has finished.
         """
         device = self.policy.device
         b = self.env.batch_size  # number of trajectories
@@ -80,17 +82,24 @@ class BaseAgent:
         return (states.permute(1, 0, 2), actions.permute(1, 0),
                 (masks*rewards).permute(1, 0), masks.permute(1,0))
 
-    def test_accuracy(self, num_test, steps, initial_batch=None, greedy=True):
-        """ Test the accuracy of the agent using @num_test simulation rollouts.
+    def test_accuracy(self, num_test, steps, initial_states=None, greedy=True):
+        """Test the accuracy of the agent using @num_test simulation rollouts.
 
-        @param num_test (int): Number of simulations to test the agent.
-        @param steps (int): Number of steps to rollout the policy during simulation.
-        @return entropies (np.Array): A numpy array of shape (num_trajects, L), giving the
-            final entropies for each trajectory during testing,
-        @return returns (np.Array): A numpy array of shape (num_trajects,), giving the
-            obtained return during each trajectory.
-        @return nsolved (np.Array): A numpy array of shape (num_trajects,), of boolean
-            values, indicating which trajectories are disentangled.
+        Args:
+            num_test (int): Number of simulations to test the agent.
+            steps (int): Number of steps to rollout the policy during simulation.
+            initial_states (np.Array, optional): Numpy array giving the initial states for
+                the environment. Default value is None.
+            greedy (bool, optional): If true, select the next action deterministically.
+                If false, select the next action probabilistically. Default value is False.
+
+        Returns:
+            entropies (np.Array): A numpy array of shape (num_trajects, L), giving the
+                final entropies for each trajectory during testing,
+            returns (np.Array): A numpy array of shape (num_trajects,), giving the
+                obtained return during each trajectory.
+            nsolved (np.Array): A numpy array of shape (num_trajects,), of boolean values,
+                indicating which trajectories are disentangled.
         """
         batch_size = self.env.batch_size  # number of trajectories
         entropies = np.zeros((num_test, batch_size, self.env.L))
@@ -100,10 +109,10 @@ class BaseAgent:
 
         # Begin testing.
         for i in range(num_test):
-            if initial_batch is None:
+            if initial_states is None:
                 self.env.set_random_states(copy=False)
             else:
-                self.env.state = initial_batch
+                self.env.state = initial_states
             states, actions, rewards, mask = self.rollout(steps, greedy=greedy)
             entropies[i] = self.env.entropy()
             returns[i] = torch.sum(mask*rewards, axis=1).cpu().numpy()
@@ -113,11 +122,11 @@ class BaseAgent:
                 returns.reshape(num_trajects), nsolved.reshape(num_trajects))
 
     def save_policy(self, filepath):
-        """ Save the policy as .bin file to disk. """
+        """Save the policy as .bin file to disk."""
         self.policy.save(os.path.join(filepath, "policy.bin"))
 
     def save_history(self, filepath):
-        """ Save the training history and the testing history as pickle dumps. """
+        """Save the training history and the testing history as pickle dumps."""
         with open(os.path.join(filepath, "train_history.pickle"), "wb") as f:
             pickle.dump(self.train_history, f, protocol=pickle.HIGHEST_PROTOCOL)
         with open(os.path.join(filepath, "test_history.pickle"), "wb") as f:

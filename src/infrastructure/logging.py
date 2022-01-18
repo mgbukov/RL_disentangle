@@ -1,4 +1,5 @@
 import os
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -7,24 +8,32 @@ import numpy as np
 #------------------------------ General logging functions -------------------------------#
 def logPlot(figname, xs=None, funcs=[], legends=[None], labels={}, fmt=["--k"], lw=[0.8],
             fills=[], figtitle="", logscaleX=False, logscaleY=False):
-    """ Plot @funcs as curves on a figure and save the figure as @figname.
+    """Plot @funcs as curves on a figure and save the figure as `figname`.
 
-    @param figname (str): Full path to save the figure to a file.
-    @param xs (List[np.Array]): List of arrays of x-axis data points.
-    @param funcs (List[np.Array]): List of arrays of data points. Every array
-            of data points from the list is plotted as a curve on the figure.
-    @param legends (List[str]): A list of labels for every curve that will be displayed
-            in the legend.
-    @param labels (Dict): A map specifying the labels of the coordinate axes.
-            `labels["x"]` specifies the label of the x-axis
-            `labels["y"]` specifies the label of the y-axis
-    @param fmt (List[str]): A list of formating strings for every curve.
-    @param lw (List[float]): A list of line widths for every curve.
-    @param fills (List[Tuple(np.Array)]): A list of tuples of curves [(f11,f21), (f12,f22), ...].
-            Fill the area between the curves f1 and f2.
-    @param figtitle (str): Figure title.
-    @param logscaleX (bool): If True, plot the x-axis on a logarithmic scale.
-    @param logscaleY (bool): If True, plot the y-axis on a logarithmic scale.
+    Args:
+        figname (str): Full path to save the figure to a file.
+        xs (list[np.Array], optional): List of arrays of x-axis data points.
+            Default value is None.
+        funcs (list[np.Array], optional): List of arrays of data points. Every array of
+            data points from the list is plotted as a curve on the figure.
+            Default value is [].
+        legends (list[str], optional): A list of labels for every curve that will be
+            displayed in the legend. Default value is [None].
+        labels (dict, optional): A map specifying the labels of the coordinate axes.
+            `labels["x"]` specifies the label of the x-axis.
+            `labels["y"]` specifies the label of the y-axis.
+            Default value is {}.
+        fmt (list[str], optional): A list of formating strings for every curve.
+            Default value is ["--k"].
+        lw (list[float], optional): A list of line widths for every curve.
+            Default value is [0.8].
+        fills (list[tuple(np.Array)], optional): A list of tuples of curves [(f11,f21), (f12,f22), ...].
+            Fill the area between the curves f1 and f2. Default value is [].
+        figtitle (str, optional): Figure title. Default value is "".
+        logscaleX (bool, optional): If True, plot the x-axis on a logarithmic scale.
+            Default value is False.
+        logscaleY (bool, optional): If True, plot the y-axis on a logarithmic scale.
+            Default value is False.
     """
     if xs is None:
         xs = [np.arange(len(f)) for f in funcs]
@@ -58,17 +67,20 @@ def logPlot(figname, xs=None, funcs=[], legends=[None], labels={}, fmt=["--k"], 
     plt.close(fig)
 
 def logHistogram(figname, func, bins, figtitle="", labels={}, align="mid", rwidth=1.0):
-    """ Plot @func as a histogram on a figure and save the figure as @figname.
+    """Plot `func` as a histogram on a figure and save the figure as `figname`.
 
-    @param figname (str): Full path to save the figure to a file.
-    @param func (np.Array): Array of data points.
-    @param bins (int or np.Array): Number of equal-width bins or bin edges.
-    @param figtitle (str): Figure title.
-    @param labels (Dict): A map specifying the labels of the coordinate axes.
-            `labels["x"]` specifies the label of the x-axis
-            `labels["y"]` specifies the label of the y-axis
-    @param align (["left", "mid", "right"]): Horizontal alignment of the histogram bars
-    @param rwidth (float): Relative width of the bars.
+    Args:
+        figname (str): Full path to save the figure to a file.
+        func (np.Array): Array of data points.
+        bins (int or np.Array): Number of equal-width bins or bin edges.
+        figtitle (str, optional): Figure title. Default value is "".
+        labels (dict, optional): A map specifying the labels of the coordinate axes.
+            `labels["x"]` specifies the label of the x-axis.
+            `labels["y"]` specifies the label of the y-axis.
+            Default value is {}.
+        align (["left", "mid", "right"], optional): Horizontal alignment of the histogram
+            bars. Default value is "mid".
+        rwidth (float, optional): Relative width of the bars. Default value is 1.0.
     """
     fig, ax = plt.subplots(figsize=(24, 18), dpi=170)
     ax.set_title(figtitle, fontsize=30, pad=30)
@@ -81,17 +93,19 @@ def logHistogram(figname, func, bins, figtitle="", labels={}, align="mid", rwidt
     plt.close(fig)
 
 def logBarchart(figname, x, func, figtitle ="", labels={}, xlim=None, ylim=None):
-    """ Plot @func as a bar chart on a figure and save the figure as @figname.
+    """Plot @func as a bar chart on a figure and save the figure as @figname.
 
-    @param figname (str): Full path to save the figure to a file.
-    @param x (np.Array): Array of x-axis data points.
-    @param func (np.Array): Array of data points.
-    @param figtitle (str): Figure title.
-    @param labels (Dict): A map specifying the labels of the coordinate axes.
-            `labels["x"]` specifies the label of the x-axis
-            `labels["y"]` specifies the label of the y-axis
-    @param xlim (Tuple): X-axis view limits.
-    @param ylim (Tuple): Y-axis view limits.
+    Args:
+        figname (str): Full path to save the figure to a file.
+        x (np.Array): Array of x-axis data points.
+        func (np.Array): Array of data points.
+        figtitle (str, optional): Figure title. Default value is "".
+        labels (dict, optional): A map specifying the labels of the coordinate axes.
+            `labels["x"]` specifies the label of the x-axis.
+            `labels["y"]` specifies the label of the y-axis.
+            Default value is {}.
+        xlim (tuple, optional): X-axis view limits. Default value is None.
+        ylim (tuple, optional): Y-axis view limits. Default value is None.
     """
     fig, ax = plt.subplots(figsize=(24, 18), dpi=170)
     ax.set_title(figtitle, fontsize=30, pad=30)
@@ -120,8 +134,8 @@ def logPcolor(figname, func, figtitle="", labels={}):
     plt.close(fig)
 
 #------------------------------ Specific logging functions ------------------------------#
-def log_train_stats(stats, stdout):
-    """ Append training statistics to the log file.
+def log_train_stats(stats, stdout=sys.stdout):
+    """Append training statistics to the log file.
 
     Args:
         stdout (file, optional): File object (stream) used for standard output of logging

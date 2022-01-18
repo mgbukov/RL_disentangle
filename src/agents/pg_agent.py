@@ -9,15 +9,22 @@ from src.infrastructure.logging import log_train_stats, log_test_stats
 
 
 class PGAgent(BaseAgent):
-    """ Policy-gradient agent implementation of a reinforcement learning agent.
+    """Policy-gradient agent implementation of a reinforcement learning agent.
     The agent uses vanilla policy gradient update to improve its policy.
+
+    Attributes:
+        env (QubitsEnvironment): Environment object that the agent interacts with.
+        policy (Policy): Policy object that the agent uses to decide on the next action.
+        train_history (dict): A dict object used for bookkeeping.
+        test_history (dict): A dict object used for bookkeeping.
     """
 
     def __init__(self, env, policy):
-        """ Initialize policy gradient agent.
+        """Initialize policy gradient agent.
 
-        @param env (QubitsEnvironment object): Environment object.
-        @param policy (Policy object): Policy object.
+        Args:
+            env (QubitsEnvironment object): Environment object.
+            policy (Policy object): Policy object.
         """
         self.env = env
         self.policy = policy
@@ -25,35 +32,41 @@ class PGAgent(BaseAgent):
         self.test_history = {}
 
     def sum_to_go(self, t):
-        """ Sum-to-go returns the sum of the values starting from the current index. Given
+        """Sum-to-go returns the sum of the values starting from the current index. Given
         an array `arr = {a_0, a_1, ..., a_(T-1)}` the sum-to-go is an array `s` such that:
             `s[0] = a_0 + a_1 + ... + a_(T-1)`
             `s[1] = a_1 + ... + a_(T-1)`
             ...
             `s[i] = a_i + a_(i+1) + ... + a_(T-1)`
 
-        @param t (torch.Tensor): Tensor of shape (N1, N2, ..., Nk, steps), where the
-            values to be summed are along the last dimension.
-        @return sum_to_go (torch.Tensor): Tensor of shape (N1, N2, ..., Nk, steps)
+        Args:
+            t (torch.Tensor): Tensor of shape (N1, N2, ..., Nk, steps), where the values
+                to be summed are along the last dimension.
+
+        Returns:
+            sum_to_go (torch.Tensor): Tensor of shape (N1, N2, ..., Nk, steps)
         """
         return t + torch.sum(t, keepdims=True, dim=-1) - torch.cumsum(t, dim=-1)
 
     def reward_to_go(self, rewards):
-        """ Compute the reward-to-go at every timestep t.
+        """Compute the reward-to-go at every timestep t.
         "Don't let the past destract you"
         Taking a step with the gradient pushes up the log-probabilities of each action in
         proportion to the sum of all rewards ever obtained. However, agents should only
         reinforce actions based on rewards obtained after they are taken.
         Check out: https://spinningup.openai.com/en/latest/spinningup/extra_pg_proof1.html
 
-        @param rewards (torch.Tensor): Tensor of shape (batch_size, steps), containing the
-            rewards obtained at every step.
-        @return reward_to_go (torch.Tensor): Tensor of shape (batch_size, steps).
+        Args:
+            rewards (torch.Tensor): Tensor of shape (batch_size, steps), containing the
+                rewards obtained at every step.
+
+        Returns:
+            reward_to_go (torch.Tensor): Tensor of shape (batch_size, steps).
         """
         return self.sum_to_go(rewards)
 
     def new_baseline(self, rewards, masks):
-        """ Compute the baseline as the average return at timestep t.
+        """Compute the baseline as the average return at timestep t.
 
         The baseline is usually computed as the mean total return.
             `b = E[sum(r_1, r_2, ..., r_t)]`
@@ -64,12 +77,15 @@ class PGAgent(BaseAgent):
         function V(s_t). An approximation of V(s_t) is computed as the mean reward-to-go.
             `b[i] = E[sum(r_i, r_(i+1), ..., r_T)]`
 
-        @param rewards (torch.Tensor): Tensor of shape (batch_size, steps), containing the
-            rewards obtained at every step.
-        @param masks (torch.Tensor): Boolean tensor of shape (batch_size, steps), that
-            masks out the part of the trajectory after it has finished.
-        @return baselines (torch.Tensor): Tensor of shape (steps,), giving the baseline
-            term for every timestep.
+        Args:
+            rewards (torch.Tensor): Tensor of shape (batch_size, steps), containing the
+                rewards obtained at every step.
+            masks (torch.Tensor): Boolean tensor of shape (batch_size, steps), that masks
+                out the part of the trajectory after it has finished.
+
+        Returns:
+            baselines (torch.Tensor): Tensor of shape (steps,), giving the baseline term
+                for every timestep.
         """
         steps = rewards.shape[-1]
         b = torch.mean(torch.sum(rewards, dim=-1))
@@ -89,15 +105,18 @@ class PGAgent(BaseAgent):
         return (torch.sum(masks, dim=0) > 1) * baselines
 
     def entropy_term(self, logits, actions):
-        """ Compute the entropy regularization term.
+        """Compute the entropy regularization term.
         Check out: https://arxiv.org/pdf/1805.00909.pdf
 
-        @param logits (torch.Tensor): Tensor of shape (batch_size, steps, num_act), giving
-            the logits for every action at every time step.
-        @param actions (torch.Tensor): Tensor of shape (b, t), giving the actions selected
-            by the policy during rollout.
-        @return entropy_term (torch.Tensor): Tensor of shape (b, t), giving the entropy
-            regularization term for every timestep.
+        Args:
+            logits (torch.Tensor): Tensor of shape (batch_size, steps, num_act), giving
+                the logits for every action at every time step.
+            actions (torch.Tensor): Tensor of shape (b, t), giving the actions selected by
+                the policy during rollout.
+
+        Returns:
+            entropy_term (torch.Tensor): Tensor of shape (b, t), giving the entropy
+                regularization term for every timestep.
         """
         # log_probs = F.log_softmax(logits, dim=-1)
         # https://medium.com/analytics-vidhya/understanding-indexing-with-pytorch-gather-33717a84ebc4
@@ -107,18 +126,23 @@ class PGAgent(BaseAgent):
 
     def train(self, num_iter, steps, learning_rate, lr_decay=1.0, clip_grad=10.0, reg=0.0,
               entropy_reg=0.0, log_every=1, test_every=100, stdout=sys.stdout):
-        """ Train the agent using vanilla policy-gradient algorithm.
+        """Train the agent using vanilla policy-gradient algorithm.
 
-        @param num_iter (int): Number of iterations to train the agent for.
-        @param steps (int): Number of steps to rollout the policy for.
-        @param learning_rate (float): Learning rate for gradient decent.
-        @param lr_decay (float): Multiplicative factor of learning rate decay.
-        @param clip_grad (float): Threshold for gradient norm during backpropagation.
-        @param reg (float): L2 regularization strength.
-        @param entropy_reg (float): Entropy regularization strength.
-        @param log_every (int): Every @log_every iterations write the results to the log file.
-        @param stdout (file, optional): File object (stream) used for standard output of logging
-            information. Default value is `sys.stdout`.
+        Args:
+            num_iter (int): Number of iterations to train the agent for.
+            steps (int): Number of steps to rollout the policy for.
+            learning_rate (float): Learning rate for gradient decent.
+            lr_decay (float, optional): Multiplicative factor of learning rate decay.
+                Default value is 1.0.
+            clip_grad (float, optional): Threshold for gradient norm during backpropagation.
+                Default value is 10.0.
+            reg (float, optional): L2 regularization strength. Default value is 0.0.
+            entropy_reg (float, optional): Entropy regularization strength.
+                Default value is 0.0.
+            log_every (int, optional): Every `log_every` iterations write the results to
+                the log file. Default value is 100.
+            stdout (file, optional): File object (stream) used for standard output of
+                logging information. Default value is `sys.stdout`.
         """
         # Move the neural network to device and prepare for training.
         device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")

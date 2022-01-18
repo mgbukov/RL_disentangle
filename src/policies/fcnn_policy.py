@@ -5,7 +5,7 @@ from src.policies.base_policy import BasePolicy
 
 
 class FCNNPolicy(nn.Module, BasePolicy):
-    """ A policy function parametrized by a fully-connected neural network.
+    """A policy function parametrized by a fully-connected neural network.
     The model architecture uses fully-connected layers.
     After applying the non-linearity a dropout layer is applied.
 
@@ -13,15 +13,22 @@ class FCNNPolicy(nn.Module, BasePolicy):
     {affine - leaky-ReLU - [dropout]} x (L - 1) - affine
 
     The weights of the layers are initialized using Kaiming He uniform distribution.
+
+    Attributes:
+        input_size (int): The size of the input to the network
+        hidden_sizes (list(int)): A list of sizes of the hidden layers.
+        out_size (int): The size of the output layer of the network.
+        dropout_rate (float): Dropout probability.
     """
 
     def __init__(self, input_size, hidden_sizes, out_size, dropout_rate=0.0):
-        """ Initialize a policy model.
+        """Initialize a policy model.
 
-        @param input_size (int): Size of the environment state.
-        @param hidden_sizes (List[int]): A list of sizes for the hidden layers.
-        @param out_size (int): Number of possible actions the agent can choose from.
-        @param dropout_rate (float): Dropout probability.
+        Args:
+            input_size (int): Size of the environment state.
+            hidden_sizes (list[int]): A list of sizes for the hidden layers.
+            out_size (int): Number of possible actions the agent can choose from.
+            dropout_rate (float): Dropout probability.
         """
         super().__init__()
         self.input_size = input_size
@@ -56,15 +63,17 @@ class FCNNPolicy(nn.Module, BasePolicy):
 
 
     def forward(self, x):
-        """ Take a mini-batch of environment states and compute scores over the possible
+        """Take a mini-batch of environment states and compute scores over the possible
         actions.
 
-        @param x (torch.Tensor): Tensor of shape (b, q), or (b, t, q), giving the current
-            state of the environment, where
-            b = batch size, t = number of time steps,
-            q = size of the quantum system (2 ** num_qubits).
-        @return out (torch.Tensor): Tensor of shape (b, num_actions), or (b, t, num_acts),
-            giving a score to every action from the action space.
+        Args:
+            x (torch.Tensor): Tensor of shape (b, q), or (b, t, q), giving the current
+                state of the environment, where b = batch size, t = number of time steps,
+                q = size of the quantum system (2 ** num_qubits).
+    
+        Returns:
+            out (torch.Tensor): Tensor of shape (b, num_actions), or (b, t, num_acts),
+                giving a score to every action from the action space.
         """
         out = x
         for idx in range(self.num_layers):

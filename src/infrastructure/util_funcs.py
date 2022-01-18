@@ -3,7 +3,7 @@ import torch
 
 
 def fix_random_seeds(seed):
-    """ Manually set the seed for random number generation.
+    """Manually set the seed for random number generation.
     Also set CuDNN flags for reproducible results using deterministic algorithms.
     """
     torch.backends.cudnn.deterministic = True

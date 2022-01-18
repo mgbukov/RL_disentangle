@@ -49,7 +49,7 @@ def _calculate_q0_q1_entropy_from_rhos(rhos):
     return Sent_q0, Sent_q1
 
 def _phase_norm(states):
-    """ Normalizes the relative phase shift between different qubits in one state. """
+    """Normalizes the relative phase shift between different qubits in one state."""
     B = states.shape[0]
     L = states.ndim - 1
     first = states.reshape(B, -1)[:, 0]
@@ -58,15 +58,18 @@ def _phase_norm(states):
     return states * z.reshape((B,) + (1,) * L)
 
 def _ent_entropy(states, subsys_A):
-    """ Returns the entanglement entropy for every state in the batch w.r.t. `subsys_A`.
+    """Returns the entanglement entropy for every state in the batch w.r.t. `subsys_A`.
 
-    @param states (np.array): A numpy array of shape (b, 2,2,...,2), giving the states in
-        the batch.
-    @param subsys_A (List[int]): A list of ints specifying the indices of the qubits to be
-        considered as a subsystem. The subsystem is the same for every state in the batch.
-        If None, defaults to half of the system.
-    @return entropies (np.Array): A numpy array of shape (b,), giving the entropy of each
-        state in the batch.
+    Args:
+        states (np.array): A numpy array of shape (b, 2,2,...,2), giving the states in the
+            batch.
+        subsys_A (list[int]): A list of ints specifying the indices of the qubits to be
+            considered as a subsystem. The subsystem is the same for every state in the
+            batch. If None, defaults to half of the system.
+
+    Returns:
+        entropies (np.Array): A numpy array of shape (b,), giving the entropy of each
+            state in the batch.
     """
     L = states.ndim - 1
     subsys_B = [i for i in range(L) if i not in subsys_A]
@@ -80,13 +83,15 @@ def _ent_entropy(states, subsys_A):
     return -2.0 / subsys_A_size * np.einsum('ai, ai->a', lmbda ** 2, np.log(lmbda))
 
 def _entropy(states):
-    """ For each state in the batch compute the entanglement entropies by considering each
+    """For each state in the batch compute the entanglement entropies by considering each
     qubit as a subsystem.
 
-    @param states (np.array): A numpy array of shape (b, 2,2,...,2), giving the states in
-        the batch.
-    @return entropies (np.array): A numpy array of shape (b, L), giving single-qubit
-        entropies.
+    Args:
+        states (np.array): A numpy array of shape (b, 2,2,...,2), giving the states in the
+            batch.
+    
+    Returns:
+        entropies (np.array): A numpy array of shape (b, L), giving single-qubit entropies.
     """
     L = states.ndim - 1
     entropies = [_ent_entropy(states, [i]) for i in range(L)]
