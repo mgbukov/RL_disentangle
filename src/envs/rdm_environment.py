@@ -70,6 +70,7 @@ class QubitsEnvironment:
 
     @property
     def states(self):
+        """np.Array: Numpy array of shape (b,2,2,...,2) giving the quantum states."""
         return self._states.copy()
 
     @states.setter

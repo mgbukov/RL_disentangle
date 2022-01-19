@@ -80,7 +80,7 @@ class BasePolicy:
 
     @property
     def device(self):
-        """Determine which device to place the Tensors upon, CPU or GPU."""
+        """str: Determine which device to place the Tensors upon, CPU or GPU."""
         return self.output_layer.weight.device
 
     @classmethod
