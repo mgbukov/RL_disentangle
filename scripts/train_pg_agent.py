@@ -53,7 +53,7 @@ set_printoptions(precision=5, sci_mode=False)
 log_dir = "../logs/5qubits/traj_{}_iters_{}_entreg_{}".format(
     args.batch_size, args.num_iter, args.entropy_reg)
 os.makedirs(log_dir + "/probs", exist_ok=True)
-stdout = open(os.path.join(log_dir, "train_history.txt", "w"))
+stdout = open(os.path.join(log_dir, "train_history.txt"), "w")
 
 
 # Log hyperparameters information.

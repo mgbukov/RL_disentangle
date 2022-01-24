@@ -174,10 +174,9 @@ class PGAgent(BaseAgent):
             exploration_rewards = entropy_reg * self.entropy_term(logits, actions)
             modified_rewards = rewards + exploration_rewards
             q_values = self.reward_to_go(modified_rewards)
-            q_values -= self.reward_baseline(modified_rewards, masks)
+            q_values -= self.new_baseline(modified_rewards, masks)
             nll = F.cross_entropy(logits.permute(0,2,1), actions, reduction="none")
-            weighted_nll = torch.mul(masks * nll, q_values) # multiplying by masks is important
-                                                            # as the q_values are now shifted
+            weighted_nll = torch.mul(masks * nll, q_values)
             loss = torch.mean(torch.sum(weighted_nll, dim=1))
 
             # Perform backward pass.
