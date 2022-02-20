@@ -82,6 +82,7 @@ class BaseAgent:
         return (states.permute(1, 0, 2), actions.permute(1, 0),
                 (masks*rewards).permute(1, 0), masks.permute(1,0))
 
+    @torch.no_grad()
     def test_accuracy(self, num_test, steps, initial_states=None, greedy=True):
         """Test the accuracy of the agent using @num_test simulation rollouts.
 

@@ -3,7 +3,7 @@ from itertools import permutations
 import numpy as np
 
 from src.envs import util
-from src.envs.batch_transpose import cy_transpose_batch
+# from src.envs.batch_transpose import cy_transpose_batch
 from src.envs.util import _QSYSTEMS_P, _QSYSTEMS_INV_P
 
 
@@ -121,9 +121,9 @@ class QubitsEnvironment:
         qubit_indices = np.array([self.actions[a] for a in actions], dtype=np.int32)
         # ----
         # Move qubits which are modified by ``actions`` at indices (0, 1)
-        # util._transpose_batch_inplace(batch, qubit_indices, self.L)
-        # batch = np.ascontiguousarray(batch)
-        batch = cy_transpose_batch(batch, qubit_indices, _QSYSTEMS_P[self.L])
+        util._transpose_batch_inplace(batch, qubit_indices, self.L)
+        batch = np.ascontiguousarray(batch)
+        # batch = cy_transpose_batch(batch, qubit_indices, _QSYSTEMS_P[self.L])
         # ----
         # Compute 2x2 reduced density matrices
         batch = batch.reshape(B, 4, 2 ** (L - 2))
@@ -140,9 +140,9 @@ class QubitsEnvironment:
         batch = (Us @ batch).reshape(self.shape)  #TODO Try jax.jit
         # ----
         # Undo qubit permutations
-        # util._transpose_batch_inplace(batch, qubit_indices, L, inverse=True)
-        # batch = np.ascontiguousarray(batch)
-        batch = cy_transpose_batch(batch, qubit_indices, _QSYSTEMS_INV_P[self.L])
+        util._transpose_batch_inplace(batch, qubit_indices, L, inverse=True)
+        batch = np.ascontiguousarray(batch)
+        # batch = cy_transpose_batch(batch, qubit_indices, _QSYSTEMS_INV_P[self.L])
         # ----
         # The new entropies
         self._entropies_cache[np.arange(B), qubit_indices[:, 0]] = Sent_q0
@@ -170,7 +170,7 @@ class QubitsEnvironment:
         """Compute the entanglement entropy for the current states.
 
         Returns:
-            entropies (np.Array): A numpy array of shape (b, L) giving the 
+            entropies (np.Array): A numpy array of shape (b, L) giving the
         """
         return self._entropies_cache.copy()
 
@@ -198,7 +198,7 @@ class QubitsEnvironment:
         Args:
             states (np.array): A numpy array of shape (b, 2,2,...,2), giving the states in
                 the batch.
-        
+
         Returns:
             entropies (np.array): A numpy array of shape (b, L), giving single-qubit entropies.
         """
@@ -214,14 +214,14 @@ class QubitsEnvironment:
         Returns:
             rewards (np.Array): A numpy array of shape (b,).
         """
-        # return - 0.1 + 100 * cls.Disentangled(states, epsi, entropies)
-        # Compute the entropy of a system by considering each individual qubit
-        # as a sub-system. Evaluate the reward as the log of the mean sub-system entropy.
-        if entropies is None:
-            entropies = util._entropy(states)
-        entropies = np.maximum(entropies.mean(axis=1), epsi)
-        rewards = np.log(epsi / entropies)
-        return rewards
+        return (-1. + cls.Disentangled(states, epsi, entropies)).astype(np.float32)
+        # # Compute the entropy of a system by considering each individual qubit
+        # # as a sub-system. Evaluate the reward as the log of the mean sub-system entropy.
+        # if entropies is None:
+        #     entropies = util._entropy(states)
+        # entropies = np.maximum(entropies.mean(axis=1), epsi)
+        # rewards = np.log(epsi / entropies)
+        # return rewards
 
     @staticmethod
     def Disentangled(states, epsi=1e-4, entropies=None):
@@ -248,7 +248,7 @@ class QubitsEnvironment:
                 qubits to be considered as a subsystem. The subsystem is the same for
                 every state in the batch. If None, defaults to half of the system.
                 Default value is None.
-        
+
         Returns:
             entropies (np.array): A numpy array of shape (b,), giving the entropies of the
                 states in the batch.

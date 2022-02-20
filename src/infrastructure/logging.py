@@ -169,17 +169,16 @@ def log_test_stats(stats, stdout):
     """, file=stdout)
 
 def plot_entropy_curves(train_history, file_path):
-    num_iter = len(train_history)
-    _, steps = train_history[0]["rewards"].shape
+    keys = sorted(train_history.keys())
 
     # Define entropies curve.
-    ent_min = np.array([np.min(train_history[i]["entropy"]) for i in range(num_iter)])
-    ent_max = np.array([np.max(train_history[i]["entropy"]) for i in range(num_iter)])
-    ent_mean = np.array([np.mean(train_history[i]["entropy"]) for i in range(num_iter)])
-    ent_std = np.array([np.std(train_history[i]["entropy"]) for i in range(num_iter)])
+    ent_min = np.array([np.min(train_history[i]["entropy"]) for i in keys])
+    ent_max = np.array([np.max(train_history[i]["entropy"]) for i in keys])
+    ent_mean = np.array([np.mean(train_history[i]["entropy"]) for i in keys])
+    ent_std = np.array([np.std(train_history[i]["entropy"]) for i in keys])
     ent_mean_minus_std = ent_mean - 0.5 * ent_std
     ent_mean_plus_std = ent_mean + 0.5 * ent_std
-    ent_quantile = np.array([np.quantile(train_history[i]["entropy"], 0.95) for i in range(num_iter)])
+    ent_quantile = np.array([np.quantile(train_history[i]["entropy"], 0.95) for i in keys])
 
     # Plot curves.
     logPlot(figname=file_path,
@@ -188,7 +187,7 @@ def plot_entropy_curves(train_history, file_path):
             labels={"x":"Iteration", "y":"Entropy"},
             fmt=["--r", "--b", "-k", ":m"],
             fills=[(ent_mean_minus_std, ent_mean_plus_std)],
-            figtitle="System entropy after {} steps".format(steps))
+            figtitle="System entropy at episode end")
 
 def plot_loss_curve(train_history, file_path):
     num_iter = len(train_history)
@@ -203,7 +202,10 @@ def plot_return_curves(train_history, test_history, file_path):
     avg_every = test_every // 10
 
     # Define return curves.
-    returns = [np.sum(train_history[i]["rewards"], axis=1).mean() for i in range(num_iter)]
+    try:
+        returns = [np.sum(train_history[i]["rewards"], axis=1).mean() for i in range(num_iter)]
+    except KeyError:
+        returns = np.zeros(shape=(num_iter, 1))
     avg_returns = np.insert(np.mean(np.array(returns[1:]).reshape(-1, avg_every), axis=1), 0, returns[0])
     test_returns = [test_history[i]["returns"].mean() for i in range(0, num_iter, test_every)]
 
@@ -254,7 +256,7 @@ def plot_distribution(train_history, log_every, log_dir):
     num_iter = len(train_history)
     for i in range(0, num_iter, log_every):
         logPcolor(figname=os.path.join(log_dir, f"policy_output_step_{i}.png"),
-                func=train_history[i]["policy_output"].T, 
+                func=train_history[i]["policy_output"].T,
                 figtitle=f"Probabilities of actions given by the policy at step {i}",
                 labels={"x":"Step", "y":"Actions"})
 
