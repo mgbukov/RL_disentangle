@@ -3,6 +3,7 @@ import time
 
 import torch
 import torch.nn.functional as F
+from tqdm import tqdm
 
 from src.agents.base_agent import BaseAgent
 from src.infrastructure.logging import log_train_stats, log_test_stats
@@ -161,7 +162,7 @@ class PGAgent(BaseAgent):
         # np.savetxt(os.path.join(self.log_dir, "initial_batch.txt"), initial_batch.reshape(self.env.batch_size, -1))
 
         # Start the training loop.
-        for i in range(num_iter):
+        for i in tqdm(range(num_iter)):
             tic = time.time()
 
             # Set the initial state and perform policy rollout.

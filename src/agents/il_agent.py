@@ -1,12 +1,12 @@
-from lib2to3.pytree import Base
 import sys
 import time
 
 import torch
 import torch.nn.functional as F
+from tqdm import tqdm
 
 from src.agents.base_agent import BaseAgent
-from src.infrastructure.logging import log_train_stats, log_test_stats
+from src.infrastructure.logging import log_test_stats
 
 
 class ILAgent(BaseAgent):
@@ -71,7 +71,7 @@ class ILAgent(BaseAgent):
 
         data_size, _ = dataset["states"].shape
         # Fit the policy network.
-        for i in range(num_epochs):
+        for i in tqdm(range(num_epochs)):
             tic = time.time()
 
             # Loop over the entire dataset in random order.
