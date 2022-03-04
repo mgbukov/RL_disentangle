@@ -11,12 +11,12 @@ np.import_array()
 def cy_transpose_batch(batch, qubits_indices, permutation_map,
                        output=None, output_strides_buffer=None):
 
-    cdef float complex[::1] in_flat_batch = batch.ravel()
+    cdef float complex[::1] in_flat_batch = batch.ravel(order='K')
     cdef float complex[::1] out_flat_batch
     if output is None:
         out_flat_batch = numpy.zeros_like(in_flat_batch)
     else:
-        out_flat_batch = output.ravel()
+        out_flat_batch = output.ravel(order='C')
     cdef int[:, :, ::1] permutations = permutation_map
     cdef int[:, ::1] qubits = qubits_indices
     cdef int ndims = batch.ndim - 1
