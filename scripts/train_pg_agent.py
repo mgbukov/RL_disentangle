@@ -13,7 +13,7 @@ from src.agents.pg_agent import PGAgent
 from src.envs.rdm_environment import QubitsEnvironment
 from src.infrastructure.logging import (
     plot_distribution, plot_entropy_curves, plot_loss_curve,
-    plot_nsolved_curves, plot_return_curves, save_hard_states, plot_nsteps)
+    plot_nsolved_curves, plot_return_curves, plot_nsteps)
 from src.infrastructure.util_funcs import fix_random_seeds, set_printoptions
 from src.policies.fcnn_policy import FCNNPolicy
 

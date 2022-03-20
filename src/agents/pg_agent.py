@@ -190,7 +190,7 @@ class PGAgent(BaseAgent):
 
             # Book-keeping.
             mask_hard = np.any(self.env.entropy() > 0.6, axis=1)
-            mask_easy = np.any(~masks, axis=1)
+            mask_easy = np.any(~masks.cpu().numpy(), axis=1)
             self.train_history[i] = {
                 "entropy"       : self.env.entropy(),
                 "rewards"       : rewards.cpu().numpy(),
