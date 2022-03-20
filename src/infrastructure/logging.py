@@ -297,7 +297,7 @@ def plot_nsteps(train_history, log_every, file_path):
     )
 
 def plot_reward_function(env, file_path):
-    N = 20
+    N = 10
     L = env.L
     B = env.batch_size
     x = np.linspace(0.0, 0.7, N)[None, :]                       # (1, N)
@@ -309,14 +309,20 @@ def plot_reward_function(env, file_path):
         r = env.Reward(env.states, entropies=ent)
         rewards[i] = r[0]
     fig, ax = plt.subplots(figsize=(12, 8))
-    c = ax.pcolor(rewards.T, cmap='PuRd')
+    c = ax.pcolormesh(rewards.T, cmap='PuRd', edgecolors='k')
     ax.set_title('Reward Function')
     ax.set_ylabel('qubit index')
     ax.set_xlabel('single qubit entropy')
-    ax.xaxis.set_ticklabels(np.round(x.ravel(), 2))
-    ax.yaxis.set_ticklabels(list(range(L)))
+    ax.set_xticks(ticks=list(range(N)), minor=False)
+    ax.set_xticklabels(np.round(x.ravel(), 2), minor=False)
+    # Text annotation
+    for i, j in np.indices(rewards.shape).reshape(2, -1).T:
+        val = rewards[i, j]
+        ax.text(i + 0.5, j + 0.5, f'{val:.2f}',
+                horizontalalignment='center', verticalalignment='center',
+                color='k', fontsize=8.0)
     fig.colorbar(c, ax=ax)
-    fig.savefig(file_path)
+    fig.savefig(file_path, dpi=160)
     plt.close(fig)
 
 #

@@ -13,7 +13,7 @@ from src.agents.pg_agent import PGAgent
 from src.envs.rdm_environment import QubitsEnvironment
 from src.infrastructure.logging import (
     plot_distribution, plot_entropy_curves, plot_loss_curve,
-    plot_nsolved_curves, plot_return_curves, plot_nsteps)
+    plot_nsolved_curves, plot_return_curves, plot_nsteps, plot_reward_function)
 from src.infrastructure.util_funcs import fix_random_seeds, set_printoptions
 from src.policies.fcnn_policy import FCNNPolicy
 
@@ -77,6 +77,7 @@ Training parameters:
 
 # Create the environment.
 env = QubitsEnvironment(args.num_qubits, epsi=args.epsi, batch_size=args.batch_size)
+plot_reward_function(env, os.path.join(log_dir, "reward_function.png"))
 
 
 # Initialize the policy.
@@ -111,5 +112,4 @@ plot_return_curves(train_history, test_history, os.path.join(log_dir, "returns.p
 plot_nsolved_curves(train_history, test_history, os.path.join(log_dir, "nsolved.png"))
 plot_nsteps(train_history, args.log_every, os.path.join(log_dir, "nsteps.png"))
 plot_distribution(train_history, args.log_every, log_dir)
-
 #
