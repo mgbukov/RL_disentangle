@@ -1,5 +1,5 @@
 """
-python3 train_pg_agent.py -n 5 -b 1024 --steps 30  -i 4001
+python3 train_pg_agent.py -n 5 -b 1024 --steps 30  -i 4001 --ereg 0.01
 """
 
 import argparse
@@ -11,8 +11,9 @@ sys.path.append("..")
 
 from src.agents.pg_agent import PGAgent
 from src.envs.rdm_environment import QubitsEnvironment
-from src.infrastructure.logging import (plot_distribution, plot_entropy_curves, plot_loss_curve,
-                                        plot_nsolved_curves, plot_return_curves)
+from src.infrastructure.logging import (
+    plot_distribution, plot_entropy_curves, plot_loss_curve,
+    plot_nsolved_curves, plot_return_curves, save_hard_states, plot_nsteps)
 from src.infrastructure.util_funcs import fix_random_seeds, set_printoptions
 from src.policies.fcnn_policy import FCNNPolicy
 
@@ -52,7 +53,7 @@ set_printoptions(precision=5, sci_mode=False)
 # Create file to log output during training.
 log_dir = "../logs/5qubits/traj_{}_iters_{}_entreg_{}".format(
     args.batch_size, args.num_iter, args.entropy_reg)
-os.makedirs(os.path.join(log_dir, "/probs"), exist_ok=True)
+os.makedirs(os.path.join(log_dir, "probs"), exist_ok=True)
 stdout = open(os.path.join(log_dir, "train_history.txt"), "w")
 
 
@@ -108,6 +109,7 @@ plot_entropy_curves(train_history, os.path.join(log_dir, "final_entropy.png"))
 plot_loss_curve(train_history, os.path.join(log_dir, "loss.png"))
 plot_return_curves(train_history, test_history, os.path.join(log_dir, "returns.png"))
 plot_nsolved_curves(train_history, test_history, os.path.join(log_dir, "nsolved.png"))
+plot_nsteps(train_history, args.log_every, os.path.join(log_dir, "nsteps.png"))
 plot_distribution(train_history, args.log_every, log_dir)
 
 #

@@ -1,6 +1,6 @@
 import sys
 import time
-
+import numpy as np
 import torch
 import torch.nn.functional as F
 from tqdm import tqdm
@@ -60,23 +60,31 @@ class ILAgent(BaseAgent):
         # Move the neural network to device and prepare for training.
         device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         # device = torch.device("cpu")
-        print(f"Using device: {device}\n", file=stdout)
+        print(f"Using device: {device}\n", file=stdout, flush=True)
         self.policy.train()
         self.policy = self.policy.to(device)
 
         # Initialize the optimizer and the scheduler.
         optimizer = torch.optim.Adam(self.policy.parameters(), lr=learning_rate, weight_decay=reg)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=lr_decay)
-        print(f"Using optimizer:\n{str(optimizer)}\n", file=stdout)
+        print(f"Using optimizer:\n{str(optimizer)}\n", file=stdout, flush=True)
 
         data_size, _ = dataset["states"].shape
+        # Check if `dataset` has enough samples for test set
+        if data_size > 2 * 10_000:
+            train_size = data_size - 10_000
+            test_size = 10_000
+        else:
+            train_size = data_size
+            test_size = 0
+
         # Fit the policy network.
         for i in tqdm(range(num_epochs)):
             tic = time.time()
 
             # Loop over the entire dataset in random order.
             total_loss, total_grad_norm, j = 0.0, 0.0, 0
-            for idxs in torch.randperm(data_size).to(device).split(batch_size):
+            for idxs in torch.randperm(train_size).to(device).split(batch_size):
                 # Draw a random mini-batch of samples from the dataset.
                 states = dataset["states"][idxs].to(device)
                 actions = dataset["actions"][idxs].to(device)
@@ -105,23 +113,38 @@ class ILAgent(BaseAgent):
 
             # Log results to file.
             if i % log_every == 0:
-                print(f"Epoch ({i}/{num_epochs}) took {toc-tic:.3f} seconds.", file=stdout)
+                print(f"Epoch ({i}/{num_epochs}) took {toc-tic:.3f} seconds.", file=stdout, flush=True)
                 print(f"  Avg Loss:  {total_loss / j:.5f}", file=stdout)
-                print(f"  Avg Grad norm:   {total_grad_norm / j:.5f}", file=stdout)
+                print(f"  Avg Grad norm:   {total_grad_norm / j:.5f}", file=stdout, flush=True)
 
             # Test the agent.
             if i % test_every == 0:
                 tic = time.time()
                 steps=30
-                entropies, returns, nsolved = self.test_accuracy(100, steps)
-                self.test_history[i] = {
-                    "entropy" : entropies,
-                    "returns" : returns,
-                    "nsolved" : nsolved,
-                }
+                test_stats = self.test_accuracy(100, steps)
+                self.test_history[i] = test_stats
                 toc = time.time()
-                print(f"Epoch {i}\nTesting agent accuracy for {steps} steps...", file=stdout)
-                print(f"Testing took {toc-tic:.3f} seconds.", file=stdout)
-                log_test_stats((entropies, returns, nsolved), stdout)
+                print(f"Epoch {i}\nTesting agent accuracy for {steps} steps...", file=stdout, flush=True)
+                print(f"Testing took {toc-tic:.3f} seconds.", file=stdout, flush=True)
+                log_test_stats(test_stats, stdout)
+
+        # Out of sample test of classification accuracy (fraction of times
+        # that the correct action is chosen)
+        predictions = []
+        targets = []
+        with torch.no_grad():
+            for i in range(0, test_size, batch_size):
+                j = data_size - test_size + i
+                states = dataset['states'][j:j+batch_size].to(device)
+                actions = dataset['actions'][j:j+batch_size].to(device)
+                logits = self.policy(states)
+                probs = F.softmax(logits, dim=1)
+                _, preds = torch.max(probs, dim=1)
+                predictions.append(preds.cpu().numpy())
+                targets.append(actions)
+        predictions = np.hstack(predictions)
+        targets = np.hstack(targets)
+        accuracy = np.sum(predictions == targets) / len(predictions)
+        print(f"Classification accuracy: {accuracy:.3f}", file=stdout, flush=True)
 
 #

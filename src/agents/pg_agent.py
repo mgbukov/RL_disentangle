@@ -1,6 +1,6 @@
 import sys
 import time
-
+import numpy as np
 import torch
 import torch.nn.functional as F
 from tqdm import tqdm
@@ -148,14 +148,14 @@ class PGAgent(BaseAgent):
         # Move the neural network to device and prepare for training.
         device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         # device = torch.device("cpu")
-        print(f"Using device: {device}\n", file=stdout)
+        print(f"Using device: {device}\n", file=stdout, flush=True)
         self.policy.train()
         self.policy = self.policy.to(device)
 
         # Initialize the optimizer and the scheduler.
         optimizer = torch.optim.Adam(self.policy.parameters(), lr=learning_rate, weight_decay=reg)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=lr_decay)
-        print(f"Using optimizer:\n{str(optimizer)}\n", file=stdout)
+        print(f"Using optimizer:\n{str(optimizer)}\n", file=stdout, flush=True)
 
         # self.env.set_random_states(copy=True)
         # initial_batch = self.env.states
@@ -189,6 +189,8 @@ class PGAgent(BaseAgent):
             scheduler.step()
 
             # Book-keeping.
+            mask_hard = np.any(self.env.entropy() > 0.6, axis=1)
+            mask_easy = np.any(~masks, axis=1)
             self.train_history[i] = {
                 "entropy"       : self.env.entropy(),
                 "rewards"       : rewards.cpu().numpy(),
@@ -198,27 +200,24 @@ class PGAgent(BaseAgent):
                 "total_norm"    : total_norm.cpu().numpy(),
                 "nsolved"       : sum(self.env.disentangled()),
                 "nsteps"        : ((~masks[:,-1])*torch.sum(masks, axis=1)).cpu().numpy(),
+                "easy_states"   : states.detach().cpu().numpy()[mask_easy, 0][:32],
+                "hard_states"   : states.detach().cpu().numpy()[mask_hard, 0][:32],
             }
-
             toc = time.time()
 
             # Log results to file.
             if i % log_every == 0:
-                print(f"Iteration ({i}/{num_iter}) took {toc-tic:.3f} seconds.", file=stdout)
+                print(f"Iteration ({i}/{num_iter}) took {toc-tic:.3f} seconds.", file=stdout, flush=True)
                 log_train_stats(self.train_history[i], stdout)
 
             # Test the agent.
             if i % test_every == 0:
                 tic = time.time()
-                entropies, returns, nsolved = self.test_accuracy(10, steps)#, initial_batch)
-                self.test_history[i] = {
-                    "entropy" : entropies,
-                    "returns" : returns,
-                    "nsolved" : nsolved,
-                }
+                test_stats = self.test_accuracy(10, steps)
+                self.test_history[i] = test_stats
                 toc = time.time()
-                print(f"Iteration {i}\nTesting agent accuracy for {steps} steps...", file=stdout)
-                print(f"Testing took {toc-tic:.3f} seconds.", file=stdout)
-                log_test_stats((entropies, returns, nsolved), stdout)
+                print(f"Iteration {i}\nTesting agent accuracy for {steps} steps...", file=stdout, flush=True)
+                print(f"Testing took {toc-tic:.3f} seconds.", file=stdout, flush=True)
+                log_test_stats(test_stats, stdout)
 
 #

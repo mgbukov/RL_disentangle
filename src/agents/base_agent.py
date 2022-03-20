@@ -106,7 +106,7 @@ class BaseAgent:
         entropies = np.zeros((num_test, batch_size, self.env.L))
         returns = np.zeros((num_test, batch_size))
         nsolved = np.zeros((num_test, batch_size))
-        num_trajects = num_test * batch_size
+        nsteps  = np.zeros((num_test, batch_size))
 
         # Begin testing.
         for i in range(num_test):
@@ -118,9 +118,15 @@ class BaseAgent:
             entropies[i] = self.env.entropy()
             returns[i] = torch.sum(mask*rewards, axis=1).cpu().numpy()
             nsolved[i] = self.env.disentangled()
+            nsteps[i] = torch.sum(mask, axis=1).cpu().numpy()
 
-        return (entropies.reshape(num_trajects, self.env.L),
-                returns.reshape(num_trajects), nsolved.reshape(num_trajects))
+        num_trajects = num_test * batch_size
+        return {
+            'entropies': entropies.reshape(num_trajects, self.env.L),
+            'returns': returns.reshape(num_trajects),
+            'nsolved': nsolved.reshape(num_trajects),
+            'nsteps': nsteps.reshape(num_trajects)
+        }
 
     def save_policy(self, filepath):
         """Save the policy as .bin file to disk."""

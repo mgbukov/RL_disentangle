@@ -143,10 +143,12 @@ def log_train_stats(stats, stdout=sys.stdout):
     """
     batch_size = len(stats["rewards"])
     probs = stats["policy_output"]
-    print(f"""    Mean final reward:        {np.mean(np.array(stats["rewards"])[:,-1]):.4f}
+    print(f"""\
+    Mean final reward:        {np.mean(np.array(stats["rewards"])[:,-1]):.4f}
     Mean return:              {np.mean(np.sum(stats["rewards"], axis=1)):.4f}
     Mean exploration return:  {np.mean(np.sum(stats["exploration"], axis=1)):.4f}
     Mean final entropy:       {np.mean(stats["entropy"]):.4f}
+    Median final entropy:     {np.median(stats["entropy"]):.4f}
     Max final entropy:        {np.max(stats["entropy"]):.4f}
     95 percentile entropy:    {np.percentile(stats["entropy"], 95.0):.5f}
     Policy entropy:           {-np.mean(np.sum(probs*np.log(probs),axis=-1)):.4f}
@@ -154,19 +156,24 @@ def log_train_stats(stats, stdout=sys.stdout):
     Total gradient norm:      {stats["total_norm"]:.5f}
     Solved trajectories:      {stats["nsolved"]} / {batch_size}
     Avg steps to disentangle: {np.mean(stats["nsteps"][stats["nsteps"].nonzero()]):.3f}
-    """, file=stdout)
+    """, file=stdout, flush=True)
 
 def log_test_stats(stats, stdout):
-    entropies, returns, nsolved = stats
+    entropies = stats['entropies']
+    returns = stats['returns']
+    nsolved = stats['nsolved']
+    nsteps = stats['nsteps']
     num_trajects = len(returns)
     solved = sum(nsolved)
-    print(f"""    Solved states:         {solved:.0f} / {num_trajects} = {solved/(num_trajects)*100:.3f}%
+    print(f"""\
+    Solved states:         {solved:.0f} / {num_trajects} = {solved/(num_trajects)*100:.3f}%
     Min entropy:           {entropies.min():.5f}
     Mean final entropy:    {np.mean(entropies):.4f}
     95 percentile entropy: {np.quantile(entropies.mean(axis=-1).reshape(-1), 0.95):.5f}
     Max entropy:           {entropies.max():.5f}
     Mean return:           {np.mean(returns):.4f}
-    """, file=stdout)
+    Avg steps to disentangle: {np.mean(nsteps[nsteps.nonzero()]):.3f}
+    """, file=stdout, flush=True)
 
 def plot_entropy_curves(train_history, file_path):
     keys = sorted(train_history.keys())
@@ -195,25 +202,27 @@ def plot_loss_curve(train_history, file_path):
     logPlot(figname=file_path, funcs=[loss], legends=["loss"],
             labels={"x":"Iteration", "y":"Loss"}, fmt=["-b"], figtitle="Training Loss")
 
-def plot_return_curves(train_history, test_history, file_path):
+def plot_return_curves(train_history : dict, test_history : dict, file_path):
     num_iter = len(train_history)
     num_test = len(test_history)
-    test_every = num_iter // (num_test - 1)
-    avg_every = test_every // 10
+    test_every = num_iter // (num_test - 1) if num_test > 1 else 0
+    avg_every = max(1, test_every // 10)
 
     # Define return curves.
     try:
         returns = [np.sum(train_history[i]["rewards"], axis=1).mean() for i in range(num_iter)]
     except KeyError:
         returns = np.zeros(shape=(num_iter, 1))
-    avg_returns = np.insert(np.mean(np.array(returns[1:]).reshape(-1, avg_every), axis=1), 0, returns[0])
-    test_returns = [test_history[i]["returns"].mean() for i in range(0, num_iter, test_every)]
+    # avg_returns = np.insert(np.mean(np.array(returns[1:]).reshape(-1, avg_every), axis=1), 0, returns[0])
+    avg_returns = np.convolve(returns, np.ones(avg_every), mode='same') / avg_every
+    avg_returns = avg_returns[::avg_every]
+    test_returns = [test_history[i]["returns"].mean() for i in sorted(test_history.keys())]
 
     # Plot curves.
     logPlot(figname=file_path,
             xs=[np.arange(num_iter),
                 np.arange(0, num_iter, avg_every),
-                np.arange(0, num_iter, test_every)],
+                sorted(test_history.keys())],
             funcs=[returns, avg_returns, test_returns],
             legends=["mean_batch_returns", "avg_returns", "test_returns"],
             labels={"x":"Iteration", "y":"Return"},
@@ -232,19 +241,21 @@ def plot_nsolved_curves(train_history, test_history, file_path):
     batch_size, steps = train_history[0]["rewards"].shape
     num_iter = len(train_history)
     num_test = len(test_history)
-    test_every = num_iter // (num_test - 1)
-    avg_every = test_every // 10
+    test_every = num_iter // (num_test - 1) if num_test > 1 else 0
+    avg_every = max(1, test_every // 10)
 
     # Define trajectories curves.
     nsolved = [train_history[i]["nsolved"] / batch_size for i in range(num_iter)]
-    avg_nsolved = np.insert(np.mean(np.array(nsolved[1:]).reshape(-1, avg_every), axis=1), 0, nsolved[0])
-    test_nsolved = [test_history[i]["nsolved"].mean() for i in range(0, num_iter, test_every)]
+    # avg_nsolved = np.insert(np.mean(np.array(nsolved[1:]).reshape(-1, avg_every), axis=1), 0, nsolved[0])
+    avg_nsolved = np.convolve(nsolved, np.ones(avg_every), mode='same') / avg_every
+    avg_nsolved = avg_nsolved[::avg_every]
+    test_nsolved = [test_history[i]["nsolved"].mean() for i in sorted(test_history.keys())]
 
     # Plot curves.
     logPlot(figname=file_path,
             xs=[np.arange(num_iter),
                 np.arange(0, num_iter, avg_every),
-                np.arange(0, num_iter, test_every)],
+                sorted(test_history.keys())],
             funcs=[nsolved, avg_nsolved, test_nsolved],
             legends=["batch_nsolved", "avg_nsolved", "test_nsolved"],
             labels={"x":"Episode", "y":"nsolved"},
@@ -259,5 +270,53 @@ def plot_distribution(train_history, log_every, log_dir):
                 func=train_history[i]["policy_output"].T,
                 figtitle=f"Probabilities of actions given by the policy at step {i}",
                 labels={"x":"Step", "y":"Actions"})
+
+
+def plot_nsteps(train_history, log_every, file_path):
+    num_iter = len(train_history)
+    xs, ys_min, ys_max, ys_mean, ys_median = [], [], [], [], []
+    for i in range(0, num_iter, log_every):
+        try:
+            nsteps = train_history[i]['nsteps']
+        except:
+            nsteps = [np.nan, np.nan]
+        xs.append(i)
+        ys_min.append(np.min(nsteps))
+        ys_max.append(np.max(nsteps))
+        ys_mean.append(np.mean(nsteps))
+        ys_median.append(np.median(nsteps))
+    logPlot(
+        figname=file_path,
+        xs=[xs, xs, xs, xs],
+        funcs=[ys_min, ys_max, ys_mean, ys_median],
+        legends=['min', 'max', 'mean', 'median'],
+        labels={'x': 'Iteration', 'y': 'Steps'},
+        fmt=['--r', '--r', '-k', '-b'],
+        lw=[1.0, 1.0, 2.0, 4.0],
+        figtitle="Steps to Disentangle"
+    )
+
+def plot_reward_function(env, file_path):
+    N = 20
+    L = env.L
+    B = env.batch_size
+    x = np.linspace(0.0, 0.7, N)[None, :]                       # (1, N)
+    dummy_entropies = np.tile(x, reps=(L, 1))[None, :, :]       # (1, L, N)
+    dummy_entropies = np.tile(dummy_entropies, reps=(B, 1, 1))  # (B, L, N)
+    rewards = np.zeros((N, L), dtype=np.float32)
+    for i in range(N):
+        ent = dummy_entropies[:, :, i]
+        r = env.Reward(env.states, entropies=ent)
+        rewards[i] = r[0]
+    fig, ax = plt.subplots(figsize=(12, 8))
+    c = ax.pcolor(rewards.T, cmap='PuRd')
+    ax.set_title('Reward Function')
+    ax.set_ylabel('qubit index')
+    ax.set_xlabel('single qubit entropy')
+    ax.xaxis.set_ticklabels(np.round(x.ravel(), 2))
+    ax.yaxis.set_ticklabels(list(range(L)))
+    fig.colorbar(c, ax=ax)
+    fig.savefig(file_path)
+    plt.close(fig)
 
 #
