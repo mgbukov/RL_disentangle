@@ -1,5 +1,6 @@
 import sys
 import time
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -121,13 +122,18 @@ class ILAgent(BaseAgent):
             # Test the agent.
             if i % test_every == 0:
                 tic = time.time()
-                steps=30
-                test_stats = self.test_accuracy(100, steps)
-                self.test_history[i] = test_stats
+                steps = 30
+                entropy, returns, nsolved, nsteps = self.test_accuracy(100, steps)
+                self.test_history[i] = {
+                    "entropy" : entropy,
+                    "returns" : returns,
+                    "nsolved" : nsolved,
+                    "nsteps"  : nsteps,
+                }
                 toc = time.time()
                 print(f"Epoch {i}\nTesting agent accuracy for {steps} steps...", file=stdout, flush=True)
                 print(f"Testing took {toc-tic:.3f} seconds.", file=stdout, flush=True)
-                log_test_stats(test_stats, stdout)
+                log_test_stats(self.test_history[i], stdout)
 
         # Out of sample test of classification accuracy (fraction of times
         # that the correct action is chosen)

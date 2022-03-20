@@ -95,12 +95,14 @@ class BaseAgent:
                 If false, select the next action probabilistically. Default value is False.
 
         Returns:
-            entropies (np.Array): A numpy array of shape (num_trajects, L), giving the
+            entropies (np.Array): A numpy array of shape (num_episodes, L), giving the
                 final entropies for each trajectory during testing,
-            returns (np.Array): A numpy array of shape (num_trajects,), giving the
+            returns (np.Array): A numpy array of shape (num_episodes,), giving the
                 obtained return during each trajectory.
-            nsolved (np.Array): A numpy array of shape (num_trajects,), of boolean values,
+            nsolved (np.Array): A numpy array of shape (num_episodes,), of boolean values,
                 indicating which trajectories are disentangled.
+            nsteps (np.Array): A numpy array of shape (num_episodes,), giving the number
+                of steps for each episode.
         """
         batch_size = self.env.batch_size  # number of trajectories
         entropies = np.zeros((num_test, batch_size, self.env.L))
@@ -120,13 +122,9 @@ class BaseAgent:
             nsolved[i] = self.env.disentangled()
             nsteps[i] = torch.sum(mask, axis=1).cpu().numpy()
 
-        num_trajects = num_test * batch_size
-        return {
-            'entropies': entropies.reshape(num_trajects, self.env.L),
-            'returns': returns.reshape(num_trajects),
-            'nsolved': nsolved.reshape(num_trajects),
-            'nsteps': nsteps.reshape(num_trajects)
-        }
+        num_episodes = num_test * batch_size
+        return (entropies.reshape(num_episodes, self.env.L), returns.reshape(num_episodes),
+                nsolved.reshape(num_episodes), nsteps.reshape(num_episodes))
 
     def save_policy(self, filepath):
         """Save the policy as .bin file to disk."""

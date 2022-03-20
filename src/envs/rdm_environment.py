@@ -170,7 +170,7 @@ class QubitsEnvironment:
         """Compute the entanglement entropy for the current states.
 
         Returns:
-            entropies (np.Array): A numpy array of shape (b, L) giving the
+            entropies (np.array): A numpy array of shape (b, L), giving single-qubit entropies.
         """
         return self._entropies_cache.copy()
 

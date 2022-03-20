@@ -53,7 +53,8 @@ set_printoptions(precision=5, sci_mode=False)
 # Create file to log output during training.
 log_dir = "../logs/5qubits/traj_{}_iters_{}_entreg_{}".format(
     args.batch_size, args.num_iter, args.entropy_reg)
-os.makedirs(os.path.join(log_dir, "probs"), exist_ok=True)
+log_probs_dir = os.path.join(log_dir, "probs")
+os.makedirs(log_probs_dir, exist_ok=True)
 stdout = open(os.path.join(log_dir, "train_history.txt"), "w")
 
 
@@ -111,5 +112,6 @@ plot_loss_curve(train_history, os.path.join(log_dir, "loss.png"))
 plot_return_curves(train_history, test_history, os.path.join(log_dir, "returns.png"))
 plot_nsolved_curves(train_history, test_history, os.path.join(log_dir, "nsolved.png"))
 plot_nsteps(train_history, args.log_every, os.path.join(log_dir, "nsteps.png"))
-plot_distribution(train_history, args.log_every, log_dir)
+plot_distribution(train_history, args.log_every, log_probs_dir)
+
 #

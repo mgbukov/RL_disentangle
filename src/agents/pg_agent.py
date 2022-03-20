@@ -213,11 +213,16 @@ class PGAgent(BaseAgent):
             # Test the agent.
             if i % test_every == 0:
                 tic = time.time()
-                test_stats = self.test_accuracy(10, steps)
-                self.test_history[i] = test_stats
+                entropies, returns, nsolved, nsteps = self.test_accuracy(10, steps)#, initial_batch)
+                self.test_history[i] = {
+                    "entropy" : entropies,
+                    "returns" : returns,
+                    "nsolved" : nsolved,
+                    "nsteps"  : nsteps,
+                }
                 toc = time.time()
                 print(f"Iteration {i}\nTesting agent accuracy for {steps} steps...", file=stdout, flush=True)
                 print(f"Testing took {toc-tic:.3f} seconds.", file=stdout, flush=True)
-                log_test_stats(test_stats, stdout)
+                log_test_stats(self.test_history[i], stdout)
 
 #

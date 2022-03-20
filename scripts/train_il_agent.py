@@ -9,15 +9,14 @@ import sys
 import time
 sys.path.append("..")
 
-
 import numpy as np
 import torch
 
-
 from src.agents.il_agent import ILAgent
 from src.envs.rdm_environment import QubitsEnvironment
-from src.infrastructure.logging import (plot_distribution, plot_entropy_curves, plot_loss_curve,
-                                        plot_nsolved_curves, plot_return_curves)
+from src.infrastructure.logging import (
+    plot_distribution, plot_entropy_curves, plot_loss_curve,
+    plot_nsolved_curves, plot_return_curves)
 from src.infrastructure.util_funcs import fix_random_seeds, set_printoptions
 from src.policies.fcnn_policy import FCNNPolicy
 

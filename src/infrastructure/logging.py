@@ -138,6 +138,19 @@ def log_train_stats(stats, stdout=sys.stdout):
     """Append training statistics to the log file.
 
     Args:
+        stats (dict): A dictionary of numpy arrays containing:
+            entropy (np.Array): A numpy array of shape (b, L), giving single-qubit entropies
+                for the final states in every trajectory of the batch.
+            rewards (np.Array): A numpy array of shape (b, t), giving the rewards obtained
+                during trajectory rollout.
+            exploration (np.Array): A numpy array of shape (b, t), giving the exploration
+                rewards at every time-step.
+            policy_output (np.Array): To be removed.
+            loss (float): The value of the loss for this batch of episodes.
+            total_norm (float): The value of the total gradient norm for this batch.
+            nsolved (float): The number of solved trajectories for this batch.
+            nsteps (np.Array): A numpy array of shape (b,), giving the length of every
+                trajectory in the batch.
         stdout (file, optional): File object (stream) used for standard output of logging
             information. Default value is `sys.stdout`.
     """
@@ -159,14 +172,29 @@ def log_train_stats(stats, stdout=sys.stdout):
     """, file=stdout, flush=True)
 
 def log_test_stats(stats, stdout):
-    entropies = stats['entropies']
-    returns = stats['returns']
-    nsolved = stats['nsolved']
-    nsteps = stats['nsteps']
-    num_trajects = len(returns)
+    """Append test statistics to the log file.
+
+    Args:
+        stats (dict): A dictionary of numpy arrays containing:
+            entropies (np.Array): A numpy array of shape (num_episodes, L), giving the
+                final entropies for each trajectory during testing,
+            returns (np.Array): A numpy array of shape (num_episodes,), giving the
+                obtained return during each trajectory.
+            nsolved (np.Array): A numpy array of shape (num_episodes,), of boolean values,
+                indicating which trajectories are disentangled.
+            nsteps (np.Array): A numpy array of shape (num_episodes,), giving the number
+                of steps for each episode.
+        stdout (file, optional): File object (stream) used for standard output of logging
+            information. Default value is `sys.stdout`.
+    """
+    entropies = stats["entropy"]
+    returns = stats["returns"]
+    nsolved = stats["nsolved"]
+    nsteps = stats["nsteps"]
+    num_episodes = len(returns)
     solved = sum(nsolved)
     print(f"""\
-    Solved states:         {solved:.0f} / {num_trajects} = {solved/(num_trajects)*100:.3f}%
+    Solved states:         {solved:.0f} / {num_episodes} = {solved/(num_episodes)*100:.3f}%
     Min entropy:           {entropies.min():.5f}
     Mean final entropy:    {np.mean(entropies):.4f}
     95 percentile entropy: {np.quantile(entropies.mean(axis=-1).reshape(-1), 0.95):.5f}
@@ -202,7 +230,7 @@ def plot_loss_curve(train_history, file_path):
     logPlot(figname=file_path, funcs=[loss], legends=["loss"],
             labels={"x":"Iteration", "y":"Loss"}, fmt=["-b"], figtitle="Training Loss")
 
-def plot_return_curves(train_history : dict, test_history : dict, file_path):
+def plot_return_curves(train_history, test_history, file_path):
     num_iter = len(train_history)
     num_test = len(test_history)
     test_every = num_iter // (num_test - 1) if num_test > 1 else 0

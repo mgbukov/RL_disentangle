@@ -89,7 +89,7 @@ def _entropy(states):
     Args:
         states (np.array): A numpy array of shape (b, 2,2,...,2), giving the states in the
             batch.
-    
+
     Returns:
         entropies (np.array): A numpy array of shape (b, L), giving single-qubit entropies.
     """
