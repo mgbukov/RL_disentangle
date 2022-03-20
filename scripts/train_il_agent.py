@@ -40,8 +40,8 @@ parser.add_argument("--reg", dest="reg", type=float,
                     help="L2 regularization", default=0.0)
 parser.add_argument("--clip_grad", dest="clip_grad", type=float, default=10.0)
 parser.add_argument("--dropout", dest="dropout", type=float, default=0.0)
-parser.add_argument("--log_every", dest="log_every", type=int, default=100)
-parser.add_argument("--test_every", dest="test_every", type=int, default=1000)
+parser.add_argument("--log_every", dest="log_every", type=int, default=1)
+parser.add_argument("--test_every", dest="test_every", type=int, default=10)
 args = parser.parse_args()
 
 

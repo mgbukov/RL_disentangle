@@ -141,7 +141,7 @@ class ILAgent(BaseAgent):
                 probs = F.softmax(logits, dim=1)
                 _, preds = torch.max(probs, dim=1)
                 predictions.append(preds.cpu().numpy())
-                targets.append(actions)
+                targets.append(actions.detach().cpu().numpy())
         predictions = np.hstack(predictions)
         targets = np.hstack(targets)
         accuracy = np.sum(predictions == targets) / len(predictions)
