@@ -115,6 +115,6 @@ with open(os.path.join(log_dir, "test_history.pickle"), "rb") as f:
 plot_entropy_curves(test_history, os.path.join(log_dir, "final_entropy.png"))
 plot_entropy_curves(train_history, os.path.join(log_dir, "train_entropy.png"))
 plot_loss_curve(train_history, os.path.join(log_dir, "loss.png"))
-plot_return_curves(train_history, test_history, os.path.join(log_dir, "returns.png"))
+# plot_return_curves(train_history, test_history, os.path.join(log_dir, "returns.png"))
 
 #

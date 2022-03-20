@@ -108,6 +108,7 @@ class ILAgent(BaseAgent):
 
             self.train_history[i] = {
                 "loss" : total_loss / j,
+                "entropy": self.env.entropy()
             }
             toc = time.time()
 
