@@ -1,4 +1,3 @@
-import sys
 import time
 
 import numpy as np
@@ -7,7 +6,7 @@ import torch.nn.functional as F
 from tqdm import tqdm
 
 from src.agents.base_agent import BaseAgent
-from src.infrastructure.logging import log_test_stats
+from src.infrastructure.logging import logText, log_test_stats
 
 
 class ILAgent(BaseAgent):
@@ -34,7 +33,7 @@ class ILAgent(BaseAgent):
         self.test_history = {}
 
     def train(self, dataset, num_epochs, batch_size, learning_rate, lr_decay=1.0,
-              clip_grad=10.0, reg=0.0, log_every=1, test_every=100, stdout=sys.stdout):
+              clip_grad=10.0, reg=0.0, log_every=1, test_every=100, logfile=""):
         """Train the agent.
 
         Args:
@@ -55,20 +54,21 @@ class ILAgent(BaseAgent):
                 Default value is 0.0.
             log_every (int, optional): Every `log_every` iterations write the results to
                 the log file. Default value is 100.
-            stdout (file, optional): File object (stream) used for standard output of
-                logging information. Default value is `sys.stdout`.
+            logfile (str, optional): File path to the file where logging information should
+                be written. If empty the logging information is printed to the console.
+                Default value is empty string.
         """
         # Move the neural network to device and prepare for training.
         device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         # device = torch.device("cpu")
-        print(f"Using device: {device}\n", file=stdout, flush=True)
+        logText(f"Using device: {device}\n", logfile)
         self.policy.train()
         self.policy = self.policy.to(device)
 
         # Initialize the optimizer and the scheduler.
         optimizer = torch.optim.Adam(self.policy.parameters(), lr=learning_rate, weight_decay=reg)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=lr_decay)
-        print(f"Using optimizer:\n{str(optimizer)}\n", file=stdout, flush=True)
+        logText(f"Using optimizer:\n{str(optimizer)}\n", logfile)
 
         data_size, _ = dataset["states"].shape
         # Check if `dataset` has enough samples for test set
@@ -115,9 +115,9 @@ class ILAgent(BaseAgent):
 
             # Log results to file.
             if i % log_every == 0:
-                print(f"Epoch ({i}/{num_epochs}) took {toc-tic:.3f} seconds.", file=stdout, flush=True)
-                print(f"  Avg Loss:  {total_loss / j:.5f}", file=stdout)
-                print(f"  Avg Grad norm:   {total_grad_norm / j:.5f}", file=stdout, flush=True)
+                logText(f"Epoch ({i}/{num_epochs}) took {toc-tic:.3f} seconds.", logfile)
+                logText(f"  Avg Loss:  {total_loss / j:.5f}", logfile)
+                logText(f"  Avg Grad norm:   {total_grad_norm / j:.5f}", logfile)
 
             # Test the agent.
             if i % test_every == 0:
@@ -131,9 +131,9 @@ class ILAgent(BaseAgent):
                     "nsteps"  : nsteps,
                 }
                 toc = time.time()
-                print(f"Epoch {i}\nTesting agent accuracy for {steps} steps...", file=stdout, flush=True)
-                print(f"Testing took {toc-tic:.3f} seconds.", file=stdout, flush=True)
-                log_test_stats(self.test_history[i], stdout)
+                logText(f"Epoch {i}\nTesting agent accuracy for {steps} steps...", logfile)
+                logText(f"Testing took {toc-tic:.3f} seconds.", logfile)
+                log_test_stats(self.test_history[i], logfile)
 
         # Out of sample test of classification accuracy (fraction of times
         # that the correct action is chosen)
@@ -152,6 +152,6 @@ class ILAgent(BaseAgent):
         predictions = np.hstack(predictions)
         targets = np.hstack(targets)
         accuracy = np.sum(predictions == targets) / len(predictions)
-        print(f"Classification accuracy: {accuracy:.3f}", file=stdout, flush=True)
+        logText(f"Classification accuracy: {accuracy:.3f}", logfile)
 
 #

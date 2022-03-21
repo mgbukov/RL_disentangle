@@ -9,13 +9,12 @@ import sys
 import time
 sys.path.append("..")
 
-import numpy as np
 import torch
 
 from src.agents.il_agent import ILAgent
 from src.envs.rdm_environment import QubitsEnvironment
 from src.infrastructure.logging import (
-    plot_distribution, plot_entropy_curves, plot_loss_curve,
+    logText, plot_distribution, plot_entropy_curves, plot_loss_curve,
     plot_nsolved_curves, plot_return_curves)
 from src.infrastructure.util_funcs import fix_random_seeds, set_printoptions
 from src.policies.fcnn_policy import FCNNPolicy
@@ -52,13 +51,12 @@ set_printoptions(precision=5, sci_mode=False)
 # Create file to log output during training.
 log_dir = "../logs/5qubits/imitation_100k"
 os.makedirs(log_dir, exist_ok=True)
-stdout = open(os.path.join(log_dir, "train_history_100k.txt"), "w")
-# stdout = sys.stdout
+logfile = os.path.join(log_dir, "train_100k.log")
 
 
 # Log hyperparameters information.
 # args.lr_decay = np.power(0.1, 1.0/num_iter)
-print(f"""##############################
+logText(f"""##############################
 Training parameters:
     Minimum system entropy (epsi):  {args.epsi}
     Number of epochs:               {args.num_epochs}
@@ -69,7 +67,7 @@ Training parameters:
     Weight regularization:          {args.reg}
     Grad clipping threshold:        {args.clip_grad}
     Neural network dropout:         {args.dropout}
-##############################\n""", file=stdout)
+##############################\n""", logfile)
 
 
 # Create the environment.
@@ -95,15 +93,11 @@ dataset["actions"] = torch.from_numpy(dataset["actions"])
 agent = ILAgent(env, policy)
 tic = time.time()
 agent.train(dataset, args.num_epochs, args.batch_size, args.learning_rate, args.lr_decay,
-            args.clip_grad, args.reg, args.log_every, args.test_every, stdout)
+            args.clip_grad, args.reg, args.log_every, args.test_every, logfile)
 toc = time.time()
 agent.save_policy(log_dir)
 agent.save_history(log_dir)
-print(f"Training took {toc-tic:.3f} seconds.", file=stdout)
-
-
-# Close the logging file.
-stdout.close()
+logText(f"Training took {toc-tic:.3f} seconds.", logfile)
 
 
 # Plot the results.

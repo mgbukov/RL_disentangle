@@ -12,7 +12,7 @@ sys.path.append("..")
 from src.agents.pg_agent import PGAgent
 from src.envs.rdm_environment import QubitsEnvironment
 from src.infrastructure.logging import (
-    plot_distribution, plot_entropy_curves, plot_loss_curve,
+    logText, plot_distribution, plot_entropy_curves, plot_loss_curve,
     plot_nsolved_curves, plot_return_curves, plot_nsteps, plot_reward_function)
 from src.infrastructure.util_funcs import fix_random_seeds, set_printoptions
 from src.policies.fcnn_policy import FCNNPolicy
@@ -55,12 +55,12 @@ log_dir = "../logs/5qubits/traj_{}_iters_{}_entreg_{}".format(
     args.batch_size, args.num_iter, args.entropy_reg)
 log_probs_dir = os.path.join(log_dir, "probs")
 os.makedirs(log_probs_dir, exist_ok=True)
-stdout = open(os.path.join(log_dir, "train_history.txt"), "w")
+logfile = os.path.join(log_dir, "train.log")
 
 
 # Log hyperparameters information.
 # args.lr_decay = np.power(0.1, 1.0/num_iter)
-print(f"""##############################
+logText(f"""##############################
 Training parameters:
     Number of trajectories:         {args.batch_size}
     Maximum number of steps:        {args.steps}
@@ -73,7 +73,7 @@ Training parameters:
     Entropy regularization:         {args.entropy_reg}
     Grad clipping threshold:        {args.clip_grad}
     Neural network dropout:         {args.dropout}
-##############################\n""", file=stdout)
+##############################\n""", logfile)
 
 
 # Create the environment.
@@ -92,15 +92,12 @@ policy = FCNNPolicy(input_size, hidden_dims, output_size, args.dropout)
 agent = PGAgent(env, policy)
 tic = time.time()
 agent.train(args.num_iter, args.steps, args.learning_rate, args.lr_decay, args.clip_grad,
-            args.reg, args.entropy_reg, args.log_every, args.test_every, stdout)
+            args.reg, args.entropy_reg, args.log_every, args.test_every, logfile)
 toc = time.time()
 agent.save_policy(log_dir)
 agent.save_history(log_dir)
-print(f"Training took {toc-tic:.3f} seconds.", file=stdout)
+logText(f"Training took {toc-tic:.3f} seconds.", logfile)
 
-
-# Close the logging file.
-stdout.close()
 
 # Plot the results.
 with open(os.path.join(log_dir, "train_history.pickle"), "rb") as f:

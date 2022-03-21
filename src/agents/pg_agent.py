@@ -1,12 +1,12 @@
-import sys
 import time
+
 import numpy as np
 import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 
 from src.agents.base_agent import BaseAgent
-from src.infrastructure.logging import log_train_stats, log_test_stats
+from src.infrastructure.logging import logText, log_train_stats, log_test_stats
 
 
 class PGAgent(BaseAgent):
@@ -126,7 +126,7 @@ class PGAgent(BaseAgent):
         return - 0.5 * ent
 
     def train(self, num_iter, steps, learning_rate, lr_decay=1.0, clip_grad=10.0, reg=0.0,
-              entropy_reg=0.0, log_every=1, test_every=100, stdout=sys.stdout):
+              entropy_reg=0.0, log_every=1, test_every=100, logfile=""):
         """Train the agent using vanilla policy-gradient algorithm.
 
         Args:
@@ -142,20 +142,21 @@ class PGAgent(BaseAgent):
                 Default value is 0.0.
             log_every (int, optional): Every `log_every` iterations write the results to
                 the log file. Default value is 100.
-            stdout (file, optional): File object (stream) used for standard output of
-                logging information. Default value is `sys.stdout`.
+            logfile (str, optional): File path to the file where logging information should
+                be written. If empty the logging information is printed to the console.
+                Default value is empty string.
         """
         # Move the neural network to device and prepare for training.
         device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         # device = torch.device("cpu")
-        print(f"Using device: {device}\n", file=stdout, flush=True)
+        logText(f"Using device: {device}\n", logfile)
         self.policy.train()
         self.policy = self.policy.to(device)
 
         # Initialize the optimizer and the scheduler.
         optimizer = torch.optim.Adam(self.policy.parameters(), lr=learning_rate, weight_decay=reg)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=lr_decay)
-        print(f"Using optimizer:\n{str(optimizer)}\n", file=stdout, flush=True)
+        logText(f"Using optimizer:\n{str(optimizer)}\n", logfile)
 
         # self.env.set_random_states(copy=True)
         # initial_batch = self.env.states
@@ -207,8 +208,8 @@ class PGAgent(BaseAgent):
 
             # Log results to file.
             if i % log_every == 0:
-                print(f"Iteration ({i}/{num_iter}) took {toc-tic:.3f} seconds.", file=stdout, flush=True)
-                log_train_stats(self.train_history[i], stdout)
+                logText(f"Iteration ({i}/{num_iter}) took {toc-tic:.3f} seconds.", logfile)
+                log_train_stats(self.train_history[i], logfile)
 
             # Test the agent.
             if i % test_every == 0:
@@ -221,8 +222,8 @@ class PGAgent(BaseAgent):
                     "nsteps"  : nsteps,
                 }
                 toc = time.time()
-                print(f"Iteration {i}\nTesting agent accuracy for {steps} steps...", file=stdout, flush=True)
-                print(f"Testing took {toc-tic:.3f} seconds.", file=stdout, flush=True)
-                log_test_stats(self.test_history[i], stdout)
+                logText(f"Iteration {i}\nTesting agent accuracy for {steps} steps...", logfile)
+                logText(f"Testing took {toc-tic:.3f} seconds.", logfile)
+                log_test_stats(self.test_history[i], logfile)
 
 #

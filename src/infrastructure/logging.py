@@ -1,11 +1,29 @@
+import logging
 import os
-import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 
 #------------------------------ General logging functions -------------------------------#
+def logText(msg, logfile):
+    """Append a log message to the given logfile.
+
+    Args:
+        msg (str): String message to be logged.
+        logfile (str, optional): File path to the file where logging information should be
+            written. If empty the logging information is printed to the console.
+            Default value is empty string.
+    """
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger()
+    for hdlr in logger.handlers[:]: # remove all old handlers
+        logger.removeHandler(hdlr)
+    if logfile != "":
+        fileh = logging.FileHandler(logfile, "a")
+        logger.addHandler(fileh)    # set the new handler
+    logging.info(msg)
+
 def logPlot(figname, xs=None, funcs=[], legends=[None], labels={}, fmt=["--k"], lw=[0.8],
             fills=[], figtitle="", logscaleX=False, logscaleY=False):
     """Plot @funcs as curves on a figure and save the figure as `figname`.
@@ -134,7 +152,7 @@ def logPcolor(figname, func, figtitle="", labels={}):
     plt.close(fig)
 
 #------------------------------ Specific logging functions ------------------------------#
-def log_train_stats(stats, stdout=sys.stdout):
+def log_train_stats(stats, logfile):
     """Append training statistics to the log file.
 
     Args:
@@ -151,12 +169,13 @@ def log_train_stats(stats, stdout=sys.stdout):
             nsolved (float): The number of solved trajectories for this batch.
             nsteps (np.Array): A numpy array of shape (b,), giving the length of every
                 trajectory in the batch.
-        stdout (file, optional): File object (stream) used for standard output of logging
-            information. Default value is `sys.stdout`.
+        logfile (str, optional): File path to the file where logging information should be
+            written. If empty the logging information is printed to the console.
+            Default value is empty string.
     """
     batch_size = len(stats["rewards"])
     probs = stats["policy_output"]
-    print(f"""\
+    logText(f"""\
     Mean final reward:        {np.mean(np.array(stats["rewards"])[:,-1]):.4f}
     Mean return:              {np.mean(np.sum(stats["rewards"], axis=1)):.4f}
     Mean exploration return:  {np.mean(np.sum(stats["exploration"], axis=1)):.4f}
@@ -169,9 +188,9 @@ def log_train_stats(stats, stdout=sys.stdout):
     Total gradient norm:      {stats["total_norm"]:.5f}
     Solved trajectories:      {stats["nsolved"]} / {batch_size}
     Avg steps to disentangle: {np.mean(stats["nsteps"][stats["nsteps"].nonzero()]):.3f}
-    """, file=stdout, flush=True)
+    """, logfile)
 
-def log_test_stats(stats, stdout):
+def log_test_stats(stats, logfile=""):
     """Append test statistics to the log file.
 
     Args:
@@ -184,8 +203,9 @@ def log_test_stats(stats, stdout):
                 indicating which trajectories are disentangled.
             nsteps (np.Array): A numpy array of shape (num_episodes,), giving the number
                 of steps for each episode.
-        stdout (file, optional): File object (stream) used for standard output of logging
-            information. Default value is `sys.stdout`.
+        logfile (str, optional): File path to the file where logging information should be
+            written. If empty the logging information is printed to the console.
+            Default value is empty string.
     """
     entropies = stats["entropy"]
     returns = stats["returns"]
@@ -193,7 +213,7 @@ def log_test_stats(stats, stdout):
     nsteps = stats["nsteps"]
     num_episodes = len(returns)
     solved = sum(nsolved)
-    print(f"""\
+    logText(f"""\
     Solved states:         {solved:.0f} / {num_episodes} = {solved/(num_episodes)*100:.3f}%
     Min entropy:           {entropies.min():.5f}
     Mean final entropy:    {np.mean(entropies):.4f}
@@ -201,7 +221,7 @@ def log_test_stats(stats, stdout):
     Max entropy:           {entropies.max():.5f}
     Mean return:           {np.mean(returns):.4f}
     Avg steps to disentangle: {np.mean(nsteps[nsteps.nonzero()]):.3f}
-    """, file=stdout, flush=True)
+    """, logfile)
 
 def plot_entropy_curves(train_history, file_path):
     keys = sorted(train_history.keys())
