@@ -189,6 +189,10 @@ class PGAgent(BaseAgent):
             optimizer.step()
             scheduler.step()
 
+            # Compute average policy entropy.
+            probs = F.softmax(logits, dim=-1) + torch.finfo(torch.float32).eps
+            avg_policy_ent = -torch.mean(torch.sum(probs*torch.log(probs),axis=-1))
+
             # Book-keeping.
             mask_hard = np.any(self.env.entropy() > 0.6, axis=1)
             mask_easy = np.any(~masks.cpu().numpy(), axis=1)
@@ -196,7 +200,7 @@ class PGAgent(BaseAgent):
                 "entropy"       : self.env.entropy(),
                 "rewards"       : rewards.cpu().numpy(),
                 "exploration"   : exploration_rewards.detach().cpu().numpy(),
-                "policy_output" : F.softmax(logits[0], dim=-1).detach().cpu().numpy(),
+                "policy_entropy": avg_policy_ent.item(),
                 "loss"          : loss.item(),
                 "total_norm"    : total_norm.cpu().numpy(),
                 "nsolved"       : sum(self.env.disentangled()),

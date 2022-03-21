@@ -163,7 +163,7 @@ def log_train_stats(stats, logfile):
                 during trajectory rollout.
             exploration (np.Array): A numpy array of shape (b, t), giving the exploration
                 rewards at every time-step.
-            policy_output (np.Array): To be removed.
+            policy_entropy (float): The average entropy of the policy for this batch.
             loss (float): The value of the loss for this batch of episodes.
             total_norm (float): The value of the total gradient norm for this batch.
             nsolved (float): The number of solved trajectories for this batch.
@@ -174,7 +174,6 @@ def log_train_stats(stats, logfile):
             Default value is empty string.
     """
     batch_size = len(stats["rewards"])
-    probs = stats["policy_output"]
     logText(f"""\
     Mean final reward:        {np.mean(np.array(stats["rewards"])[:,-1]):.4f}
     Mean return:              {np.mean(np.sum(stats["rewards"], axis=1)):.4f}
@@ -183,7 +182,7 @@ def log_train_stats(stats, logfile):
     Median final entropy:     {np.median(stats["entropy"]):.4f}
     Max final entropy:        {np.max(stats["entropy"]):.4f}
     95 percentile entropy:    {np.percentile(stats["entropy"], 95.0):.5f}
-    Policy entropy:           {-np.mean(np.sum(probs*np.log(probs),axis=-1)):.4f}
+    Policy entropy:           {stats["policy_entropy"]:.4f}
     Pseudo loss:              {stats["loss"]:.5f}
     Total gradient norm:      {stats["total_norm"]:.5f}
     Solved trajectories:      {stats["nsolved"]} / {batch_size}
