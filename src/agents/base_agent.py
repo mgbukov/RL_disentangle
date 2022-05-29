@@ -126,9 +126,9 @@ class BaseAgent:
         return (entropies.reshape(num_episodes, self.env.L), returns.reshape(num_episodes),
                 nsolved.reshape(num_episodes), nsteps.reshape(num_episodes))
 
-    def save_policy(self, filepath):
+    def save_policy(self, filepath, filename="policy.bin"):
         """Save the policy as .bin file to disk."""
-        self.policy.save(os.path.join(filepath, "policy.bin"))
+        self.policy.save(os.path.join(filepath, filename))
 
     def save_history(self, filepath):
         """Save the training history and the testing history as pickle dumps."""

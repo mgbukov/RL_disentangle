@@ -1,19 +1,16 @@
 """
-python3 train_pg_agent.py -n 5 -b 1024 --steps 30  -i 4001 --ereg 0.01
+python3 pg_train_agent.py -n 5 -b 4096 --steps 40  -i 10001 --ereg 0.01
 """
 
 import argparse
 import os
-import pickle
 import sys
 import time
 sys.path.append("..")
 
 from src.agents.pg_agent import PGAgent
 from src.envs.rdm_environment import QubitsEnvironment
-from src.infrastructure.logging import (
-    logText, plot_distribution, plot_entropy_curves, plot_loss_curve,
-    plot_nsolved_curves, plot_return_curves, plot_nsteps, plot_reward_function)
+from src.infrastructure.logging import logText, plot_reward_function
 from src.infrastructure.util_funcs import fix_random_seeds, set_printoptions
 from src.policies.fcnn_policy import FCNNPolicy
 
@@ -97,18 +94,5 @@ toc = time.time()
 agent.save_policy(log_dir)
 agent.save_history(log_dir)
 logText(f"Training took {toc-tic:.3f} seconds.", logfile)
-
-
-# Plot the results.
-with open(os.path.join(log_dir, "train_history.pickle"), "rb") as f:
-    train_history = pickle.load(f)
-with open(os.path.join(log_dir, "test_history.pickle"), "rb") as f:
-    test_history = pickle.load(f)
-plot_entropy_curves(train_history, os.path.join(log_dir, "final_entropy.png"))
-plot_loss_curve(train_history, os.path.join(log_dir, "loss.png"))
-plot_return_curves(train_history, test_history, os.path.join(log_dir, "returns.png"))
-plot_nsolved_curves(train_history, test_history, os.path.join(log_dir, "nsolved.png"))
-plot_nsteps(train_history, args.log_every, os.path.join(log_dir, "nsteps.png"))
-plot_distribution(train_history, args.log_every, log_probs_dir)
 
 #

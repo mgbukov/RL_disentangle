@@ -63,12 +63,16 @@ def logPlot(figname, xs=None, funcs=[], legends=[None], labels={}, fmt=["--k"], 
         lw = lw * len(funcs)
 
     # Set figure sizes.
-    fig, ax = plt.subplots(figsize=(24, 18), dpi=170)
-    ax.set_title(figtitle, fontsize=30, pad=30)
-    ax.set_xlabel(labels.get("x"), fontsize=24, labelpad=30)
-    ax.set_ylabel(labels.get("y"), fontsize=24, labelpad=30)
-    ax.tick_params(axis="both", which="both", labelsize=20)
-    ax.grid()
+    cm = 1/2.54 # cm to inch
+    fontsize = 10
+    fig, ax = plt.subplots(figsize=(16*cm, 12*cm), dpi=330, tight_layout={"pad":1.4})
+    ax.set_title(figtitle, fontsize=fontsize, pad=2)
+    ax.set_xlabel(labels.get("x"), fontsize=fontsize, labelpad=2)#, font=fpath)
+    ax.set_ylabel(labels.get("y"), fontsize=fontsize, labelpad=2)#, font=fpath)
+    ax.tick_params(axis="both", which="both", labelsize=fontsize)
+    ax.grid(which="major", linestyle="--", linewidth=0.5)
+    ax.grid(which="minor", linestyle="--", linewidth=0.3)
+
     if logscaleX:
         ax.set_xscale("log")
     if logscaleY:
@@ -80,7 +84,7 @@ def logPlot(figname, xs=None, funcs=[], legends=[None], labels={}, fmt=["--k"], 
     for f1, f2 in fills:
         x = np.arange(len(f1))
         ax.fill_between(x, f1, f2, color='k', alpha=0.25)
-    ax.legend(loc="upper left", fontsize=20)
+    ax.legend(loc="upper left", fontsize=fontsize)
     fig.savefig(figname)
     plt.close(fig)
 
@@ -175,9 +179,8 @@ def log_train_stats(stats, logfile):
     """
     batch_size = len(stats["rewards"])
     logText(f"""\
-    Mean final reward:        {np.mean(np.array(stats["rewards"])[:,-1]):.4f}
     Mean return:              {np.mean(np.sum(stats["rewards"], axis=1)):.4f}
-    Mean exploration return:  {np.mean(np.sum(stats["exploration"], axis=1)):.4f}
+    Mean episode entropy:     {np.mean(np.sum(stats["exploration"], axis=1)):.4f}
     Mean final entropy:       {np.mean(stats["entropy"]):.4f}
     Median final entropy:     {np.median(stats["entropy"]):.4f}
     Max final entropy:        {np.max(stats["entropy"]):.4f}
@@ -222,32 +225,29 @@ def log_test_stats(stats, logfile=""):
     Avg steps to disentangle: {np.mean(nsteps[nsteps.nonzero()]):.3f}
     """, logfile)
 
-def plot_entropy_curves(train_history, file_path):
+def plot_entropy_curves(train_history, file_path, lw=[0.4, 0.4, 0.6, 0.6]):
     keys = sorted(train_history.keys())
 
     # Define entropies curve.
     ent_min = np.array([np.min(train_history[i]["entropy"]) for i in keys])
     ent_max = np.array([np.max(train_history[i]["entropy"]) for i in keys])
     ent_mean = np.array([np.mean(train_history[i]["entropy"]) for i in keys])
-    ent_std = np.array([np.std(train_history[i]["entropy"]) for i in keys])
-    ent_mean_minus_std = ent_mean - 0.5 * ent_std
-    ent_mean_plus_std = ent_mean + 0.5 * ent_std
     ent_quantile = np.array([np.quantile(train_history[i]["entropy"], 0.95) for i in keys])
 
     # Plot curves.
     logPlot(figname=file_path,
+            xs=[keys, keys, keys, keys],
             funcs=[ent_min, ent_max, ent_mean, ent_quantile],
             legends=["min", "max", "mean", "95%quantile"],
             labels={"x":"Iteration", "y":"Entropy"},
-            fmt=["--r", "--b", "-k", ":m"],
-            fills=[(ent_mean_minus_std, ent_mean_plus_std)],
+            fmt=["--r", "--b", "-k", ":m"], lw=lw,
             figtitle="System entropy at episode end")
 
-def plot_loss_curve(train_history, file_path):
+def plot_loss_curve(train_history, file_path, lw=0.4):
     num_iter = len(train_history)
     loss = [train_history[i]["loss"] for i in range(num_iter)]
     logPlot(figname=file_path, funcs=[loss], legends=["loss"],
-            labels={"x":"Iteration", "y":"Loss"}, fmt=["-b"], figtitle="Training Loss")
+        labels={"x":"Iteration", "y":"Loss"}, fmt=["-b"], lw=[lw], figtitle="Training Loss")
 
 def plot_return_curves(train_history, test_history, file_path):
     num_iter = len(train_history)
@@ -256,13 +256,10 @@ def plot_return_curves(train_history, test_history, file_path):
     avg_every = max(1, test_every // 10)
 
     # Define return curves.
-    try:
-        returns = [np.sum(train_history[i]["rewards"], axis=1).mean() for i in range(num_iter)]
-    except KeyError:
-        returns = np.zeros(shape=(num_iter, 1))
-    # avg_returns = np.insert(np.mean(np.array(returns[1:]).reshape(-1, avg_every), axis=1), 0, returns[0])
-    avg_returns = np.convolve(returns, np.ones(avg_every), mode='same') / avg_every
-    avg_returns = avg_returns[::avg_every]
+    returns = [np.sum(train_history[i]["rewards"], axis=1).mean() for i in range(num_iter)]
+    avg_returns = np.convolve(returns, np.ones(avg_every), mode='valid') / avg_every
+    avg_returns = avg_returns[::-1][::avg_every][::-1]
+    avg_returns = np.concatenate((returns[:1], avg_returns))
     test_returns = [test_history[i]["returns"].mean() for i in sorted(test_history.keys())]
 
     # Plot curves.
@@ -274,15 +271,8 @@ def plot_return_curves(train_history, test_history, file_path):
             legends=["mean_batch_returns", "avg_returns", "test_returns"],
             labels={"x":"Iteration", "y":"Return"},
             fmt=["--r", "-k", "-b"],
-            lw=[1.0, 4.0, 4.0],
+            lw=[0.4, 1.2, 1.2],
             figtitle="Agent Obtained Return")
-
-    # Plot training return curve on a log-scale.
-    # logPlot(figname="returns_logX.png", funcs=[returns], legends=["mean_batch_returns"],
-    #         fmt=["--r"], figtitle="Return", logscaleX=True)
-    # MUST HAVE POSITIVE VALUES ALONG Y-AXIS!!!
-    # self.logger.logPlot(funcs=[returns], legends=["batch_returns"], fmt=["--r"],
-    #                     figtitle="Training Loss", figname="returns_logY.png", logscaleY=True)
 
 def plot_nsolved_curves(train_history, test_history, file_path):
     batch_size, steps = train_history[0]["rewards"].shape
@@ -293,9 +283,9 @@ def plot_nsolved_curves(train_history, test_history, file_path):
 
     # Define trajectories curves.
     nsolved = [train_history[i]["nsolved"] / batch_size for i in range(num_iter)]
-    # avg_nsolved = np.insert(np.mean(np.array(nsolved[1:]).reshape(-1, avg_every), axis=1), 0, nsolved[0])
-    avg_nsolved = np.convolve(nsolved, np.ones(avg_every), mode='same') / avg_every
-    avg_nsolved = avg_nsolved[::avg_every]
+    avg_nsolved = np.convolve(nsolved, np.ones(avg_every), mode='valid') / avg_every
+    avg_nsolved = avg_nsolved[::-1][::avg_every][::-1]
+    avg_nsolved = np.concatenate((nsolved[:1], avg_nsolved))
     test_nsolved = [test_history[i]["nsolved"].mean() for i in sorted(test_history.keys())]
 
     # Plot curves.
@@ -307,7 +297,7 @@ def plot_nsolved_curves(train_history, test_history, file_path):
             legends=["batch_nsolved", "avg_nsolved", "test_nsolved"],
             labels={"x":"Episode", "y":"nsolved"},
             fmt=["--r", "-k", "-b"],
-            lw=[1.0, 4.0, 4.0],
+            lw=[0.4, 1.2, 1.2],
             figtitle="Agent accuracy of solved states")
 
 def plot_distribution(train_history, log_every, log_dir):
@@ -318,30 +308,19 @@ def plot_distribution(train_history, log_every, log_dir):
                 figtitle=f"Probabilities of actions given by the policy at step {i}",
                 labels={"x":"Step", "y":"Actions"})
 
-
-def plot_nsteps(train_history, log_every, file_path):
+def plot_nsteps(train_history, file_path):
     num_iter = len(train_history)
-    xs, ys_min, ys_max, ys_mean, ys_median = [], [], [], [], []
-    for i in range(0, num_iter, log_every):
-        try:
-            nsteps = train_history[i]['nsteps']
-        except:
-            nsteps = [np.nan, np.nan]
-        xs.append(i)
-        ys_min.append(np.min(nsteps))
-        ys_max.append(np.max(nsteps))
-        ys_mean.append(np.mean(nsteps))
-        ys_median.append(np.median(nsteps))
-    logPlot(
-        figname=file_path,
-        xs=[xs, xs, xs, xs],
-        funcs=[ys_min, ys_max, ys_mean, ys_median],
-        legends=['min', 'max', 'mean', 'median'],
-        labels={'x': 'Iteration', 'y': 'Steps'},
-        fmt=['--r', '--r', '-k', '-b'],
-        lw=[1.0, 1.0, 2.0, 4.0],
-        figtitle="Steps to Disentangle"
-    )
+    xs = np.arange(num_iter)
+    ys = [np.mean(train_history[i]["nsteps"][train_history[i]["nsteps"].nonzero()])
+        for i in range(num_iter)]
+    logPlot(figname=file_path,
+            xs=[xs],
+            funcs=[ys],
+            legends=["nsteps"],
+            labels={"x": "Iteration", "y": "Steps"},
+            fmt=["-r"],
+            lw=[0.4],
+            figtitle="Steps to Disentangle")
 
 def plot_reward_function(env, file_path):
     N = 10

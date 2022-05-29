@@ -1,5 +1,5 @@
 """
-python3 train_il_agent.py -n 5 -b 64 -e 100001
+python3 il_train_agent.py -n 5 -b 128 -e 101
 """
 
 import argparse
@@ -13,9 +13,7 @@ import torch
 
 from src.agents.il_agent import ILAgent
 from src.envs.rdm_environment import QubitsEnvironment
-from src.infrastructure.logging import (
-    logText, plot_distribution, plot_entropy_curves, plot_loss_curve,
-    plot_nsolved_curves, plot_return_curves)
+from src.infrastructure.logging import logText
 from src.infrastructure.util_funcs import fix_random_seeds, set_printoptions
 from src.policies.fcnn_policy import FCNNPolicy
 
@@ -40,6 +38,7 @@ parser.add_argument("--clip_grad", dest="clip_grad", type=float, default=10.0)
 parser.add_argument("--dropout", dest="dropout", type=float, default=0.0)
 parser.add_argument("--log_every", dest="log_every", type=int, default=1)
 parser.add_argument("--test_every", dest="test_every", type=int, default=10)
+parser.add_argument("--save_every", dest="save_every", type=int, default=10)
 args = parser.parse_args()
 
 
@@ -51,7 +50,7 @@ set_printoptions(precision=5, sci_mode=False)
 # Create file to log output during training.
 log_dir = "../logs/5qubits/imitation_100k"
 os.makedirs(log_dir, exist_ok=True)
-logfile = os.path.join(log_dir, "train_100k.log")
+log_file = os.path.join(log_dir, "train_100k.log")
 
 
 # Log hyperparameters information.
@@ -67,7 +66,7 @@ Training parameters:
     Weight regularization:          {args.reg}
     Grad clipping threshold:        {args.clip_grad}
     Neural network dropout:         {args.dropout}
-##############################\n""", logfile)
+##############################\n""", log_file)
 
 
 # Create the environment.
@@ -93,21 +92,10 @@ dataset["actions"] = torch.from_numpy(dataset["actions"])
 agent = ILAgent(env, policy)
 tic = time.time()
 agent.train(dataset, args.num_epochs, args.batch_size, args.learning_rate, args.lr_decay,
-            args.clip_grad, args.reg, args.log_every, args.test_every, logfile)
+            args.clip_grad, args.reg, args.log_every, args.test_every, log_dir, log_file)
 toc = time.time()
 agent.save_policy(log_dir)
 agent.save_history(log_dir)
-logText(f"Training took {toc-tic:.3f} seconds.", logfile)
-
-
-# Plot the results.
-with open(os.path.join(log_dir, "train_history.pickle"), "rb") as f:
-    train_history = pickle.load(f)
-with open(os.path.join(log_dir, "test_history.pickle"), "rb") as f:
-    test_history = pickle.load(f)
-plot_entropy_curves(test_history, os.path.join(log_dir, "final_entropy.png"))
-plot_entropy_curves(train_history, os.path.join(log_dir, "train_entropy.png"))
-plot_loss_curve(train_history, os.path.join(log_dir, "loss.png"))
-# plot_return_curves(train_history, test_history, os.path.join(log_dir, "returns.png"))
+logText(f"Training took {toc-tic:.3f} seconds.", log_file)
 
 #

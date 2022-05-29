@@ -33,7 +33,8 @@ class ILAgent(BaseAgent):
         self.test_history = {}
 
     def train(self, dataset, num_epochs, batch_size, learning_rate, lr_decay=1.0,
-              clip_grad=10.0, reg=0.0, log_every=1, test_every=100, logfile=""):
+              clip_grad=10.0, reg=0.0, log_every=1, test_every=100, save_every=1,
+              log_dir=".", logfile=""):
         """Train the agent.
 
         Args:
@@ -42,7 +43,7 @@ class ILAgent(BaseAgent):
                     examples in the dataset and q is the shape of the environment state.
                 actions (torch.Tensor): A tensor of shape (N,), giving the action to be
                     selected for each state in the dataset.
-            num_iter (int): Number of iterations to train the agent for.
+            num_epochs (int): Number of epochs to train the model for.
             batch_size (int): Batch size parameter for updating the policy network.
             learning_rate (float): Learning rate for gradient decent.
             lr_decay (float, optional): Multiplicative factor of learning rate decay.
@@ -52,8 +53,12 @@ class ILAgent(BaseAgent):
             reg (float, optional): L2 regularization strength. Default value is 0.0.
             entropy_reg (float, optional): Entropy regularization strength.
                 Default value is 0.0.
-            log_every (int, optional): Every `log_every` iterations write the results to
+            log_every (int, optional): Every `log_every` epochs write the results to
                 the log file. Default value is 100.
+            save_every (int, optional): Every `save_every` epochs save a checkpoint for the
+                current weights of the model. Default value is 1.
+            log_dir (str, optional): Path to the directory where save checkpoints should be
+                stored. Default value is the current directory.
             logfile (str, optional): File path to the file where logging information should
                 be written. If empty the logging information is printed to the console.
                 Default value is empty string.
@@ -71,13 +76,8 @@ class ILAgent(BaseAgent):
         logText(f"Using optimizer:\n{str(optimizer)}\n", logfile)
 
         data_size, _ = dataset["states"].shape
-        # Check if `dataset` has enough samples for test set
-        if data_size > 2 * 10_000:
-            train_size = data_size - 10_000
-            test_size = 10_000
-        else:
-            train_size = data_size
-            test_size = 0
+        test_size = data_size // 10
+        train_size = data_size - test_size
 
         # Fit the policy network.
         for i in tqdm(range(num_epochs)):
@@ -85,6 +85,7 @@ class ILAgent(BaseAgent):
 
             # Loop over the entire dataset in random order.
             total_loss, total_grad_norm, j = 0.0, 0.0, 0
+            total_iter_num = -1 * (-train_size // batch_size)
             for idxs in torch.randperm(train_size).to(device).split(batch_size):
                 # Draw a random mini-batch of samples from the dataset.
                 states = dataset["states"][idxs].to(device)
@@ -103,14 +104,14 @@ class ILAgent(BaseAgent):
                 scheduler.step()
 
                 # Bookkeeping.
-                total_loss += loss.item()
-                total_grad_norm += total_norm
+                # total_loss += loss.item()
+                # total_grad_norm += total_norm
                 j += 1
 
-            self.train_history[i] = {
-                "loss" : total_loss / j,
-                "entropy": self.env.entropy()
-            }
+                self.train_history[i * total_iter_num + j] = {
+                    "loss" : loss.item(),
+                    # "loss" : total_loss / j,
+                }
             toc = time.time()
 
             # Log results to file.
@@ -134,6 +135,11 @@ class ILAgent(BaseAgent):
                 logText(f"Epoch {i}\nTesting agent accuracy for {steps} steps...", logfile)
                 logText(f"Testing took {toc-tic:.3f} seconds.", logfile)
                 log_test_stats(self.test_history[i], logfile)
+
+            # Checkpoint save.
+            if i % save_every == 0:
+                self.save_policy(log_dir, filename=f"policy_{i}.bin")
+                self.save_history(log_dir)
 
         # Out of sample test of classification accuracy (fraction of times
         # that the correct action is chosen)

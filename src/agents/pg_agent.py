@@ -66,21 +66,22 @@ class PGAgent(BaseAgent):
         """
         return self.sum_to_go(rewards)
 
-    def new_baseline(self, rewards, masks):
+    def reward_baseline(self, returns, masks):
         """Compute the baseline as the average return at timestep t.
 
-        The baseline is usually computed as the mean total return.
-            `b = E[sum(r_1, r_2, ..., r_t)]`
+        The baseline is usually computed as the mean total return:
+            `b = E[sum(r_1, r_2, ..., r_t)]`.
         Subtracting the baseline from the total return has the effect of centering the
         return, giving positive values to good trajectories and negative values to bad
         trajectories. However, when using reward-to-go, subtracting the mean total return
         won't have the same effect. The most common choice of baseline is the value
-        function V(s_t). An approximation of V(s_t) is computed as the mean reward-to-go.
-            `b[i] = E[sum(r_i, r_(i+1), ..., r_T)]`
+        function V(s_t). An approximation of the value function at time step `i` is
+        computed as the mean reward-to-go:
+            `b[i] = E[sum(r_i, r_(i+1), ..., r_T)]`.
 
         Args:
-            rewards (torch.Tensor): Tensor of shape (batch_size, steps), containing the
-                rewards obtained at every step.
+            returns (torch.Tensor): Tensor of shape (batch_size, steps), containing the
+                rewards-to-go obtained at every step.
             masks (torch.Tensor): Boolean tensor of shape (batch_size, steps), that masks
                 out the part of the trajectory after it has finished.
 
@@ -88,22 +89,11 @@ class PGAgent(BaseAgent):
             baselines (torch.Tensor): Tensor of shape (steps,), giving the baseline term
                 for every timestep.
         """
-        steps = rewards.shape[-1]
-        b = torch.mean(torch.sum(rewards, dim=-1))
-        lengths = torch.sum(masks, dim=-1, keepdim=True)
-        mod_rewards = masks * (b/lengths).repeat(1, steps)
-        return self.sum_to_go(mod_rewards)
-
-    def reward_baseline(self, rewards, masks):
         # When working with a batch of trajectories, only the active trajectories are
         # considered for calculating the mean baseline. The reward-to-go sum of finished
         # trajectories is 0.
-        baselines = torch.sum(self.reward_to_go(rewards), dim=0) / torch.maximum(
+        return torch.sum(returns, dim=0) / torch.maximum(
                         torch.sum(masks, dim=0), torch.Tensor([1]).to(self.policy.device))
-
-        # Additionally, if there is only 1 active trajectory in the batch, then the
-        # the baseline for that trajectory should be 0.
-        return (torch.sum(masks, dim=0) > 1) * baselines
 
     def entropy_term(self, logits, actions):
         """Compute the entropy regularization term.
@@ -116,14 +106,15 @@ class PGAgent(BaseAgent):
                 the policy during rollout.
 
         Returns:
-            entropy_term (torch.Tensor): Tensor of shape (b, t), giving the entropy
-                regularization term for every timestep.
+            entropy_term (torch.Tensor): Tensor of shape (b,), giving the entropy
+                regularization terms for the entire episodes.
         """
         # log_probs = F.log_softmax(logits, dim=-1)
         # https://medium.com/analytics-vidhya/understanding-indexing-with-pytorch-gather-33717a84ebc4
-        # ent = log_probs.gather(index=actions.unsqueeze(dim=2), dim=2).squeeze(dim=2)
-        ent = - F.cross_entropy(logits.permute(0,2,1), actions, reduction="none")
-        return - 0.5 * ent
+        # step_entropy = log_probs.gather(index=actions.unsqueeze(dim=2), dim=2).squeeze(dim=2)
+        step_entropy = -F.cross_entropy(logits.permute(0,2,1), actions, reduction="none")
+        episode_entropy = torch.sum(step_entropy, dim=-1, keepdim=True)
+        return -0.5 * episode_entropy #-0.5 # Prove that adding this constant will not change anything
 
     def train(self, num_iter, steps, learning_rate, lr_decay=1.0, clip_grad=10.0, reg=0.0,
               entropy_reg=0.0, log_every=1, test_every=100, logfile=""):
@@ -158,10 +149,6 @@ class PGAgent(BaseAgent):
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=lr_decay)
         logText(f"Using optimizer:\n{str(optimizer)}\n", logfile)
 
-        # self.env.set_random_states(copy=True)
-        # initial_batch = self.env.states
-        # np.savetxt(os.path.join(self.log_dir, "initial_batch.txt"), initial_batch.reshape(self.env.batch_size, -1))
-
         # Start the training loop.
         for i in tqdm(range(num_iter)):
             tic = time.time()
@@ -173,10 +160,10 @@ class PGAgent(BaseAgent):
 
             # Compute the loss.
             logits = self.policy(states)
-            exploration_rewards = entropy_reg * self.entropy_term(logits, actions)
-            modified_rewards = rewards + exploration_rewards
-            q_values = self.reward_to_go(modified_rewards)
-            q_values -= self.new_baseline(modified_rewards, masks)
+            episode_entropy = self.entropy_term(logits, actions)
+            q_values = self.reward_to_go(rewards)
+            q_values += entropy_reg * episode_entropy
+            q_values -= self.reward_baseline(q_values, masks)
             nll = F.cross_entropy(logits.permute(0,2,1), actions, reduction="none")
             weighted_nll = torch.mul(masks * nll, q_values)
             loss = torch.mean(torch.sum(weighted_nll, dim=1))
@@ -199,7 +186,7 @@ class PGAgent(BaseAgent):
             self.train_history[i] = {
                 "entropy"       : self.env.entropy(),
                 "rewards"       : rewards.cpu().numpy(),
-                "exploration"   : exploration_rewards.detach().cpu().numpy(),
+                "exploration"   : episode_entropy.detach().cpu().numpy(),
                 "policy_entropy": avg_policy_ent.item(),
                 "loss"          : loss.item(),
                 "total_norm"    : total_norm.cpu().numpy(),
