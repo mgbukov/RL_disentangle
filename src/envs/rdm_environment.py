@@ -214,7 +214,7 @@ class QubitsEnvironment:
         Returns:
             rewards (np.Array): A numpy array of shape (b,).
         """
-        return (-1. + cls.Disentangled(states, epsi, entropies)).astype(np.float32)
+        return (-1. + 101. * cls.Disentangled(states, epsi, entropies)).astype(np.float32)
         # # Compute the entropy of a system by considering each individual qubit
         # # as a sub-system. Evaluate the reward as the log of the mean sub-system entropy.
         # if entropies is None:
