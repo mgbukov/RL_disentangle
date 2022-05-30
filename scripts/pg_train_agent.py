@@ -80,7 +80,8 @@ plot_reward_function(env, os.path.join(log_dir, "reward_function.png"))
 
 # Initialize the policy.
 input_size = 2 ** (args.num_qubits + 1)
-hidden_dims = [4096, 4096, 512]
+# hidden_dims = [4096, 4096, 512]
+hidden_dims = [32]
 output_size = env.num_actions
 policy = FCNNPolicy(input_size, hidden_dims, output_size, args.dropout)
 

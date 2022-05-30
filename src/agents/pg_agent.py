@@ -86,16 +86,19 @@ class PGAgent(BaseAgent):
                 out the part of the trajectory after it has finished.
 
         Returns:
-            baselines (torch.Tensor): Tensor of shape (steps,), giving the baseline term
-                for every timestep.
+            baselines (torch.Tensor): Tensor of shape (batch_size, steps), giving the
+                baseline term for every timestep. The tensor is expanded over the first
+                dimension to match the shape of the input.
         """
         # When working with a batch of trajectories, only the active trajectories are
-        # considered for calculating the mean baseline. The reward-to-go sum of finished
-        # trajectories is 0.
-        return torch.sum(returns, dim=0) / torch.maximum(
-                        torch.sum(masks, dim=0), torch.Tensor([1]).to(self.policy.device))
+        # considered for calculating the mean baseline.
+        batch_size, _ = returns.shape
+        baseline = torch.sum(masks * returns, dim=0, keepdim=True) / torch.maximum(
+            torch.sum(masks, dim=0), torch.Tensor([1]).to(self.policy.device))
+        baseline = masks * torch.tile(baseline, dims=(batch_size, 1))
+        return baseline
 
-    def entropy_term(self, logits, actions):
+    def entropy_term(self, logits, actions, masks):
         """Compute the entropy regularization term.
         Check out: https://arxiv.org/pdf/1805.00909.pdf
 
@@ -104,17 +107,23 @@ class PGAgent(BaseAgent):
                 the logits for every action at every time step.
             actions (torch.Tensor): Tensor of shape (b, t), giving the actions selected by
                 the policy during rollout.
+            masks (torch.Tensor): Boolean tensor of shape (batch_size, steps), that masks
+                out the part of the trajectory after it has finished.
 
         Returns:
-            entropy_term (torch.Tensor): Tensor of shape (b,), giving the entropy
-                regularization terms for the entire episodes.
+            entropy_term (torch.Tensor): Tensor of shape (b, t), giving the entropy
+                regularization terms for the entire episodes. For every episode the entropy
+                of the entire trajectory is copied over all time steps.
         """
         # log_probs = F.log_softmax(logits, dim=-1)
         # https://medium.com/analytics-vidhya/understanding-indexing-with-pytorch-gather-33717a84ebc4
         # step_entropy = log_probs.gather(index=actions.unsqueeze(dim=2), dim=2).squeeze(dim=2)
-        step_entropy = -F.cross_entropy(logits.permute(0,2,1), actions, reduction="none")
-        episode_entropy = torch.sum(step_entropy, dim=-1, keepdim=True)
-        return -0.5 * episode_entropy #-0.5 # Prove that adding this constant will not change anything
+        _, steps = actions.shape
+        step_entropy = F.cross_entropy(logits.permute(0,2,1), actions, reduction="none")
+        episode_entropy = -0.5 * torch.sum(masks * step_entropy, dim=-1, keepdim=True) # - 0.5
+        # Prove that adding this constant will not change anything
+        episode_entropy = masks * torch.tile(episode_entropy, dims=(1, steps))
+        return episode_entropy
 
     def train(self, num_iter, steps, learning_rate, lr_decay=1.0, clip_grad=10.0, reg=0.0,
               entropy_reg=0.0, log_every=1, test_every=100, logfile=""):
@@ -154,13 +163,12 @@ class PGAgent(BaseAgent):
             tic = time.time()
 
             # Set the initial state and perform policy rollout.
-            # self.env.states = initial_batch
             self.env.set_random_states(copy=True)
             states, actions, rewards, masks = self.rollout(steps)
 
             # Compute the loss.
             logits = self.policy(states)
-            episode_entropy = self.entropy_term(logits, actions)
+            episode_entropy = self.entropy_term(logits, actions, masks)
             q_values = self.reward_to_go(rewards)
             q_values += entropy_reg * episode_entropy
             q_values -= self.reward_baseline(q_values, masks)
@@ -186,7 +194,7 @@ class PGAgent(BaseAgent):
             self.train_history[i] = {
                 "entropy"       : self.env.entropy(),
                 "rewards"       : rewards.cpu().numpy(),
-                "exploration"   : episode_entropy.detach().cpu().numpy(),
+                "exploration"   : episode_entropy[:, 0].detach().cpu().numpy(),
                 "policy_entropy": avg_policy_ent.item(),
                 "loss"          : loss.item(),
                 "total_norm"    : total_norm.cpu().numpy(),

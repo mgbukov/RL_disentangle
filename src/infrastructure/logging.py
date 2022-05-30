@@ -180,7 +180,7 @@ def log_train_stats(stats, logfile):
     batch_size = len(stats["rewards"])
     logText(f"""\
     Mean return:              {np.mean(np.sum(stats["rewards"], axis=1)):.4f}
-    Mean episode entropy:     {np.mean(np.sum(stats["exploration"], axis=1)):.4f}
+    Mean episode entropy:     {np.mean(stats["exploration"]):.4f}
     Mean final entropy:       {np.mean(stats["entropy"]):.4f}
     Median final entropy:     {np.median(stats["entropy"]):.4f}
     Max final entropy:        {np.max(stats["entropy"]):.4f}
