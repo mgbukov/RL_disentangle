@@ -118,10 +118,19 @@ class PGAgent(BaseAgent):
         # log_probs = F.log_softmax(logits, dim=-1)
         # https://medium.com/analytics-vidhya/understanding-indexing-with-pytorch-gather-33717a84ebc4
         # step_entropy = log_probs.gather(index=actions.unsqueeze(dim=2), dim=2).squeeze(dim=2)
+
+        # The `cross_entropy` function returns the negative log-likelihood (nll). Taking
+        # the negative of the result gives the entropy.
+        step_entropy = -F.cross_entropy(logits.permute(0,2,1), actions, reduction="none")
+
+        # The episode entropy is computed as the sum of entropies for the individual steps.
+        # The true length of the epsiode is taken into account by masking-out the finished
+        # part. The result is a 1D Tensor of shape (b,) giving the entropies for the
+        # different trajectories.
+        # This tensor is then broadcast into the shape (b, t) and the part of the episodes
+        # that is finished is again masked.
         _, steps = actions.shape
-        step_entropy = F.cross_entropy(logits.permute(0,2,1), actions, reduction="none")
-        episode_entropy = -0.5 * torch.sum(masks * step_entropy, dim=-1, keepdim=True) # - 0.5
-        # Prove that adding this constant will not change anything
+        episode_entropy = torch.sum(masks * step_entropy, dim=-1, keepdim=True)
         episode_entropy = masks * torch.tile(episode_entropy, dims=(1, steps))
         return episode_entropy
 
@@ -169,12 +178,11 @@ class PGAgent(BaseAgent):
             # Compute the loss.
             logits = self.policy(states)
             episode_entropy = self.entropy_term(logits, actions, masks)
-            q_values = self.reward_to_go(rewards)
-            q_values += entropy_reg * episode_entropy
+            q_values = self.reward_to_go(rewards) - 0.5 * entropy_reg * episode_entropy
             q_values -= self.reward_baseline(q_values, masks)
             nll = F.cross_entropy(logits.permute(0,2,1), actions, reduction="none")
             weighted_nll = torch.mul(masks * nll, q_values)
-            loss = torch.mean(torch.sum(weighted_nll, dim=1))
+            loss = torch.mean(weighted_nll)
 
             # Perform backward pass.
             optimizer.zero_grad()
