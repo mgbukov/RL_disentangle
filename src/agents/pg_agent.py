@@ -172,7 +172,7 @@ class PGAgent(BaseAgent):
             tic = time.time()
 
             # Set the initial state and perform policy rollout.
-            self.env.set_random_states(copy=True)
+            self.env.set_random_states()
             states, actions, rewards, masks = self.rollout(steps)
 
             # Compute the loss.
@@ -182,7 +182,7 @@ class PGAgent(BaseAgent):
             q_values -= self.reward_baseline(q_values, masks)
             nll = F.cross_entropy(logits.permute(0,2,1), actions, reduction="none")
             weighted_nll = torch.mul(masks * nll, q_values)
-            loss = torch.mean(weighted_nll)
+            loss = torch.sum(weighted_nll) / torch.sum(masks)
 
             # Perform backward pass.
             optimizer.zero_grad()
