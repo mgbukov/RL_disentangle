@@ -48,7 +48,7 @@ set_printoptions(precision=5, sci_mode=False)
 
 
 # Create file to log output during training.
-log_dir = "../logs/5qubits/imitation_100k"
+log_dir = f"../logs/5qubits/imitation_100k_epochs_{args.num_epochs}"
 os.makedirs(log_dir, exist_ok=True)
 log_file = os.path.join(log_dir, "train_100k.log")
 

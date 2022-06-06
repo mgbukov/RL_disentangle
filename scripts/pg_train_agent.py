@@ -39,6 +39,8 @@ parser.add_argument("--clip_grad", dest="clip_grad", type=float, default=10.0)
 parser.add_argument("--dropout", dest="dropout", type=float, default=0.0)
 parser.add_argument("--log_every", dest="log_every", type=int, default=100)
 parser.add_argument("--test_every", dest="test_every", type=int, default=1000)
+parser.add_argument("--model_path", dest="model_path", type=str,
+    help="File path to load the parameters of a saved policy", default=None)
 args = parser.parse_args()
 
 
@@ -79,11 +81,13 @@ plot_reward_function(env, os.path.join(log_dir, "reward_function.png"))
 
 
 # Initialize the policy.
-input_size = 2 ** (args.num_qubits + 1)
-hidden_dims = [4096, 4096, 512]
-output_size = env.num_actions
-policy = FCNNPolicy(input_size, hidden_dims, output_size, args.dropout)
-
+if args.model_path is None:
+    input_size = 2 ** (args.num_qubits + 1)
+    hidden_dims = [4096, 4096, 512]
+    output_size = env.num_actions
+    policy = FCNNPolicy(input_size, hidden_dims, output_size, args.dropout)
+else:
+    policy = FCNNPolicy.load(args.model_path)
 
 # Train the policy-gradient agent.
 agent = PGAgent(env, policy)
