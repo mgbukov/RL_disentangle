@@ -81,7 +81,7 @@ policy = FCNNPolicy(input_size, hidden_dims, output_size, args.dropout)
 
 
 # Load the dataset.
-data_path = "../data/5qubits/beam_size=100/100000_episodes.pickle"
+data_path = "../data/5qubits/beam_size_100/100000_episodes.pickle"
 with open(data_path, "rb") as f:
     dataset = pickle.load(f)
 dataset["states"] = torch.from_numpy(dataset["states"])
@@ -92,7 +92,8 @@ dataset["actions"] = torch.from_numpy(dataset["actions"])
 agent = ILAgent(env, policy)
 tic = time.time()
 agent.train(dataset, args.num_epochs, args.batch_size, args.learning_rate, args.lr_decay,
-            args.clip_grad, args.reg, args.log_every, args.test_every, log_dir, log_file)
+            args.clip_grad, args.reg, args.log_every, args.test_every, args.save_every,
+            log_dir, log_file)
 toc = time.time()
 agent.save_policy(log_dir)
 agent.save_history(log_dir)

@@ -48,6 +48,7 @@ class FCNNPolicy(nn.Module, BasePolicy):
         self.hidden_layers = nn.ModuleList()
         self.dropout_layers = nn.ModuleList()
         fan_in = input_size
+        fan_out = input_size
         for fan_out in hidden_sizes:
             self.hidden_layers.append(nn.Linear(fan_in, fan_out))
             self.dropout_layers.append(nn.Dropout(dropout_rate))
@@ -60,7 +61,6 @@ class FCNNPolicy(nn.Module, BasePolicy):
                 nn.init.kaiming_uniform_(param)         # weight
             else:
                 nn.init.uniform_(param, -0.01, 0.01)    # bias
-
 
     def forward(self, x):
         """Take a mini-batch of environment states and compute scores over the possible

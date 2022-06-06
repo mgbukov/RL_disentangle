@@ -32,6 +32,36 @@ class ILAgent(BaseAgent):
         self.train_history = {}
         self.test_history = {}
 
+    @torch.no_grad()
+    def test_action_accuracy(self, dataset):
+        """Test the fraction of times that the correct action was chosen.
+
+        Args:
+            dataset (dict): A test dataset containing samples never seen by the
+            agent before. The dictionary contains:
+                states (torch.Tensor): A tensor of shape (N, q), where N is the number of
+                    examples in the dataset and q is the shape of the environment state.
+                actions (torch.Tensor): A tensor of shape (N,), giving the action to be
+                    selected for each state in the dataset.
+        """
+        device = self.policy.device
+        test_size, _ = dataset["states"].shape
+        batch_size = 1024 # iterate the dataset on batches
+        predictions, targets = [], []
+        with torch.no_grad():
+            for i in range(0, test_size, batch_size):
+                states = dataset['states'][i:i+batch_size].to(device)
+                actions = dataset['actions'][i:i+batch_size].to(device)
+                logits = self.policy(states)
+                probs = F.softmax(logits, dim=1)
+                _, preds = torch.max(probs, dim=1)
+                predictions.append(preds.cpu().numpy())
+                targets.append(actions.detach().cpu().numpy())
+        predictions = np.hstack(predictions)
+        targets = np.hstack(targets)
+        accuracy = np.sum(predictions == targets) / len(predictions)
+        return accuracy
+
     def train(self, dataset, num_epochs, batch_size, learning_rate, lr_decay=1.0,
               clip_grad=10.0, reg=0.0, log_every=1, test_every=100, save_every=1,
               log_dir=".", logfile=""):
@@ -75,9 +105,14 @@ class ILAgent(BaseAgent):
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=lr_decay)
         logText(f"Using optimizer:\n{str(optimizer)}\n", logfile)
 
+        # Split the dataset into a training set and a test set.
         data_size, _ = dataset["states"].shape
         test_size = data_size // 10
         train_size = data_size - test_size
+        test_dataset = {
+            "states": dataset["states"][train_size:],
+            "actions": dataset["actions"][train_size:],
+        }
 
         # Fit the policy network.
         for i in tqdm(range(num_epochs)):
@@ -85,7 +120,6 @@ class ILAgent(BaseAgent):
 
             # Loop over the entire dataset in random order.
             total_loss, total_grad_norm, j = 0.0, 0.0, 0
-            total_iter_num = -1 * (-train_size // batch_size)
             for idxs in torch.randperm(train_size).to(device).split(batch_size):
                 # Draw a random mini-batch of samples from the dataset.
                 states = dataset["states"][idxs].to(device)
@@ -104,14 +138,14 @@ class ILAgent(BaseAgent):
                 scheduler.step()
 
                 # Bookkeeping.
-                # total_loss += loss.item()
-                # total_grad_norm += total_norm
+                total_loss += loss.item()
+                total_grad_norm += total_norm
                 j += 1
 
-                self.train_history[i * total_iter_num + j] = {
-                    "loss" : loss.item(),
-                    # "loss" : total_loss / j,
-                }
+            self.train_history[i] = {
+                "loss" : total_loss / j,
+            }
+
             toc = time.time()
 
             # Log results to file.
@@ -123,41 +157,25 @@ class ILAgent(BaseAgent):
             # Test the agent.
             if i % test_every == 0:
                 tic = time.time()
-                steps = 30
-                entropy, returns, nsolved, nsteps = self.test_accuracy(100, steps)
+                steps = 20
+                entropy, returns, nsolved, nsteps = self.test_accuracy(1000, steps)
+                accuracy = self.test_action_accuracy(test_dataset)
                 self.test_history[i] = {
-                    "entropy" : entropy,
-                    "returns" : returns,
-                    "nsolved" : nsolved,
-                    "nsteps"  : nsteps,
+                    "entropy"   : entropy,
+                    "returns"   : returns,
+                    "nsolved"   : nsolved,
+                    "nsteps"    : nsteps,
+                    "accuracy"  : accuracy,
                 }
                 toc = time.time()
                 logText(f"Epoch {i}\nTesting agent accuracy for {steps} steps...", logfile)
                 logText(f"Testing took {toc-tic:.3f} seconds.", logfile)
+                logText(f"    Action classification accuracy: {accuracy:.3f}", logfile)
                 log_test_stats(self.test_history[i], logfile)
 
             # Checkpoint save.
             if i % save_every == 0:
                 self.save_policy(log_dir, filename=f"policy_{i}.bin")
                 self.save_history(log_dir)
-
-        # Out of sample test of classification accuracy (fraction of times
-        # that the correct action is chosen)
-        predictions = []
-        targets = []
-        with torch.no_grad():
-            for i in range(0, test_size, batch_size):
-                j = data_size - test_size + i
-                states = dataset['states'][j:j+batch_size].to(device)
-                actions = dataset['actions'][j:j+batch_size].to(device)
-                logits = self.policy(states)
-                probs = F.softmax(logits, dim=1)
-                _, preds = torch.max(probs, dim=1)
-                predictions.append(preds.cpu().numpy())
-                targets.append(actions.detach().cpu().numpy())
-        predictions = np.hstack(predictions)
-        targets = np.hstack(targets)
-        accuracy = np.sum(predictions == targets) / len(predictions)
-        logText(f"Classification accuracy: {accuracy:.3f}", logfile)
 
 #
