@@ -185,9 +185,11 @@ def log_train_stats(stats, logfile):
     Median final entropy:     {np.median(stats["entropy"]):.4f}
     Max final entropy:        {np.max(stats["entropy"]):.4f}
     95 percentile entropy:    {np.percentile(stats["entropy"], 95.0):.5f}
+    Value loss:               {stats["value_loss"]:.4f}
+    Value Total grad norm     {stats["value_total_norm"]:.5f}
     Policy entropy:           {stats["policy_entropy"]:.4f}
-    Pseudo loss:              {stats["loss"]:.5f}
-    Total gradient norm:      {stats["total_norm"]:.5f}
+    Policy pseudo loss:       {stats["policy_loss"]:.5f}
+    Policy Total grad norm:   {stats["policy_total_norm"]:.5f}
     Solved trajectories:      {stats["nsolved"]} / {batch_size}
     Avg steps to disentangle: {np.mean(stats["nsteps"][stats["nsteps"].nonzero()]):.3f}
     Median steps to disent.: {np.median(stats["nsteps"][stats["nsteps"].nonzero()]):.1f}

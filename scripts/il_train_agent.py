@@ -60,7 +60,8 @@ dataset["actions"] = torch.from_numpy(dataset["actions"])
 # Create file to log output during training.
 # args.data_file = "../data/5qubits/beam_size_100/1000000_episodes.pickle"
 num_epochs = int(args.data_file.split("/")[-1].split("_")[0])
-log_dir = os.path.join("..", "logs", f"{args.num_qubits}qubits", f"imitation_{num_epochs // 1000}k")
+log_dir = os.path.join("..", "logs", f"{args.num_qubits}qubits",
+    f"il_epochs_{num_epochs // 1000}k_batch_{args.batch_size}")
 os.makedirs(log_dir, exist_ok=True)
 log_file = os.path.join(log_dir, "train.log")
 

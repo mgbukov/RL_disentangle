@@ -1,3 +1,4 @@
+from collections import defaultdict
 import time
 
 import numpy as np
@@ -175,6 +176,11 @@ class PGAgent(BaseAgent):
             self.env.set_random_states()
             states, actions, rewards, masks = self.rollout(steps)
 
+            # The shape of the states tensor is (b, steps+1, q). Discard the final states
+            # from the trajectories. We have no information about the returns when starting
+            # in these states!
+            states = states[:, :-1, :]
+
             # Compute the loss.
             logits = self.policy(states)
             episode_entropy = self.entropy_term(logits, actions, masks)
@@ -199,18 +205,19 @@ class PGAgent(BaseAgent):
             # Book-keeping.
             mask_hard = np.any(self.env.entropy() > 0.6, axis=1)
             mask_easy = np.any(~masks.cpu().numpy(), axis=1)
-            self.train_history[i] = {
-                "entropy"       : self.env.entropy(),
-                "rewards"       : rewards.cpu().numpy(),
-                "exploration"   : episode_entropy[:, 0].detach().cpu().numpy(),
-                "policy_entropy": avg_policy_ent.item(),
-                "loss"          : loss.item(),
-                "total_norm"    : total_norm.cpu().numpy(),
-                "nsolved"       : sum(self.env.disentangled()),
-                "nsteps"        : ((~masks[:,-1])*torch.sum(masks, axis=1)).cpu().numpy(),
-                "easy_states"   : states.detach().cpu().numpy()[mask_easy, 0][:32],
-                "hard_states"   : states.detach().cpu().numpy()[mask_hard, 0][:32],
-            }
+            self.train_history[i] = defaultdict(lambda: np.nan)
+            self.train_history[i].update({
+                "entropy"           : self.env.entropy(),
+                "rewards"           : rewards.cpu().numpy(),
+                "exploration"       : episode_entropy[:, 0].detach().cpu().numpy(),
+                "policy_entropy"    : avg_policy_ent.item(),
+                "policy_loss"       : loss.item(),
+                "policy_total_norm" : total_norm.item(),
+                "nsolved"           : sum(self.env.disentangled()),
+                "nsteps"            : ((~masks[:,-1])*torch.sum(masks, axis=1)).cpu().numpy(),
+                "easy_states"       : states.detach().cpu().numpy()[mask_easy, 0][:32],
+                "hard_states"       : states.detach().cpu().numpy()[mask_hard, 0][:32],
+            })
             toc = time.time()
 
             # Log results to file.

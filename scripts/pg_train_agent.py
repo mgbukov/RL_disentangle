@@ -1,5 +1,5 @@
 """
-python3 pg_train_agent.py -q 5 -b 1024 --steps 40 -i 10001 --ereg 0.01
+python3 pg_train_agent.py -q 5 --env_batch 1024 --steps 40 -i 10001 --ereg 0.01
 """
 
 import argparse
@@ -20,7 +20,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-s", "--seed", dest="seed", type=int, help="random seed value", default=0)
 parser.add_argument("-q", "--num_qubits", dest="num_qubits", type=int,
     help="Number of qubits in the quantum system", default=2)
-parser.add_argument("-b", "--batch_size", dest="batch_size", type=int,
+parser.add_argument("--env_batch", dest="env_batch", type=int,
     help="Number of states in the environment batch", default=1)
 parser.add_argument("--steps", dest="steps", type=int,
     help="Number of steps in an episode", default=10)
@@ -53,9 +53,9 @@ set_printoptions(precision=5, sci_mode=False)
 pretrain = ""
 if args.model_path is not None:
     # args.model_path = "../logs/5qubits/imitation_100k/policy_80.bin"
-    pretrain = "pretrain_" + args.model_path.split("_")[-1].split(".")[0]
+    pretrain = "_pretrain_" + args.model_path.split("_")[-1].split(".")[0]
 log_dir = os.path.join("..", "logs", f"{args.num_qubits}qubits",
-    f"traj_{args.batch_size}_iters_{args.num_iter}_entreg_{args.entropy_reg}_{pretrain}")
+    f"pg_traj_{args.env_batch}_iters_{args.num_iter}_entreg_{args.entropy_reg}{pretrain}")
 os.makedirs(log_dir, exist_ok=True)
 logfile = os.path.join(log_dir, "train.log")
 
@@ -64,7 +64,7 @@ logfile = os.path.join(log_dir, "train.log")
 # args.lr_decay = np.power(0.1, 1.0/num_iter)
 logText(f"""##############################
 Training parameters:
-    Number of trajectories:         {args.batch_size}
+    Number of trajectories:         {args.env_batch}
     Maximum number of steps:        {args.steps}
     Minimum system entropy (epsi):  {args.epsi}
     Number of iterations:           {args.num_iter}
@@ -79,7 +79,7 @@ Training parameters:
 
 
 # Create the environment.
-env = QubitsEnvironment(args.num_qubits, epsi=args.epsi, batch_size=args.batch_size)
+env = QubitsEnvironment(args.num_qubits, epsi=args.epsi, batch_size=args.env_batch)
 plot_reward_function(env, os.path.join(log_dir, "reward_function.png"))
 
 

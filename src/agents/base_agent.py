@@ -40,7 +40,7 @@ class BaseAgent:
             beta (float): Inverse value of the temperature for the boltzmann distribution.
 
         Returns:
-            states (torch.Tensor): Tensor of shape (b, t, q), giving the states produced
+            states (torch.Tensor): Tensor of shape (b, t+1, q), giving the states produced
                 during policy rollout, where b = batch size, t = number of time steps,
                 q = size of the quantum system (2 ** num_qubits).
             actions (torch.Tensor): Tensor of shape (b, t), giving the actions selected by
@@ -55,7 +55,7 @@ class BaseAgent:
         L = self.env.L
 
         # Allocate torch tensors to store the data from the rollout.
-        states = torch.zeros(size=(steps, b, 2 ** (L+1)), dtype=torch.float32, device=device)
+        states = torch.zeros(size=(steps+1, b, 2 ** (L+1)), dtype=torch.float32, device=device)
         actions = torch.zeros(size=(steps, b), dtype=torch.int64, device=device)
         rewards = torch.zeros(size=(steps, b), dtype=torch.float32, device=device)
         done = torch.zeros(size=(steps, b), dtype=torch.bool, device=device)
@@ -73,6 +73,11 @@ class BaseAgent:
             s, r, d = self.env.step(acts.cpu().numpy())
             rewards[i] = torch.from_numpy(r)
             done[i] = torch.from_numpy(d)
+
+        # Add the last state to the trajectories.
+        batch = self.env.states.reshape(b, -1)
+        batch =  np.hstack([batch.real, batch.imag])
+        states[i] = torch.from_numpy(batch)
 
         # if done[i] is False and done[i+1] is True, then the trajectory should be masked
         # out at and after step i+2.
@@ -133,7 +138,8 @@ class BaseAgent:
     def save_history(self, filepath):
         """Save the training history and the testing history as pickle dumps."""
         with open(os.path.join(filepath, "train_history.pickle"), "wb") as f:
-            pickle.dump(self.train_history, f, protocol=pickle.HIGHEST_PROTOCOL)
+            train_hist = {k : dict(v) for k, v in self.train_history.items()}
+            pickle.dump(train_hist, f, protocol=pickle.HIGHEST_PROTOCOL)
         with open(os.path.join(filepath, "test_history.pickle"), "wb") as f:
             pickle.dump(self.test_history, f, protocol=pickle.HIGHEST_PROTOCOL)
 
