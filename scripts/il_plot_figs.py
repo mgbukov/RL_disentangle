@@ -8,7 +8,7 @@ import pickle
 import sys
 sys.path.append("..")
 
-from src.infrastructure.logging import plot_entropy_curves, plot_loss_curve, logPlot
+from src.infrastructure.logging import plot_entropy_curves, plot_policy_loss, logPlot
 
 
 # Parse command line arguments.
@@ -32,7 +32,7 @@ test_act_acc = [test_history[i]["accuracy"] for i in sorted(test_history.keys())
 
 
 # Plot curves.
-plot_loss_curve(train_history, os.path.join(log_dir, "training_loss.png"), lw=1.4)
+plot_policy_loss(train_history, os.path.join(log_dir, "training_loss.png"), lw=1.4)
 plot_entropy_curves(test_history, os.path.join(log_dir, "entropy.png"),
     lw=[2., 2., 2., 2.])
 logPlot(figname= os.path.join(log_dir, "returns.png"),

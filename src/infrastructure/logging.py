@@ -247,11 +247,17 @@ def plot_entropy_curves(train_history, filepath, lw=[0.4, 0.4, 0.6, 0.6]):
             fmt=["--r", "--b", "-k", ":m"], lw=lw,
             figtitle="System entropy at episode end")
 
-def plot_loss_curve(train_history, filepath, lw=0.4):
+def plot_policy_loss(train_history, filepath, lw=0.4):
     num_iter = len(train_history)
-    loss = [train_history[i]["loss"] for i in range(num_iter)]
-    logPlot(figname=filepath, funcs=[loss], legends=["loss"],
-        labels={"x":"Iteration", "y":"Loss"}, fmt=["-b"], lw=[lw], figtitle="Training Loss")
+    policy_loss = [train_history[i]["policy_loss"] for i in range(num_iter)]
+    logPlot(figname=filepath, funcs=[policy_loss], legends=["loss"],
+        labels={"x":"Iteration", "y":"Loss"}, fmt=["-b"], lw=[lw], figtitle="Policy Training Loss")
+
+def plot_value_loss(train_history, filepath, lw=0.4):
+    num_iter = len(train_history)
+    value_loss = [train_history[i]["value_loss"] for i in range(num_iter)]
+    logPlot(figname=filepath, funcs=[value_loss], legends=["loss"],
+        labels={"x":"Iteration", "y":"Loss"}, fmt=["-b"], lw=[lw], figtitle="Value Training Loss")
 
 def plot_policy_entropy(train_history, filepath, lw=0.4):
     num_iters = len(train_history)

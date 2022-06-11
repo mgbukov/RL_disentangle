@@ -1,5 +1,5 @@
 """
-python3 pg_plot_figs.py -q 5 --log_dir traj_4096_iters_10001_entreg_0.01
+python3 ac_plot_figs.py -q 5 --log_dir ac_traj_4096_iters_10001_entreg_0.01
 """
 
 import argparse
@@ -10,7 +10,7 @@ sys.path.append("..")
 
 from src.infrastructure.logging import (
     plot_distribution, plot_entropy_curves, plot_nsolved_curves, plot_nsteps,
-    plot_policy_entropy, plot_policy_loss, plot_return_curves)
+    plot_policy_entropy, plot_policy_loss, plot_value_loss, plot_return_curves)
 
 # Parse command line arguments.
 parser = argparse.ArgumentParser()
@@ -33,6 +33,7 @@ with open(os.path.join(log_dir, "test_history.pickle"), "rb") as f:
 
 plot_entropy_curves(train_history, os.path.join(log_dir, "final_entropy.png"))
 plot_policy_loss(train_history, os.path.join(log_dir, "policy_loss.png"))
+plot_value_loss(train_history, os.path.join(log_dir, "value_loss.png"))
 plot_policy_entropy(train_history, os.path.join(log_dir, "policy_entropy.png"))
 plot_return_curves(train_history, test_history, os.path.join(log_dir, "returns.png"))
 plot_nsolved_curves(train_history, test_history, os.path.join(log_dir, "nsolved.png"))

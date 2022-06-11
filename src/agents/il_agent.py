@@ -143,7 +143,7 @@ class ILAgent(BaseAgent):
                 j += 1
 
             self.train_history[i] = {
-                "loss" : total_loss / j,
+                "policy_loss" : total_loss / j,
             }
 
             toc = time.time()
