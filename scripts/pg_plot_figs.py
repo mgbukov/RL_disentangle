@@ -9,7 +9,7 @@ import sys
 sys.path.append("..")
 
 from src.infrastructure.logging import (
-    plot_distribution, plot_entropy_curves, plot_loss_curve,
+    plot_distribution, plot_entropy_curves, plot_loss_curve, plot_policy_entropy,
     plot_nsolved_curves, plot_return_curves, plot_nsteps)
 
 # Parse command line arguments.
@@ -33,6 +33,7 @@ with open(os.path.join(log_dir, "test_history.pickle"), "rb") as f:
 
 plot_entropy_curves(train_history, os.path.join(log_dir, "final_entropy.png"))
 plot_loss_curve(train_history, os.path.join(log_dir, "loss.png"))
+plot_policy_entropy(train_history, os.path.join(log_dir, "policy_entropy.png"))
 plot_return_curves(train_history, test_history, os.path.join(log_dir, "returns.png"))
 plot_nsolved_curves(train_history, test_history, os.path.join(log_dir, "nsolved.png"))
 plot_nsteps(train_history, os.path.join(log_dir, "nsteps.png"))

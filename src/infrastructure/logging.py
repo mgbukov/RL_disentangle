@@ -227,7 +227,7 @@ def log_test_stats(stats, logfile=""):
     Median steps to disent.: {np.median(nsteps[nsteps.nonzero()]):.1f}
     """, logfile)
 
-def plot_entropy_curves(train_history, file_path, lw=[0.4, 0.4, 0.6, 0.6]):
+def plot_entropy_curves(train_history, filepath, lw=[0.4, 0.4, 0.6, 0.6]):
     keys = sorted(train_history.keys())
 
     # Define entropies curve.
@@ -237,7 +237,7 @@ def plot_entropy_curves(train_history, file_path, lw=[0.4, 0.4, 0.6, 0.6]):
     ent_quantile = np.array([np.quantile(train_history[i]["entropy"], 0.95) for i in keys])
 
     # Plot curves.
-    logPlot(figname=file_path,
+    logPlot(figname=filepath,
             xs=[keys, keys, keys, keys],
             funcs=[ent_min, ent_max, ent_mean, ent_quantile],
             legends=["min", "max", "mean", "95%quantile"],
@@ -245,13 +245,19 @@ def plot_entropy_curves(train_history, file_path, lw=[0.4, 0.4, 0.6, 0.6]):
             fmt=["--r", "--b", "-k", ":m"], lw=lw,
             figtitle="System entropy at episode end")
 
-def plot_loss_curve(train_history, file_path, lw=0.4):
+def plot_loss_curve(train_history, filepath, lw=0.4):
     num_iter = len(train_history)
     loss = [train_history[i]["loss"] for i in range(num_iter)]
-    logPlot(figname=file_path, funcs=[loss], legends=["loss"],
+    logPlot(figname=filepath, funcs=[loss], legends=["loss"],
         labels={"x":"Iteration", "y":"Loss"}, fmt=["-b"], lw=[lw], figtitle="Training Loss")
 
-def plot_return_curves(train_history, test_history, file_path):
+def plot_policy_entropy(train_history, filepath, lw=0.4):
+    num_iters = len(train_history)
+    policy_entropy = [train_history[i]["policy_entropy"] for i in range(num_iters)]
+    logPlot(figname=filepath, funcs=[policy_entropy], legends=["policy_entropy"], fmt=["-b"], lw=[lw],
+        labels={"x":"Iteration", "y":"Policy Entropy"}, figtitle="Average policy entropy")
+
+def plot_return_curves(train_history, test_history, filepath):
     num_iter = len(train_history)
     num_test = len(test_history)
     test_every = num_iter // (num_test - 1) if num_test > 1 else 0
@@ -265,7 +271,7 @@ def plot_return_curves(train_history, test_history, file_path):
     test_returns = [test_history[i]["returns"].mean() for i in sorted(test_history.keys())]
 
     # Plot curves.
-    logPlot(figname=file_path,
+    logPlot(figname=filepath,
             xs=[np.arange(num_iter),
                 np.arange(0, num_iter, avg_every),
                 sorted(test_history.keys())],
@@ -276,7 +282,7 @@ def plot_return_curves(train_history, test_history, file_path):
             lw=[0.4, 1.2, 1.2],
             figtitle="Agent Obtained Return")
 
-def plot_nsolved_curves(train_history, test_history, file_path):
+def plot_nsolved_curves(train_history, test_history, filepath):
     batch_size, steps = train_history[0]["rewards"].shape
     num_iter = len(train_history)
     num_test = len(test_history)
@@ -291,7 +297,7 @@ def plot_nsolved_curves(train_history, test_history, file_path):
     test_nsolved = [test_history[i]["nsolved"].mean() for i in sorted(test_history.keys())]
 
     # Plot curves.
-    logPlot(figname=file_path,
+    logPlot(figname=filepath,
             xs=[np.arange(num_iter),
                 np.arange(0, num_iter, avg_every),
                 sorted(test_history.keys())],
@@ -310,12 +316,12 @@ def plot_distribution(train_history, log_every, log_dir):
                 figtitle=f"Probabilities of actions given by the policy at step {i}",
                 labels={"x":"Step", "y":"Actions"})
 
-def plot_nsteps(train_history, file_path):
+def plot_nsteps(train_history, filepath):
     num_iter = len(train_history)
     xs = np.arange(num_iter)
     ys = [np.mean(train_history[i]["nsteps"][train_history[i]["nsteps"].nonzero()])
         for i in range(num_iter)]
-    logPlot(figname=file_path,
+    logPlot(figname=filepath,
             xs=[xs],
             funcs=[ys],
             legends=["nsteps"],
@@ -324,7 +330,7 @@ def plot_nsteps(train_history, file_path):
             lw=[0.4],
             figtitle="Steps to Disentangle")
 
-def plot_reward_function(env, file_path):
+def plot_reward_function(env, filepath):
     N = 10
     L = env.L
     B = env.batch_size
@@ -350,7 +356,7 @@ def plot_reward_function(env, file_path):
                 horizontalalignment='center', verticalalignment='center',
                 color='k', fontsize=8.0)
     fig.colorbar(c, ax=ax)
-    fig.savefig(file_path, dpi=160)
+    fig.savefig(filepath, dpi=160)
     plt.close(fig)
 
 #
