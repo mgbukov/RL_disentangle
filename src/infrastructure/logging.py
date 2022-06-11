@@ -190,6 +190,7 @@ def log_train_stats(stats, logfile):
     Total gradient norm:      {stats["total_norm"]:.5f}
     Solved trajectories:      {stats["nsolved"]} / {batch_size}
     Avg steps to disentangle: {np.mean(stats["nsteps"][stats["nsteps"].nonzero()]):.3f}
+    Median steps to disent.: {np.median(stats["nsteps"][stats["nsteps"].nonzero()]):.1f}
     """, logfile)
 
 def log_test_stats(stats, logfile=""):
@@ -223,6 +224,7 @@ def log_test_stats(stats, logfile=""):
     Max entropy:           {entropies.max():.5f}
     Mean return:           {np.mean(returns):.4f}
     Avg steps to disentangle: {np.mean(nsteps[nsteps.nonzero()]):.3f}
+    Median steps to disent.: {np.median(nsteps[nsteps.nonzero()]):.1f}
     """, logfile)
 
 def plot_entropy_curves(train_history, file_path, lw=[0.4, 0.4, 0.6, 0.6]):
