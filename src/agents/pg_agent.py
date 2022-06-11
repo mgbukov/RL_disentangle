@@ -223,7 +223,7 @@ class PGAgent(BaseAgent):
                 tic = time.time()
                 entropies, returns, nsolved, nsteps = self.test_accuracy(10, steps)#, initial_batch)
                 self.test_history[i] = {
-                    "entropy" : entropies,
+                    "entropies" : entropies,
                     "returns" : returns,
                     "nsolved" : nsolved,
                     "nsteps"  : nsteps,

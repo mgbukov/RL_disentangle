@@ -1,5 +1,5 @@
 """
-python3 pg_plot_figs.py --log_dir traj_4096_iters_10001_entreg_0.01
+python3 pg_plot_figs.py -q 5 --log_dir traj_4096_iters_10001_entreg_0.01
 """
 
 import argparse
@@ -14,12 +14,13 @@ from src.infrastructure.logging import (
 
 # Parse command line arguments.
 parser = argparse.ArgumentParser()
+parser.add_argument("-q", "--num_qubits", dest="num_qubits", type=int, default=2)
 parser.add_argument("--log_dir", dest="log_dir", type=str)
 args = parser.parse_args()
 
 
-# Create file to log output during training.
-log_dir = os.path.join("..", "logs", "5qubits", args.log_dir)
+# Construct the log directory to store generated plots.
+log_dir = os.path.join("..", "logs", f"{args.num_qubits}qubits", args.log_dir)
 log_probs_dir = os.path.join(log_dir, "probs")
 os.makedirs(log_probs_dir, exist_ok=True)
 

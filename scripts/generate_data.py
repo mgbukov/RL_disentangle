@@ -1,5 +1,5 @@
 """
-python3 generate_data.py -s 0 -n 5 --beam_size 100 --epsi 1e-3 --num_episodes 100000
+python3 generate_data.py -s 0 -q 5 --beam_size 100 --epsi 1e-3 --num_episodes 100000
 """
 
 import argparse
@@ -19,7 +19,7 @@ from src.envs.rdm_environment import QubitsEnvironment
 # Parse command line arguments.
 parser = argparse.ArgumentParser()
 parser.add_argument("-s", "--seed", dest="seed", type=int, help="random seed value", default=0)
-parser.add_argument("-n", "--num_qubits", dest="num_qubits", type=int,
+parser.add_argument("-q", "--num_qubits", dest="num_qubits", type=int,
                     help="Number of qubits in the quantum system", default=2)
 parser.add_argument("--beam_size", dest="beam_size", type=int,
                     help="Size of the beam for beam search", default=10)
@@ -51,11 +51,11 @@ dataset["actions"] = np.hstack(dataset["actions"])
 
 
 # Save the dataset.
-log_dir = f"../data/{args.num_qubits}qubits/beam_size={args.beam_size}"
-if not os.path.exists(log_dir):
-    os.makedirs(log_dir)
+log_dir = os.path.join("..", "data", f"{args.num_qubits}qubits")
+os.makedirs(log_dir, exist_ok=True)
+data_file = os.path.join(log_dir, f"beam_{args.beam_size}_episodes_{args.num_episodes}.pickle")
 
-with open(os.path.join(log_dir, f"{args.num_episodes}_episodes.pickle"), "wb") as f:
+with open(data_file, "wb") as f:
     pickle.dump(dataset, f)
 
 #

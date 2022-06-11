@@ -157,11 +157,11 @@ class ILAgent(BaseAgent):
             # Test the agent.
             if i % test_every == 0:
                 tic = time.time()
-                steps = 20
-                entropy, returns, nsolved, nsteps = self.test_accuracy(1000, steps)
+                steps = 30
+                entropies, returns, nsolved, nsteps = self.test_accuracy(1000, steps, greedy=False)
                 accuracy = self.test_action_accuracy(test_dataset)
                 self.test_history[i] = {
-                    "entropy"   : entropy,
+                    "entropies"   : entropies,
                     "returns"   : returns,
                     "nsolved"   : nsolved,
                     "nsteps"    : nsteps,

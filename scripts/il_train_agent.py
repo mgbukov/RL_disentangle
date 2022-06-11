@@ -1,5 +1,5 @@
 """
-python3 il_train_agent.py -n 5 -b 128 -e 101
+python3 il_train_agent.py -q 5 -b 128 -e 101
 """
 
 import argparse
@@ -21,24 +21,26 @@ from src.policies.fcnn_policy import FCNNPolicy
 # Parse command line arguments.
 parser = argparse.ArgumentParser()
 parser.add_argument("-s", "--seed", dest="seed", type=int, help="random seed value", default=0)
-parser.add_argument("-n", "--num_qubits", dest="num_qubits", type=int,
-                    help="Number of qubits in the quantum system", default=2)
+parser.add_argument("-q", "--num_qubits", dest="num_qubits", type=int,
+    help="Number of qubits in the quantum system", default=2)
 parser.add_argument("--epsi", dest="epsi", type=float,
-                    help="Threshold for disentanglement", default=1e-3)
+    help="Threshold for disentanglement", default=1e-3)
 parser.add_argument("-e", "--num_epochs", dest="num_epochs", type=int,
-                    help="Number of epochs to run the training for", default=1)
+    help="Number of epochs to run the training for", default=1)
 parser.add_argument("-b", "--batch_size", dest="batch_size", type=int,
-                    help="Batch size parameter for policy network optimization", default=1)
+    help="Batch size parameter for policy network optimization", default=1)
 parser.add_argument("--lr", dest="learning_rate", type=float,
-                    help="Learning rate", default=1e-4)
+    help="Learning rate", default=1e-4)
 parser.add_argument("--lr_decay", dest="lr_decay", type=float, default=1.0)
 parser.add_argument("--reg", dest="reg", type=float,
-                    help="L2 regularization", default=0.0)
+    help="L2 regularization", default=0.0)
 parser.add_argument("--clip_grad", dest="clip_grad", type=float, default=10.0)
 parser.add_argument("--dropout", dest="dropout", type=float, default=0.0)
 parser.add_argument("--log_every", dest="log_every", type=int, default=1)
 parser.add_argument("--test_every", dest="test_every", type=int, default=10)
 parser.add_argument("--save_every", dest="save_every", type=int, default=10)
+parser.add_argument("--data_file", dest="data_file", type=str, default="beam_100_episodes_100000",
+    help="Name of a pickle file containing training data located inside /data/Nqubits/")
 args = parser.parse_args()
 
 
@@ -47,10 +49,20 @@ fix_random_seeds(args.seed)
 set_printoptions(precision=5, sci_mode=False)
 
 
+# Load the dataset.
+data_path = os.path.join("..", "data", f"{args.num_qubits}qubits", f"{args.data_file}.pickle")
+with open(data_path, "rb") as f:
+    dataset = pickle.load(f)
+dataset["states"] = torch.from_numpy(dataset["states"])
+dataset["actions"] = torch.from_numpy(dataset["actions"])
+
+
 # Create file to log output during training.
-log_dir = f"../logs/5qubits/imitation_100k_epochs_{args.num_epochs}"
+# args.data_file = "../data/5qubits/beam_size_100/1000000_episodes.pickle"
+num_epochs = int(args.data_file.split("/")[-1].split("_")[0])
+log_dir = os.path.join("..", "logs", f"{args.num_qubits}qubits", f"imitation_{num_epochs // 1000}k")
 os.makedirs(log_dir, exist_ok=True)
-log_file = os.path.join(log_dir, "train_100k.log")
+log_file = os.path.join(log_dir, "train.log")
 
 
 # Log hyperparameters information.
@@ -78,14 +90,6 @@ input_size = 2 ** (args.num_qubits + 1)
 hidden_dims = [4096, 4096, 512]
 output_size = env.num_actions
 policy = FCNNPolicy(input_size, hidden_dims, output_size, args.dropout)
-
-
-# Load the dataset.
-data_path = "../data/5qubits/beam_size_100/100000_episodes.pickle"
-with open(data_path, "rb") as f:
-    dataset = pickle.load(f)
-dataset["states"] = torch.from_numpy(dataset["states"])
-dataset["actions"] = torch.from_numpy(dataset["actions"])
 
 
 # Train the imitation learning agent.

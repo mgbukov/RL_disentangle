@@ -209,7 +209,7 @@ def log_test_stats(stats, logfile=""):
             written. If empty the logging information is printed to the console.
             Default value is empty string.
     """
-    entropies = stats["entropy"]
+    entropies = stats["entropies"]
     returns = stats["returns"]
     nsolved = stats["nsolved"]
     nsteps = stats["nsteps"]

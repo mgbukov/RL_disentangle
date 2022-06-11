@@ -1,5 +1,5 @@
 """
-python3 il_plot_figs.py --log_dir imitation_100k
+python3 il_plot_figs.py -q 5 --log_dir imitation_100k
 """
 
 import argparse
@@ -13,14 +13,13 @@ from src.infrastructure.logging import plot_entropy_curves, plot_loss_curve, log
 
 # Parse command line arguments.
 parser = argparse.ArgumentParser()
+parser.add_argument("-q", "--num_qubits", dest="num_qubits", type=int, default=2)
 parser.add_argument("--log_dir", dest="log_dir", type=str)
 args = parser.parse_args()
 
-# Create file to log output during training.
-log_dir = os.path.join("..", "logs", "5qubits", args.log_dir)
-
 
 # Plot the results.
+log_dir = os.path.join("..", "logs", f"{args.num_qubits}qubits", args.log_dir)
 with open(os.path.join(log_dir, "train_history.pickle"), "rb") as f:
     train_history = pickle.load(f)
 with open(os.path.join(log_dir, "test_history.pickle"), "rb") as f:
@@ -56,4 +55,5 @@ logPlot(figname= os.path.join(log_dir, "act_acc.png"),
         legends=["test_action_accuracy"], labels={"x":"Episode", "y":"Action Accuracy"},
         fmt=["-r"], lw=[1.4],
         figtitle="Agent accuracy of picking the correct action")
+
 #
