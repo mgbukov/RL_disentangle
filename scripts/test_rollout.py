@@ -98,7 +98,7 @@ true_baselines_mod_v2 =  [[   19*b/19,       18*b/19,       17*b/19,       16*b/
 
 
 
-true_masks = [[  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True, False, False, False, False, False, False, False, False, False, False, False],
+true_mask = [[  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True, False, False, False, False, False, False, False, False, False, False, False],
               [  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True, False, False, False, False, False, False, False, False, False, False],
               [  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True, False, False, False, False, False, False, False, False, False, False, False],
               [  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True, False, False, False, False, False, False, False, False, False],
@@ -127,7 +127,7 @@ loss_no_dummy = 101.22429074188456
 
 true_actions = torch.IntTensor(true_actions)
 true_rewards = torch.FloatTensor(true_rewards)
-true_masks = torch.FloatTensor(true_masks)
+true_mask = torch.FloatTensor(true_mask)
 true_returns_to_go = torch.FloatTensor(true_returns_to_go)
 true_baselines_dummy = torch.FloatTensor(true_baselines_v2)
 true_baselines_no_dummy = torch.FloatTensor(true_baselines_mod_v2)
@@ -162,25 +162,26 @@ for idx, batch_size in enumerate([B, B-1]):
     env.states = np.array([psi] * batch_size, dtype=np.complex64)
     policy = DummyPolicy()
     agent = PGAgent(env, policy, log_dir)
-    states, actions, rewards, masks = agent.rollout(steps=steps)
+    states, actions, rewards, done = agent.rollout(steps=steps)
+    mask = agent.generate_mask(done)
 
     logits = dummy_logits.repeat(batch_size, steps, 1)
     nll = F.cross_entropy(logits.permute(0,2,1), actions, reduction="none")
     returns_to_go = agent.reward_to_go(rewards)
-    baselines = agent.reward_baseline(rewards, masks)
+    baselines = agent.reward_baseline(rewards, mask)
     q_values = returns_to_go - baselines
-    weighted_nll = torch.mul(masks * nll, q_values)
+    weighted_nll = torch.mul(mask * nll, q_values)
     loss = torch.mean(torch.sum(weighted_nll, dim=1))
 
-    nsteps = (~masks[:,-1])*torch.sum(masks, axis=1)
+    nsteps = (~mask[:,-1])*torch.sum(mask, axis=1)
 
     print(msg[idx])
     if (actions == true_actions[:batch_size]).all(): print("  Actions match!")
     else: print("  Actions don't match!")
     if (abs(rewards-true_rewards[:batch_size])<1e-4).all(): print("  Rewards match!")
     else: print("  Rewards don't match!")
-    if (masks == true_masks[:batch_size]).all(): print("  Masks match!")
-    else: print("  Masks don't match!")
+    if (mask == true_mask[:batch_size]).all(): print("  Mask matches!")
+    else: print("  Mask doesn't match!")
     if (nsteps == true_nsteps[:batch_size]).all(): print("  Number of steps matches!")
     else: print("  Number of steps doesn't match")
     if (abs(returns_to_go-true_returns_to_go[:batch_size])<1e-4).all(): print("  Returns-to-go match!")

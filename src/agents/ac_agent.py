@@ -118,7 +118,8 @@ class ACAgent(BaseAgent):
 
             # Set the initial state and perform policy rollout.
             self.env.set_random_states()
-            states, actions, rewards, masks = self.rollout(steps)
+            states, actions, rewards, done = self.rollout(steps)
+            mask = self.generate_mask(done)
 
             # Fit the value network.
             # This is bad! There must be a way to draw random samples without reshaping.
@@ -131,21 +132,27 @@ class ACAgent(BaseAgent):
             # rwrd = rewards[:, -1].reshape(-1)
             #
             # A correct but not very good solution.
-            prev_obs, next_obs, rwrd = [], [], []
+            prev_obs, next_obs, rwrd, ddone = [], [], [], []
             for idx, traject in enumerate(states):
-                length = torch.sum(masks[idx]).item()
+                length = torch.sum(mask[idx]).item()
                 prev_obs.append(traject[:length-1])
                 next_obs.append(traject[1:length])
                 rwrd.append(rewards[idx, :length-1])
+                ddone.append(done[idx, :length-1])
             prev_obs = torch.vstack(prev_obs)
             next_obs = torch.vstack(next_obs)
             rwrd = torch.hstack(rwrd)
+            done = torch.hstack(ddone)
+            #
+            # Find a torch implementation of np.random.choice()
+            # np.random.choice(np.ndarray, mask) -- works out perfectly!
 
             total_loss, total_grad_norm, j = 0.0, 0.0, 0
             for idxs in torch.randperm(len(prev_obs)).to(device).split(batch_size):
                 # Compute the targets for the value network using one-step bootstrapping.
+                # Values of terminal states are set to 0.
                 prev_values = self.value_network(prev_obs[idxs]).squeeze(dim=-1)
-                next_values = self.value_network(next_obs[idxs]).squeeze(dim=-1)
+                next_values = self.value_network(next_obs[idxs]).squeeze(dim=-1) * ~done[idxs]
                 targets = rwrd[idxs] + discount * next_values
 
                 # Compute the loss for the value network.
@@ -153,7 +160,7 @@ class ACAgent(BaseAgent):
 
                 # Perform backward pass for the value network.
                 value_optimizer.zero_grad()
-                value_loss.backward(retain_graph=True)
+                value_loss.backward()
                 total_norm = torch.norm(
                     torch.stack([torch.norm(p.grad) for p in self.value_network.parameters()]))
                 torch.nn.utils.clip_grad_norm_(self.value_network.parameters(), clip_grad)
@@ -174,8 +181,8 @@ class ACAgent(BaseAgent):
             # Compute the loss for the policy gradient.
             logits = self.policy(prev_obs)
             nll = F.cross_entropy(logits.permute(0,2,1), actions, reduction="none")
-            weighted_nll = torch.mul(masks * nll, advantages)
-            loss = torch.sum(weighted_nll) / torch.sum(masks)
+            weighted_nll = torch.mul(mask * nll, advantages)
+            loss = torch.sum(weighted_nll) / torch.sum(mask)
 
             # Perform backward pass.
             policy_optimizer.zero_grad()
@@ -190,7 +197,7 @@ class ACAgent(BaseAgent):
 
             # Book-keeping.
             mask_hard = np.any(self.env.entropy() > 0.6, axis=1)
-            mask_easy = np.any(~masks.cpu().numpy(), axis=1)
+            mask_easy = np.any(~mask.cpu().numpy(), axis=1)
             self.train_history[i] = defaultdict(lambda: np.nan)
             self.train_history[i].update({
                 "entropy"           : self.env.entropy(),
@@ -202,7 +209,7 @@ class ACAgent(BaseAgent):
                 "policy_loss"       : loss.item(),
                 "policy_total_norm" : total_norm.item(),
                 "nsolved"           : sum(self.env.disentangled()),
-                "nsteps"            : ((~masks[:,-1])*torch.sum(masks, axis=1)).cpu().numpy(),
+                "nsteps"            : ((~mask[:,-1])*torch.sum(mask, axis=1)).cpu().numpy(),
                 "easy_states"       : states.detach().cpu().numpy()[mask_easy, 0][:32],
                 "hard_states"       : states.detach().cpu().numpy()[mask_hard, 0][:32],
             })

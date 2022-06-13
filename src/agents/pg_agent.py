@@ -67,7 +67,7 @@ class PGAgent(BaseAgent):
         """
         return self.sum_to_go(rewards)
 
-    def reward_baseline(self, returns, masks):
+    def reward_baseline(self, returns, mask):
         """Compute the baseline as the average return at timestep t.
 
         The baseline is usually computed as the mean total return:
@@ -83,7 +83,7 @@ class PGAgent(BaseAgent):
         Args:
             returns (torch.Tensor): Tensor of shape (batch_size, steps), containing the
                 rewards-to-go obtained at every step.
-            masks (torch.Tensor): Boolean tensor of shape (batch_size, steps), that masks
+            mask (torch.Tensor): Boolean tensor of shape (batch_size, steps), that masks
                 out the part of the trajectory after it has finished.
 
         Returns:
@@ -94,12 +94,12 @@ class PGAgent(BaseAgent):
         # When working with a batch of trajectories, only the active trajectories are
         # considered for calculating the mean baseline.
         batch_size, _ = returns.shape
-        baseline = torch.sum(masks * returns, dim=0, keepdim=True) / torch.maximum(
-            torch.sum(masks, dim=0), torch.Tensor([1]).to(self.policy.device))
-        baseline = masks * torch.tile(baseline, dims=(batch_size, 1))
+        baseline = torch.sum(mask * returns, dim=0, keepdim=True) / torch.maximum(
+            torch.sum(mask, dim=0), torch.Tensor([1]).to(self.policy.device))
+        baseline = mask * torch.tile(baseline, dims=(batch_size, 1))
         return baseline
 
-    def entropy_term(self, logits, actions, masks):
+    def entropy_term(self, logits, actions, mask):
         """Compute the entropy regularization term.
         Check out: https://arxiv.org/pdf/1805.00909.pdf
 
@@ -108,7 +108,7 @@ class PGAgent(BaseAgent):
                 the logits for every action at every time step.
             actions (torch.Tensor): Tensor of shape (b, t), giving the actions selected by
                 the policy during rollout.
-            masks (torch.Tensor): Boolean tensor of shape (batch_size, steps), that masks
+            mask (torch.Tensor): Boolean tensor of shape (batch_size, steps), that masks
                 out the part of the trajectory after it has finished.
 
         Returns:
@@ -131,8 +131,8 @@ class PGAgent(BaseAgent):
         # This tensor is then broadcast into the shape (b, t) and the part of the episodes
         # that is finished is again masked.
         _, steps = actions.shape
-        episode_entropy = torch.sum(masks * step_entropy, dim=-1, keepdim=True)
-        episode_entropy = masks * torch.tile(episode_entropy, dims=(1, steps))
+        episode_entropy = torch.sum(mask * step_entropy, dim=-1, keepdim=True)
+        episode_entropy = mask * torch.tile(episode_entropy, dims=(1, steps))
         return episode_entropy
 
     def train(self, num_iter, steps, learning_rate, lr_decay=1.0, clip_grad=10.0, reg=0.0,
@@ -174,7 +174,8 @@ class PGAgent(BaseAgent):
 
             # Set the initial state and perform policy rollout.
             self.env.set_random_states()
-            states, actions, rewards, masks = self.rollout(steps)
+            states, actions, rewards, done = self.rollout(steps)
+            mask = self.generate_mask(done)
 
             # The shape of the states tensor is (b, steps+1, q). Discard the final states
             # from the trajectories. We have no information about the returns when starting
@@ -183,12 +184,12 @@ class PGAgent(BaseAgent):
 
             # Compute the loss.
             logits = self.policy(states)
-            episode_entropy = self.entropy_term(logits, actions, masks)
+            episode_entropy = self.entropy_term(logits, actions, mask)
             q_values = self.reward_to_go(rewards) - 0.5 * entropy_reg * episode_entropy
-            q_values -= self.reward_baseline(q_values, masks)
+            q_values -= self.reward_baseline(q_values, mask)
             nll = F.cross_entropy(logits.permute(0,2,1), actions, reduction="none")
-            weighted_nll = torch.mul(masks * nll, q_values)
-            loss = torch.sum(weighted_nll) / torch.sum(masks)
+            weighted_nll = torch.mul(mask * nll, q_values)
+            loss = torch.sum(weighted_nll) / torch.sum(mask)
 
             # Perform backward pass.
             optimizer.zero_grad()
@@ -204,7 +205,7 @@ class PGAgent(BaseAgent):
 
             # Book-keeping.
             mask_hard = np.any(self.env.entropy() > 0.6, axis=1)
-            mask_easy = np.any(~masks.cpu().numpy(), axis=1)
+            mask_easy = np.any(~mask.cpu().numpy(), axis=1)
             self.train_history[i] = defaultdict(lambda: np.nan)
             self.train_history[i].update({
                 "entropy"           : self.env.entropy(),
@@ -214,7 +215,7 @@ class PGAgent(BaseAgent):
                 "policy_loss"       : loss.item(),
                 "policy_total_norm" : total_norm.item(),
                 "nsolved"           : sum(self.env.disentangled()),
-                "nsteps"            : ((~masks[:,-1])*torch.sum(masks, axis=1)).cpu().numpy(),
+                "nsteps"            : ((~mask[:,-1])*torch.sum(mask, axis=1)).cpu().numpy(),
                 "easy_states"       : states.detach().cpu().numpy()[mask_easy, 0][:32],
                 "hard_states"       : states.detach().cpu().numpy()[mask_hard, 0][:32],
             })

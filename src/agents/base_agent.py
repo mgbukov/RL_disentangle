@@ -47,8 +47,8 @@ class BaseAgent:
                 the policy during rollout.
             rewards (torch.Tensor): Tensor of shape (b, t), giving the rewards obtained
                 during policy rollout.
-            masks (torch.Tensor): Tensor of shape (b, t), of boolean values, that masks
-                out the part of the trajectory after it has finished.
+            done (torch.Tensor): Tensor of shape (b, t) of boolean values, indicating
+                for which states of the batch the environment loop is done.
         """
         device = self.policy.device
         b = self.env.batch_size  # number of trajectories
@@ -79,13 +79,31 @@ class BaseAgent:
         batch = np.hstack([batch.real, batch.imag])
         states[steps] = torch.from_numpy(batch)
 
-        # if done[i] is False and done[i+1] is True, then the trajectory should be masked
-        # out at and after step i+2.
-        masks = ~torch.cat((done[0:1], done[1:] & done[:-1]), dim=0)
+        # Mask out the rewards after a trajectory is done.
+        mask = self.generate_mask(done)
+        rewards = mask*rewards
 
         # Permute `step` and `batch_size` dimensions.
         return (states.permute(1, 0, 2), actions.permute(1, 0),
-                (masks*rewards).permute(1, 0), masks.permute(1,0))
+                rewards.permute(1, 0), done.permute(1,0))
+
+    @torch.no_grad()
+    def generate_mask(self, done):
+        """Using the `done` tensor generate a mask for the batch of trajectories, that
+        masks out the part of any trajectory that has finished.
+
+        If done[i] is False and done[i+1] is True, then the trajectory should be masked
+        out at and after step i+2.
+
+        Args:
+            done (torch.Tensor): Tensor of shape (b, t) of boolean values, indicating
+                for which states of the batch the environment loop is done.
+
+        Returns:
+            mask (torch.Tensor): Tensor of shape (b, t), of boolean values, that masks
+                out the part of the trajectory after it has finished.
+        """
+        return ~torch.cat((torch.zeros_like(done[0:1], dtype=bool), done[:-1]), dim=0)
 
     @torch.no_grad()
     def test_accuracy(self, num_test, steps, initial_states=None, greedy=True):
@@ -121,7 +139,8 @@ class BaseAgent:
                 self.env.set_random_states(copy=False)
             else:
                 self.env.state = initial_states
-            states, actions, rewards, mask = self.rollout(steps, greedy=greedy)
+            states, actions, rewards, done = self.rollout(steps, greedy=greedy)
+            mask = self.generate_mask(done)
             entropies[i] = self.env.entropy()
             returns[i] = torch.sum(mask*rewards, axis=1).cpu().numpy()
             nsolved[i] = self.env.disentangled()
