@@ -1,5 +1,5 @@
 """
-python3 benchmark_uniform_policy.py -s 0 -q 5 -b 100 --steps 30 --max_steps 5000 --epsi 1e-3 -t 100
+python3 benchmark_uniform_policy.py -s 0 -q 5 --env_batch 100 --steps 30 --max_steps 5000 --epsi 1e-3 -t 100
 """
 
 import argparse
@@ -7,8 +7,6 @@ import os
 import time
 import sys
 sys.path.append("..")
-
-import numpy as np
 
 from src.envs.rdm_environment import QubitsEnvironment
 from src.policies.uniform_policy import UniformPolicy
@@ -22,7 +20,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-s", "--seed", dest="seed", type=int, help="random seed value", default=0)
 parser.add_argument("-q", "--num_qubits", dest="num_qubits", type=int,
     help="Number of qubits in the quantum system", default=2)
-parser.add_argument("-b", "--batch_size", dest="batch_size", type=int,
+parser.add_argument("--env_batch", dest="env_batch", type=int,
     help="Number of states in the environment batch", default=1)
 parser.add_argument("--steps", dest="steps", type=int,
     help="Number of steps in an episode. Use this parameter to set the number " +
@@ -47,7 +45,7 @@ log_file = os.path.join(log_dir, "bench.log")
 
 
 # Create environment, policy and agent.
-env = QubitsEnvironment(args.num_qubits, epsi=args.epsi, batch_size=args.batch_size)
+env = QubitsEnvironment(args.num_qubits, epsi=args.epsi, batch_size=args.env_batch)
 policy = UniformPolicy(env.num_actions)
 agent = PGAgent(env, policy)
 
