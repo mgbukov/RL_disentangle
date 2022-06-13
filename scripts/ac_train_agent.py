@@ -56,7 +56,7 @@ set_printoptions(precision=5, sci_mode=False)
 
 # Create file to log output during training.
 log_dir = os.path.join("..", "logs", f"{args.num_qubits}qubits",
-    f"ac_traj_{args.batch_size}_iters_{args.num_iter}")
+    f"ac_traj_{args.env_batch}_iters_{args.num_iter}")
 os.makedirs(log_dir, exist_ok=True)
 logfile = os.path.join(log_dir, "train.log")
 
@@ -80,7 +80,7 @@ Training parameters:
 
 
 # Create the environment.
-env = QubitsEnvironment(args.num_qubits, epsi=args.epsi, batch_size=args.batch_size)
+env = QubitsEnvironment(args.num_qubits, epsi=args.epsi, batch_size=args.env_batch)
 plot_reward_function(env, os.path.join(log_dir, "reward_function.png"))
 
 

@@ -28,7 +28,7 @@ class FCNNPolicy(nn.Module, BasePolicy):
             input_size (int): Size of the environment state.
             hidden_sizes (list[int]): A list of sizes for the hidden layers.
             out_size (int): Number of possible actions the agent can choose from.
-            dropout_rate (float): Dropout probability.
+            dropout_rate (float, optional): Dropout probability. Default value is 0.0.
         """
         super().__init__()
         self.input_size = input_size

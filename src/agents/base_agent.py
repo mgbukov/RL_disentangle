@@ -63,7 +63,7 @@ class BaseAgent:
         # Perform parallel rollout along all trajectories.
         for i in range(steps):
             batch = self.env.states.reshape(b, -1)
-            batch =  np.hstack([batch.real, batch.imag])
+            batch = np.hstack([batch.real, batch.imag])
             states[i] = torch.from_numpy(batch)
             if plan is None:
                 acts = self.policy.get_action(states[i], greedy=greedy, beta=beta)
@@ -76,8 +76,8 @@ class BaseAgent:
 
         # Add the last state to the trajectories.
         batch = self.env.states.reshape(b, -1)
-        batch =  np.hstack([batch.real, batch.imag])
-        states[i] = torch.from_numpy(batch)
+        batch = np.hstack([batch.real, batch.imag])
+        states[steps] = torch.from_numpy(batch)
 
         # if done[i] is False and done[i+1] is True, then the trajectory should be masked
         # out at and after step i+2.

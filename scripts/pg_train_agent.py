@@ -91,6 +91,7 @@ policy = FCNNPolicy(input_size, hidden_dims, output_size, args.dropout)
 
 # Maybe load a pre-trained model.
 if args.model_path is not None:
+    logText(f"Loading pre-trained model from {args.model_path}...")
     policy = FCNNPolicy.load(args.model_path)
 
 
