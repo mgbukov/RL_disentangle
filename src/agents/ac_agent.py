@@ -1,4 +1,5 @@
 from collections import defaultdict
+import os
 import time
 
 import numpy as np
@@ -26,7 +27,7 @@ class ACAgent(BaseAgent):
         test_history (dict): A dict object used for bookkeeping.
     """
 
-    def __init__(self, env, policy_network, value_network):
+    def __init__(self, env, policy_network, value_network, discount=1.):
         """Initialize policy gradient agent.
 
         Args:
@@ -37,6 +38,7 @@ class ACAgent(BaseAgent):
         self.env = env
         self.policy = policy_network
         self.value_network = value_network
+        self.discount = discount
         self.train_history = {}
         self.test_history = {}
 
@@ -75,7 +77,8 @@ class ACAgent(BaseAgent):
         return self.sum_to_go(rewards)
 
     def train(self, num_iter, steps, policy_lr, value_lr, batch_size, clip_grad=10.0,
-        policy_reg=0.0, value_reg=0.0, log_every=1, test_every=100, logfile="", discount=1.):
+        policy_reg=0.0, value_reg=0.0, log_every=1, test_every=100, save_every=100,
+        log_dir=".", logfile=""):
         """Train the agent using vanilla policy-gradient algorithm.
 
         Args:
@@ -95,6 +98,7 @@ class ACAgent(BaseAgent):
                 be written. If empty the logging information is printed to the console.
                 Default value is empty string.
         """
+        discount = self.discount
         # Move the neural network to device and prepare for training.
         device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         # device = torch.device("cpu")
@@ -223,7 +227,7 @@ class ACAgent(BaseAgent):
             # Test the agent.
             if i % test_every == 0:
                 tic = time.time()
-                entropies, returns, nsolved, nsteps = self.test_accuracy(10, steps)#, initial_batch)
+                entropies, returns, nsolved, nsteps = self.test_accuracy(10, steps)
                 self.test_history[i] = {
                     "entropies" : entropies,
                     "returns" : returns,
@@ -234,5 +238,11 @@ class ACAgent(BaseAgent):
                 logText(f"Iteration {i}\nTesting agent accuracy for {steps} steps...", logfile)
                 logText(f"Testing took {toc-tic:.3f} seconds.", logfile)
                 log_test_stats(self.test_history[i], logfile)
+
+            if i % save_every == 0:
+                self.policy.save(os.path.join(log_dir, f"policy_{i}.bin"))
+                self.value_network.save(os.path.join(log_dir, f"value_net_{i}.bin"))
+                torch.save(policy_optimizer.state_dict, os.path.join(log_dir, f"policy_{i}.optim"))
+                torch.save(value_optimizer.state_dict, os.path.join(log_dir, f"value_{i}.optim"))
 
 #

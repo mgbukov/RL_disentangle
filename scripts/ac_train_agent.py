@@ -44,6 +44,7 @@ parser.add_argument("--clip_grad", dest="clip_grad", type=float, default=10.0)
 parser.add_argument("--dropout", dest="dropout", type=float, default=0.0)
 parser.add_argument("--log_every", dest="log_every", type=int, default=100)
 parser.add_argument("--test_every", dest="test_every", type=int, default=1000)
+parser.add_argument("--save_every", dest="save_every", type=int, default=1000)
 # parser.add_argument("--model_path", dest="model_path", type=str,
 #     help="File path to load the parameters of a saved policy", default=None)
 args = parser.parse_args()
@@ -102,7 +103,8 @@ value_network = FCNNPolicy(input_size, hidden_dims, output_size, args.dropout)
 agent = ACAgent(env, policy_network, value_network)
 tic = time.time()
 agent.train(args.num_iter, args.steps, args.policy_lr, args.value_lr, args. batch_size,
-    args.clip_grad, args.policy_reg, args.value_reg, args.log_every, args.test_every, logfile)
+    args.clip_grad, args.policy_reg, args.value_reg, args.log_every, args.test_every,
+    args.save_every, log_dir, logfile)
 toc = time.time()
 agent.save_policy(log_dir)
 agent.save_history(log_dir)

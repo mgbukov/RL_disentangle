@@ -1,4 +1,5 @@
 from collections import defaultdict
+import os
 import time
 
 import numpy as np
@@ -135,8 +136,9 @@ class PGAgent(BaseAgent):
         episode_entropy = mask * torch.tile(episode_entropy, dims=(1, steps))
         return episode_entropy
 
-    def train(self, num_iter, steps, learning_rate, lr_decay=1.0, clip_grad=10.0, reg=0.0,
-              entropy_reg=0.0, log_every=1, test_every=100, logfile=""):
+    def _train(self, num_iter, steps, learning_rate, lr_decay=1.0, clip_grad=10.0, reg=0.0,
+              entropy_reg=0.0, log_every=1, test_every=100, save_every=1000000,
+              log_dir=".", logfile=""):
         """Train the agent using vanilla policy-gradient algorithm.
 
         Args:
@@ -152,21 +154,16 @@ class PGAgent(BaseAgent):
                 Default value is 0.0.
             log_every (int, optional): Every `log_every` iterations write the results to
                 the log file. Default value is 100.
+            save_every (int, optional): Every `save_every` epochs save a checkpoint for the
+                current weights of the model. Default value is 1.
+            log_dir (str, optional): Path to the directory where save checkpoints should be
+                stored. Default value is the current directory.
             logfile (str, optional): File path to the file where logging information should
                 be written. If empty the logging information is printed to the console.
                 Default value is empty string.
         """
-        # Move the neural network to device and prepare for training.
-        device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-        # device = torch.device("cpu")
-        logText(f"Using device: {device}\n", logfile)
-        self.policy.train()
-        self.policy = self.policy.to(device)
-
-        # Initialize the optimizer and the scheduler.
-        optimizer = torch.optim.Adam(self.policy.parameters(), lr=learning_rate, weight_decay=reg)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=lr_decay)
-        logText(f"Using optimizer:\n{str(optimizer)}\n", logfile)
+        optimizer = self.optimizer
+        scheduler = self.scheduler
 
         # Start the training loop.
         for i in tqdm(range(num_iter)):
@@ -229,7 +226,7 @@ class PGAgent(BaseAgent):
             # Test the agent.
             if i % test_every == 0:
                 tic = time.time()
-                entropies, returns, nsolved, nsteps = self.test_accuracy(10, steps)#, initial_batch)
+                entropies, returns, nsolved, nsteps = self.test_accuracy(10, steps)
                 self.test_history[i] = {
                     "entropies" : entropies,
                     "returns" : returns,
@@ -240,5 +237,64 @@ class PGAgent(BaseAgent):
                 logText(f"Iteration {i}\nTesting agent accuracy for {steps} steps...", logfile)
                 logText(f"Testing took {toc-tic:.3f} seconds.", logfile)
                 log_test_stats(self.test_history[i], logfile)
+
+            # Save checkpoint.
+            if i % save_every == 0:
+                self.policy.save(os.path.join(log_dir, f"policy_{i}.bin"))
+                torch.save({
+                    "optim_state_dict": optimizer.state_dict(),
+                    "optim_kwargs": {"lr": learning_rate, "weight_decay": reg},
+                    "scheduler_state_dict": scheduler.state_dict(),
+                    "scheduler_kwargs": {"step_size": 1, "gamma": lr_decay},
+                    "train_kwargs": {
+                        "learning_rate" : learning_rate,
+                        "lr_decay" : lr_decay,
+                        "clip_grad" : clip_grad,
+                        "reg" : reg,
+                        "entropy_reg" : entropy_reg,
+                        "log_every" : log_every,
+                        "test_every" : test_every,
+                        "save_every" : save_every,
+                        "log_dir" : log_dir,
+                        "logfile" : logfile,
+                    }
+                }, f"checkpoint_{i}")
+
+    def train(self, num_iter, steps, learning_rate, lr_decay=1.0, clip_grad=10.0, reg=0.0,
+              entropy_reg=0.0, log_every=1, test_every=100, save_every=1000000,
+              log_dir=".", logfile=""):
+        # Move the neural network to device and prepare for training.
+        device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        # device = torch.device("cpu")
+        logText(f"Using device: {device}\n", logfile)
+        self.policy.train()
+        self.policy = self.policy.to(device)
+
+        # Initialize the optimizer and the scheduler.
+        self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=learning_rate, weight_decay=reg)
+        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=1, gamma=lr_decay)
+        logText(f"Using optimizer:\n{str(self.optimizer)}\n", logfile)
+
+        # Start training.
+        self._train(num_iter, steps, learning_rate, lr_decay, clip_grad, reg, entropy_reg,
+            log_every, test_every, save_every, log_dir, logfile)
+
+    def train_from_checkpoint(self, checkpoint_path, num_iter):
+        # Move the neural network to device and prepare for training.
+        device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        # device = torch.device("cpu")
+        self.policy.train()
+        self.policy = self.policy.to(device)
+
+        # Load the optimizer and scheduler.
+        params = torch.load(checkpoint_path)
+        self.optimizer = torch.optim.Adam(self.policy.parameters(), **params["optim_kwargs"])
+        self.optimizer.load_state_dict(params["optimizer_state_dict"])
+        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, **params["scheduler_kwargs"])
+        self.scheduler.load_state_dict(params["scheduler_state_dict"])
+
+        # Start training.
+        params["train_kwargs"]["num_iter"] = num_iter
+        self._train(**params["train_kwargs"])
 
 #
