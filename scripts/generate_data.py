@@ -14,6 +14,7 @@ from tqdm import tqdm
 
 from src.agents.expert import SearchExpert
 from src.envs.rdm_environment import QubitsEnvironment
+from src.infrastructure.logging import logText
 
 
 # Parse command line arguments.
@@ -30,12 +31,19 @@ parser.add_argument("--num_episodes", dest="num_episodes", type=int,
 args = parser.parse_args()
 
 
-# Run the expert to generate data.
+# Create file to log output during training.
+log_dir = os.path.join("..", "data", f"{args.num_qubits}qubits")
+os.makedirs(log_dir, exist_ok=True)
+logfile = os.path.join(log_dir, "generate.log")
+
+# Create the environment and the expert.
 env = QubitsEnvironment(args.num_qubits, epsi=args.epsi, batch_size=1)
 expert = SearchExpert(env, args.beam_size)
-dataset = {"states":[], "actions":[]}
 
-print(f"Solving {args.num_episodes} {args.num_qubits}-qubits systems")
+
+# Run the expert to generate data.
+logText(f"Solving {args.num_episodes} {args.num_qubits}-qubits systems", logfile)
+dataset = {"states":[], "actions":[]}
 tic = time.time()
 for _ in tqdm(range(args.num_episodes)):
     env.set_random_states()
@@ -44,16 +52,15 @@ for _ in tqdm(range(args.num_episodes)):
     dataset["states"].append(states)
     dataset["actions"].append(actions)
 toc = time.time()
-print(f"Data generation took {toc-tic:.3f} seconds")
+logText(f"Data generation took {toc-tic:.3f} seconds", logfile)
 
 dataset["states"] = np.vstack(dataset["states"])
 dataset["actions"] = np.hstack(dataset["actions"])
 
 
 # Save the dataset.
-log_dir = os.path.join("..", "data", f"{args.num_qubits}qubits")
-os.makedirs(log_dir, exist_ok=True)
-data_file = os.path.join(log_dir, f"beam_{args.beam_size}_episodes_{args.num_episodes}.pickle")
+data_file = os.path.join(
+    log_dir, f"beam_{args.beam_size}_episodes_{args.num_episodes}.pickle")
 
 with open(data_file, "wb") as f:
     pickle.dump(dataset, f)
