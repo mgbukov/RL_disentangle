@@ -119,54 +119,56 @@ class ACAgent(BaseAgent):
         # Start the training loop.
         for i in tqdm(range(num_iter)):
             tic = time.time()
-
             # Set the initial state and perform policy rollout.
             self.env.set_random_states()
             states, actions, rewards, done = self.rollout(steps)
+            assert actions.shape == rewards.shape == done.shape
             mask = self.generate_mask(done)
-
-            # Fit the value network.
-            # This is bad! There must be a way to draw random samples without reshaping.
-            # Also this reshaping does not take into account that there might be trajectories
-            # that have finished before reaching the maximum number of steps.
-            #
-            # system_size = states.shape[-1]
-            # prev_obs = states[:,  :-1, :].reshape(-1, system_size)
-            # next_obs = states[:, 1:  , :].reshape(-1, system_size)
-            # rwrd = rewards[:, -1].reshape(-1)
-            #
-            # A correct but not very good solution.
-            prev_obs, next_obs, rwrd, ddone = [], [], [], []
-            for idx, traject in enumerate(states):
-                length = torch.sum(mask[idx]).item()
-                prev_obs.append(traject[:length-1])
-                next_obs.append(traject[1:length])
-                rwrd.append(rewards[idx, :length-1])
-                ddone.append(done[idx, :length-1])
-            prev_obs = torch.vstack(prev_obs)
-            next_obs = torch.vstack(next_obs)
-            rwrd = torch.hstack(rwrd)
-            done = torch.hstack(ddone)
-            #
-            # Find a torch implementation of np.random.choice()
-            # np.random.choice(np.ndarray, mask) -- works out perfectly!
+            b, t, q = states.shape
+            mindices = torch.arange(b * t).reshape(b, t)
+            next_mask = torch.zeros((b, t), dtype=torch.bool)
+            next_mask[:, 1:] = mask
+            prev_mask = torch.roll(next_mask, shifts=-1, dims=1)
+            assert torch.all(next_mask[:, 0] == False)
+            assert torch.all(prev_mask[:, -1] == False)
+            assert torch.all(torch.sum(prev_mask, dim=1) == torch.sum(next_mask, dim=1))
+            # Indices into states at time (t)
+            prev_indices = mindices.ravel()[prev_mask.ravel()]
+            # Indices into states at time (t+1)
+            next_indices = mindices.ravel()[next_mask.ravel()]
+            # Indices into `rewards`, `actions`, `done` - time (t)
+            arwd_indices = torch.arange(done.numel())[mask.ravel()]
+            assert prev_indices.shape == next_indices.shape == arwd_indices.shape
+            # Reshuffle index arrays
+            shuffle_indices = torch.randperm(next_indices.numel())
+            prev_indices = prev_indices[shuffle_indices]
+            next_indices = next_indices[shuffle_indices]
+            arwd_indices = arwd_indices[shuffle_indices]
+            # Flatten all trajectoires in batch into single array of states
+            observations = states.reshape(-1, q)
+            done_flat = done.ravel()
+            rewards_flat = rewards.ravel()
 
             total_loss, total_grad_norm, j = 0.0, 0.0, 0
-            for idxs in torch.randperm(len(prev_obs)).to(device).split(batch_size):
+            for i in range(0, prev_indices.numel(), batch_size):
+                # Select ...
+                prev_obs = observations[prev_indices[i:i+batch_size]]
+                next_obs = observations[next_indices[i:i+batch_size]]
+                terminal = done_flat[arwd_indices[i:i+batch_size]]
+                _rewards = rewards_flat[arwd_indices[i:i+batch_size]]
                 # Compute the targets for the value network using one-step bootstrapping.
                 # Values of terminal states are set to 0.
-                prev_values = self.value_network(prev_obs[idxs]).squeeze(dim=-1)
-                next_values = self.value_network(next_obs[idxs]).squeeze(dim=-1) * ~done[idxs]
-                targets = rwrd[idxs] + discount * next_values
-
-                # Compute the loss for the value network.
+                prev_values = self.value_network(prev_obs).squeeze(dim=-1)
+                next_values = self.value_network(next_obs).squeeze(dim=-1) * ~terminal
+                targets = _rewards + discount * next_values
+                # Compute the loss for the value network
                 value_loss = 0.5 * F.mse_loss(prev_values, targets, reduction="mean")
-
-                # Perform backward pass for the value network.
+                # Perform backwards pass in value network
                 value_optimizer.zero_grad()
                 value_loss.backward()
-                total_norm = torch.norm(
-                    torch.stack([torch.norm(p.grad) for p in self.value_network.parameters()]))
+                total_norm = torch.norm(torch.stack(
+                    [torch.norm(p.grad) for p in self.value_network.parameters()]
+                ))
                 torch.nn.utils.clip_grad_norm_(self.value_network.parameters(), clip_grad)
                 value_optimizer.step()
 
@@ -176,17 +178,19 @@ class ACAgent(BaseAgent):
 
             # Update the policy network.
             # Compute the advantages using the critic,
-            prev_obs = states[:,  :-1, :]
-            next_obs = states[:, 1:  , :]
+            prev_obs = observations[prev_indices]
+            next_obs = observations[next_indices]
+            _rewards = rewards_flat[arwd_indices]
             prev_values = self.value_network(prev_obs).squeeze(dim=-1)
             next_values = self.value_network(next_obs).squeeze(dim=-1)
-            advantages = rewards + discount * next_values - prev_values
+            advantages = _rewards + discount * next_values - prev_values
 
             # Compute the loss for the policy gradient.
             logits = self.policy(prev_obs)
-            nll = F.cross_entropy(logits.permute(0,2,1), actions, reduction="none")
-            weighted_nll = torch.mul(mask * nll, advantages)
-            loss = torch.sum(weighted_nll) / torch.sum(mask)
+            _actions = actions.ravel()[arwd_indices]
+            nll = F.cross_entropy(logits, _actions, reduction="none")
+            weighted_nll = torch.mul(nll, advantages)
+            loss = torch.mean(weighted_nll)
 
             # Perform backward pass.
             policy_optimizer.zero_grad()
