@@ -9,7 +9,7 @@ import time
 sys.path.append("..")
 
 from src.agents.pg_agent import PGAgent
-from src.envs.rdm_environment import QubitsEnvironment
+from src.envs.chipoff_environment import QubitsEnvironment
 from src.infrastructure.logging import logText, plot_reward_function
 from src.infrastructure.util_funcs import fix_random_seeds, set_printoptions
 from src.policies.fcnn_policy import FCNNPolicy

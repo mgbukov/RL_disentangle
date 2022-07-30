@@ -134,7 +134,7 @@ class BaseAgent:
                 of steps for each episode.
         """
         batch_size = self.env.batch_size  # number of trajectories
-        entropies = np.zeros((num_test, batch_size, self.env.L))
+        entropies = np.zeros((num_test,) + self.env.entropy().shape)
         returns = np.zeros((num_test, batch_size))
         nsolved = np.zeros((num_test, batch_size))
         nsteps  = np.zeros((num_test, batch_size))
@@ -153,7 +153,7 @@ class BaseAgent:
             nsteps[i] = torch.sum(mask, axis=1).cpu().numpy()
 
         num_episodes = num_test * batch_size
-        return (entropies.reshape(num_episodes, self.env.L), returns.reshape(num_episodes),
+        return (entropies.reshape(num_episodes, -1), returns.reshape(num_episodes),
                 nsolved.reshape(num_episodes), nsteps.reshape(num_episodes))
 
     def save_policy(self, filepath, filename="policy.bin"):
