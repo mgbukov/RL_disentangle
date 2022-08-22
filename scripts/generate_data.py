@@ -1,6 +1,11 @@
 """
 python3 generate_data.py -s 0 -q 5 --beam_size 100 --epsi 1e-3 --num_episodes 100000
 """
+#
+# There is an unknown bug in beam_search.py
+# Run "python3 generate_data.py -q 5 --beam_size 100 --epsi 1e-3 --num_episodes 10 -s 13"
+# to reproduce
+#
 
 import argparse
 import os
@@ -13,7 +18,7 @@ import numpy as np
 from tqdm import tqdm
 
 from src.agents.expert import SearchExpert
-from src.envs.rdm_environment import QubitsEnvironment
+from src.envs.chipoff_environment import QubitsEnvironment
 from src.infrastructure.logging import logText
 
 
@@ -30,9 +35,12 @@ parser.add_argument("--num_episodes", dest="num_episodes", type=int,
                     help="Number of episodes to be generated", default=1)
 args = parser.parse_args()
 
+# Fix seeds
+np.random.seed(args.seed)
+
 
 # Create file to log output during training.
-log_dir = os.path.join("..", "data", f"{args.num_qubits}qubits")
+log_dir = os.path.join("..", "data", f"{args.num_qubits}qubits-chipoff")
 os.makedirs(log_dir, exist_ok=True)
 logfile = os.path.join(log_dir, "generate.log")
 
@@ -46,14 +54,19 @@ logText(f"Solving {args.num_episodes} {args.num_qubits}-qubits systems", logfile
 dataset = {"states":[], "actions":[]}
 tic = time.time()
 for _ in tqdm(range(args.num_episodes)):
-    env.set_random_states()
-    psi = env.states[0]
-    states, actions = expert.rollout(psi, num_iter=1000, verbose=False)
-    dataset["states"].append(states)
-    dataset["actions"].append(actions)
+    flag = False
+    while not flag:
+        env.set_random_states()
+        psi = env.states[0]
+        states, actions = expert.rollout(psi, num_iter=1000, verbose=False)
+        if states is not None and actions is not None:
+            dataset["states"].append(states)
+            dataset["actions"].append(actions)
+            flag = True
 toc = time.time()
 logText(f"Data generation took {toc-tic:.3f} seconds", logfile)
 
+print(dataset['states'])
 dataset["states"] = np.vstack(dataset["states"])
 dataset["actions"] = np.hstack(dataset["actions"])
 

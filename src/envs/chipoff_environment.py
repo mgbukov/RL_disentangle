@@ -1,10 +1,7 @@
+import numpy as np
 from itertools import permutations
 
-import numpy as np
-
 from src.envs import util
-# from src.envs.batch_transpose import cy_transpose_batch
-from src.envs.util import _QSYSTEMS_P, _QSYSTEMS_INV_P
 
 
 class QubitsEnvironment:
@@ -53,9 +50,9 @@ class QubitsEnvironment:
         self.batch_size = batch_size
 
         # The action space consists of all possible pairs of qubits.
-        self.num_actions = self.L - 1
-        self.actions = dict(enumerate((0, i) for i in range(1, num_qubits)))
+        self.actions = dict(enumerate(permutations(range(self.L), 2)))
         self.actToKey = {v:k for k, v in self.actions.items()}
+        self.num_actions = len(self.actions)
 
         # The states of the system are represented as a numpy array of shape (b, 2,2,...,2).
         self.shape = (batch_size,) + (2,) * num_qubits
@@ -125,8 +122,6 @@ class QubitsEnvironment:
         # Compute 2x2 reduced density matrices
         batch = batch.reshape(B, 4, 2 ** (L - 2))
         rdms = batch @ np.transpose(batch.conj(), [0, 2, 1])
-        # ----
-        # Compute single qubit entropies
         _, Us = np.linalg.eigh(rdms)
         Us = np.swapaxes(Us.conj(), 1, 2)
         # ----

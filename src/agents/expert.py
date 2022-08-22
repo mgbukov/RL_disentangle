@@ -17,9 +17,10 @@ class SearchExpert:
         # Generate a trajectory by disentangling the system qubit by qubit.
         actions, states = [], []
         for q in range(env.L - 1):
-            path = b.start(psi, env, q, num_iter, verbose)
+            path = b.start(psi.copy(), env, q, num_iter, verbose)
+            if path is None:
+                return None, None
             actions.extend(path)
-
             env.states = np.expand_dims(psi, axis=0)
             for a in path:
                 s = env.states[0].reshape(-1)
@@ -31,6 +32,11 @@ class SearchExpert:
             new_env_acts = {k:v for k,v in env.actions.items() if q not in v}
             env.actions = new_env_acts
             env.num_actions = len(new_env_acts)
+
+            if env.disentangled():
+                break
+            else:
+                return None, None
 
         # Restore the environment parameters.
         self.env.actions = original_env_actions
