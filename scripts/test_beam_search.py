@@ -11,6 +11,7 @@ sys.path.append("..")
 
 import numpy as np
 
+from src.agents.expert import SearchExpert
 from src.envs.rdm_environment import QubitsEnvironment
 from src.infrastructure.beam_search import BeamSearch
 from src.infrastructure.logging import logBarchart
@@ -42,35 +43,34 @@ beam_search = BeamSearch(beam_size=args.beam_size)
 
 tic = time.time()
 # # Test single-qubit disentanglement.
-fix_random_seeds(args.seed)
-entropies = np.ndarray((num_test, L, L))
-path_lens = np.ndarray((num_test, L))
-for i in range(num_test):
-    env.set_random_states()
-    psi = env.states
+# fix_random_seeds(args.seed)
+# entropies = np.ndarray((num_test, L, L))
+# path_lens = np.ndarray((num_test, L))
+# for i in range(num_test):
+#     env.set_random_states()
+#     psi = env.states
 
-    for q0 in range(L):
-        path = beam_search.start(np.squeeze(psi,axis=0), env, qubit=q0,
-                                 num_iters=100, verbose=False)
-        env.states = psi
-        if args.verbose:
-            print("====================================================")
-            print(f"Trying to disentangle a single qubit: qubit {q0}")
-            print(f"found a path with length {len(path)}: {path}")
-            print(" entropy at step 0:", env.Entropy(env.states))
-        for idx, a in enumerate(path):
-            _ = env.step(a)
-            if args.verbose:
-                print(f" entropy at step {idx+1}: {env.Entropy(env.states)}")
-        entropies[i][q0] = env.Entropy(env.states)[0]
-        path_lens[i][q0] = len(path)
+#     for q0 in range(L):
+#         path = beam_search.start(np.squeeze(psi,axis=0), env, qubit=q0,
+#                                  num_iters=100, verbose=False)
+#         env.states = psi
+#         if args.verbose:
+#             print("====================================================")
+#             print(f"Trying to disentangle a single qubit: qubit {q0}")
+#             print(f"found a path with length {len(path)}: {path}")
+#             print(" entropy at step 0:", env.Entropy(env.states))
+#         for idx, a in enumerate(path):
+#             _ = env.step(a)
+#             if args.verbose:
+#                 print(f" entropy at step {idx+1}: {env.Entropy(env.states)}")
+#         entropies[i][q0] = env.Entropy(env.states)[0]
+#         path_lens[i][q0] = len(path)
 
 # for i in range(L):
 #     figname = f"/home/cacao-macao/Projects/RL_disentangle/logs/5qubits/single_qubit_disent_q{i}"
 #     figtitle = f"Disentangling qubit {i}\nAverage entropy after {path_lens.mean(axis=0)[i]:.1f} steps"
 #     logBarchart(figname, np.arange(L), entropies.mean(axis=0)[i], figtitle,
 #         labels={},ylim=(0, 0.7))
-
 
 
 # # Test entire system disentanglement.
@@ -91,7 +91,38 @@ for i in range(num_test):
 #             print(f" entropy at step {idx+1}: {env.Entropy(env.states)}")
 
 
+# Test entire system disentanglement qubit-by-qubit.
+path_lens = []
+s = SearchExpert(env, 100)
+fix_random_seeds(args.seed)
+for nt in range(num_test):
+    print("i:", nt)
+    env.set_random_states()
+    psi = env.states
+    states, actions = s.rollout(np.squeeze(psi, axis=0), num_iter=100, verbose=False)
+    env.states = psi
+    if args.verbose:
+        print("====================================================")
+        print(f"Trying to disentangle the entire system")
+        print(f"found a path with length {len(actions)}: {actions}")
+        print(" entropy at step 0:", env.Entropy(env.states))
+    for idx, a in enumerate(actions):
+        _ = env.step(a)
+        if args.verbose:
+            print(f" entropy at step {idx+1}: {env.Entropy(env.states)}")
+    
+    if not env.disentangled():
+        print("ERROR: THE ENVIRONMENT IS NOT DISENTANGLED")
+    else:
+        print("OK")
+    path_lens.append(len(actions))
+
+
 toc = time.time()
 print(f"{num_test} iters took {toc-tic:.3f} seconds")
+print(f"average steps to disentangle: {np.array(path_lens).mean()}")
 
 #
+
+path = beam_search.start(np.squeeze(psi, axis=0), env, 0, verbose=False)
+print(path)

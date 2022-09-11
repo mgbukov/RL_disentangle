@@ -35,7 +35,6 @@ class BasePolicy:
         """
         states = states.to(self.device)
         logits = self(states) * beta
-        # logits = self.mask_logits(logits, disallowed)
         probs = F.softmax(logits, dim=-1)
         if greedy:
             acts = torch.argmax(probs, dim=1, keepdim=True)
@@ -43,45 +42,15 @@ class BasePolicy:
             acts = torch.multinomial(probs, 1)
         return acts.squeeze(dim=-1)
 
-
-    def mask_logits(self, logits, disallowed):
-        """Take a batch of logits and a batch of disallowed actions, and mark the scores
-        of the disallowed actions with ``-inf``.
-        Passing ``None`` in for the disallowed actions is also acceptable; you'll just get
-        the unmodified logits.
-
-        When this function is used with a batch of time-series, make sure that the shape
-        of @logits equals the shape of @disallowed. In this case the disallowed actions at
-        step ``i`` refer to the logits at step ``i+1``.
-
-        Args:
-            logits (torch.Tensor): Tensor of shape (b, n), or (b, t, n), giving the logits
-                output of the policy network, where b = batch size,
-                t = number of time steps, n = number of actions.
-            disallowed (torch.Tensor): Tensor of shape (b,), or (b, t), giving the
-                disallowed actions of the agent.
-
-        Returns:
-            logits (torch.Tensor):  Tensor of shape (b, n), or (b, t, n).
-        """
-        if disallowed is not None:
-            assert logits.shape[:-1] == disallowed.shape, "`logits` and `disallowed` must be of the same shape"
-            disallowed = disallowed.to(self.device)
-
-            if len(logits.shape) == 2:
-                B, N = logits.shape
-                logits[torch.arange(B, device=self.device), disallowed] = float("-inf")
-            elif len(logits.shape) == 3:
-                B, T, N = logits.shape
-                logits[torch.arange(B, device=self.device).reshape(B,1), torch.arange(1, T, device=self.device), disallowed[:,:-1]] = float("-inf")
-            else:
-                raise ValueError("Unknown tensor shape!")
-        return logits
-
     @property
     def device(self):
         """str: Determine which device to place the Tensors upon, CPU or GPU."""
         return self.output_layer.weight.device
+
+    @property
+    def num_params(self):
+        """int: Number of trainable parameters of the model."""
+        return sum(p.numel() for p in self.parameters())
 
     @classmethod
     def load(cls, model_path):

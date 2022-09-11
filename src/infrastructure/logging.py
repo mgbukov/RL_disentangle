@@ -192,7 +192,7 @@ def log_train_stats(stats, logfile):
     Policy Total grad norm:   {stats["policy_total_norm"]:.5f}
     Solved trajectories:      {stats["nsolved"]} / {batch_size}
     Avg steps to disentangle: {np.mean(stats["nsteps"][stats["nsteps"].nonzero()]):.3f}
-    Median steps to disent.: {np.median(stats["nsteps"][stats["nsteps"].nonzero()]):.1f}
+    Median steps to disent.:  {np.median(stats["nsteps"][stats["nsteps"].nonzero()]):.1f}
     """, logfile)
 
 def log_test_stats(stats, logfile=""):
@@ -219,24 +219,24 @@ def log_test_stats(stats, logfile=""):
     num_episodes = len(returns)
     solved = sum(nsolved)
     logText(f"""\
-    Solved states:         {solved:.0f} / {num_episodes} = {solved/(num_episodes)*100:.3f}%
-    Min entropy:           {entropies.min():.5f}
-    Mean final entropy:    {np.mean(entropies):.4f}
-    95 percentile entropy: {np.quantile(entropies.mean(axis=-1).reshape(-1), 0.95):.5f}
-    Max entropy:           {entropies.max():.5f}
-    Mean return:           {np.mean(returns):.4f}
+    Solved states:            {solved:.0f} / {num_episodes} = {solved/(num_episodes)*100:.3f}%
+    Min entropy:              {entropies.min():.5f}
+    Mean final entropy:       {np.mean(entropies):.4f}
+    95 percentile entropy:    {np.quantile(entropies.mean(axis=-1).reshape(-1), 0.95):.5f}
+    Max entropy:              {entropies.max():.5f}
+    Mean return:              {np.mean(returns):.4f}
     Avg steps to disentangle: {np.mean(nsteps[nsteps.nonzero()]):.3f}
-    Median steps to disent.: {np.median(nsteps[nsteps.nonzero()]):.1f}
+    Median steps to disent.:  {np.median(nsteps[nsteps.nonzero()]):.1f}
     """, logfile)
 
 def plot_entropy_curves(train_history, filepath, lw=[0.4, 0.4, 0.6, 0.6]):
     keys = sorted(train_history.keys())
 
     # Define entropies curve.
-    ent_min = np.array([np.min(train_history[i]["entropy"]) for i in keys])
-    ent_max = np.array([np.max(train_history[i]["entropy"]) for i in keys])
-    ent_mean = np.array([np.mean(train_history[i]["entropy"]) for i in keys])
-    ent_quantile = np.array([np.quantile(train_history[i]["entropy"], 0.95) for i in keys])
+    ent_min = np.array([np.min(train_history[i]["entropies"]) for i in keys])
+    ent_max = np.array([np.max(train_history[i]["entropies"]) for i in keys])
+    ent_mean = np.array([np.mean(train_history[i]["entropies"]) for i in keys])
+    ent_quantile = np.array([np.quantile(train_history[i]["entropies"], 0.95) for i in keys])
 
     # Plot curves.
     logPlot(figname=filepath,
@@ -252,6 +252,13 @@ def plot_policy_loss(train_history, filepath, lw=0.4):
     policy_loss = [train_history[i]["policy_loss"] for i in range(num_iter)]
     logPlot(figname=filepath, funcs=[policy_loss], legends=["loss"],
         labels={"x":"Iteration", "y":"Loss"}, fmt=["-b"], lw=[lw], figtitle="Policy Training Loss")
+
+def plot_policy_entropy(train_history, filepath, lw=0.4):
+    num_iter = len(train_history)
+    policy_entropy = [train_history[i]["policy_entropy"] for i in range(num_iter)]
+    logPlot(figname=filepath, funcs=[policy_entropy], legends=["entropy"],
+        labels={"x":"Iteration", "y":"Entropy"}, fmt=["-r"], lw=[lw], figtitle="Policy Entropy")
+
 
 def plot_value_loss(train_history, filepath, lw=0.4):
     num_iter = len(train_history)

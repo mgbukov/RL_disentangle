@@ -156,13 +156,13 @@ def forward(x, weights, o):
                 # Instead of permuting w we are associating a different w to every g.
                 # Thus instead of w_p = apply(w, g), we use w_p = weights[g] 
                 w_p = weights[g]
+                out = x_p @ w_p # shape=(1, o)
 
                 # After the forward pass we get output of shape (1, o).
                 # We need to produce one single number for our current action y[i]. Thus,
                 # we need to sum the outputs (or take mean w/e). The reason for this is
                 # that the values in this output vector are not associated in any way with
                 # the other output classes, but only with class `i`.
-                out = x_p @ w_p # shape=(1, o)
                 out = out.mean()
                 y_i.append(out)
 
@@ -182,13 +182,152 @@ x = np.random.randint(-10, 10, size=(1, d))
 # Thus apply(w, g) = weights[g]
 weights = np.random.randint(-10, 10, size=(size_G, d, o))
 
-
-print("\n\tx_p\t\t\ty_p\n")
+print("\n### Linear model ###")
+print("\tx_p\t\t\ty_p\n")
 for perm in all_perms.values():
     x_p = perm_apply(x, perm)
     y_p = forward(x_p, weights, o)
     print(x_p, y_p)
 
+
+#----------------------------- Multi-layer Perceptron (MLP) -----------------------------#
+# If we would like to use a more complicated model, then we need to perform the same
+# operation for all of the model's layers.
+#
+
+def mlp_forward(x, model_parameters, o):
+    """Forward pass of a permutation equivariant multi-layer perceptron model.
+    x (shape=(1,d)) --> FC_1 (shape(d, h1)) --> ... --> FC_n (shape(h, hn)) --> y (shape(1, o))
+
+    Args:
+        x (np.Array): A numpy array of shape (1, d) giving the input features.
+        model_parameters (dict): A dictionary containing the weights for every layer:
+            i (int): A numpy array of shape (size_G, h_(i-1), h_i) giving the weights of
+                the i-th hidden layer.
+        o (int): Number of output classes.
+    
+    Result:
+        y (np.Array): A numpy array of shape (1, o) giving the output scores for each class.
+    """
+
+    y = np.zeros(shape=(1, o))
+
+    for i in range(o):
+        y_i = []
+
+        # Sum_u y(u) (formula 10.11)
+        for u in cosets[i]:
+            # (f*w)(u) = Sum_g f (ug-1) * w(g) (formula 10.6)
+            for g in all_perms.keys():
+                ug_inv = prod_with_inverse(u, g)
+
+                # Permutation of x - f(ug-1)
+                x_p = perm_apply(x, ug_inv)
+
+                # Now instead of a linear model we have a multi-layer perceptron.
+                out = x_p
+                num_layers = len(model_parameters)
+                for j in range(num_layers):
+                    w, b = model_parameters[j]
+
+                    # Again, instead of permuting w we are associating a different w to every g.
+                    w_p, b_p = w[g], b[g]
+                    out = out @ w_p + b_p
+                    if j < num_layers-1: # apply ReLU non-linearity on all but the last layer
+                        out = np.maximum(0, out)
+
+                # After the forward pass we get output of shape (1, o).
+                # We need to produce one single number for our current action y[i]. Thus,
+                # we need to sum the outputs (or take mean w/e). The reason for this is
+                # that the values in this output vector are not associated in any way with
+                # the other output classes, but only with class `i`.
+                out = out.mean()
+                y_i.append(out)
+
+        # After iterating over all the groups in the coset of action `y_i` we need to
+        # "project down" to the action space.
+        # y[i] = 1/|H| * Sum_u y^G(u) = 1/|H| * Sum_u Sum_G (f*w)(u)
+        y_i = np.array(y_i).mean()
+        y[0, i] = y_i
+
+    return y
+
+hidden_sizes = [128, 64, 32] + [o]
+model_parameters = {}
+prev = d
+for i, h in enumerate(hidden_sizes):
+    #                                       w                       b
+    model_parameters[i] = (np.random.randn(size_G, prev, h), np.random.randn(size_G, h) / 100)
+    prev = h
+
+print("\n### Multi-layer perceptron ###")
+print("\tx_p\t\t\ty_p\n")
+for perm in all_perms.values():
+    x_p = perm_apply(x, perm)
+    y_p = mlp_forward(x_p, model_parameters, o)
+    print(x_p, y_p)
+
+#------------------------------------ Vectorization -------------------------------------#
+
+def forward_vectorized(x, weights, o):
+    """A vectorized forward pass of a permutation equivariant linear model.
+    x(shape=(1, d)) @ w(shape=(d, o)) = y(shape=(1, o))
+
+    Args:
+        x (np.Array): A numpy array of shape (1, d) giving the input features.
+        weights (np.Array): A numpy array of shape (size_G, d, o) giving the model weights.
+            A different array of shape (d, o) corresponds to every member of the group G.
+        o (int): Number of output classes.
+    
+    Result:
+        y (np.Array): A numpy array of shape (1, o) giving the output scores for each class.
+    """
+    y = np.zeros(shape=(1, o))
+
+    # Pre-generate all permutations of the input vector.
+    x_lift = np.ndarray(shape=(size_G, *x.shape))
+    for i, g in all_perms.items():
+        x_lift[i] = perm_apply(x, g)
+
+    for i in range(o):
+        y_i = []
+        for u in cosets[i]:
+            perms_to_consider = [cayley_table[u, inverse_table[g]] for g in all_perms.keys()]
+            out = x_lift[perms_to_consider] @ weights   # shape = (size_G, 1, o)
+            y_i.append(out.mean())
+        y_i = np.array(y_i).mean()
+        y[0, i] = y_i
+
+    return y
+
+def forward_vectorized_extra(x, weights, o):
+    """A vectorized forward pass of a permutation equivariant linear model.
+    x(shape=(1, d)) @ w(shape=(d, o)) = y(shape=(1, o))
+
+    Args:
+        x (np.Array): A numpy array of shape (1, d) giving the input features.
+        weights (np.Array): A numpy array of shape (size_G, d, o) giving the model weights.
+            A different array of shape (d, o) corresponds to every member of the group G.
+        o (int): Number of output classes.
+    
+    Result:
+        y (np.Array): A numpy array of shape (1, o) giving the output scores for each class.
+    """
+    # Pre-generate all permutations of the input vector.
+    x_lift = np.ndarray(shape=(size_G, *x.shape))
+    for i, g in all_perms.items():
+        x_lift[i] = perm_apply(x, g)
+
+    x_double_lift = np.ndarray(shape=(size_G, *x_lift.shape))
+    j = 0
+    for i in range(o):
+        for u in cosets[i]:
+            perms_to_consider = [cayley_table[u, inverse_table[g]] for g in all_perms.keys()]
+            x_double_lift[j] = x_lift[perms_to_consider]
+            j += 1
+
+    out_lift = x_double_lift @ np.expand_dims(weights, axis=0)
+    return out_lift.reshape(1, o, -1).mean(axis=-1)
 
 #------------------------------------- Qubit system -------------------------------------#
 # When considering our qubit system the shape of the input is (1, d) = (1, 2**L). However,

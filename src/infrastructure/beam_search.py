@@ -54,7 +54,7 @@ class BeamSearch:
             env (QubitsEnvironment): Environment object.
             qubit (int): The index of the qubit to be disentangled from the system.
                 Default value is None.
-            num_iters (int): Number of iterations to run the search for.
+            num_steps (int): Depth limit to run the search for.
             verbose (bool): If true, print search statistics.
 
         Returns:

@@ -198,7 +198,7 @@ class PGAgent(BaseAgent):
 
             # Compute average policy entropy.
             probs = F.softmax(logits, dim=-1) + torch.finfo(torch.float32).eps
-            avg_policy_ent = -torch.mean(torch.sum(probs*torch.log(probs),axis=-1))
+            avg_policy_ent = -torch.mean(torch.sum(probs*torch.log(probs), dim=-1))
 
             # Book-keeping.
             mask_hard = np.any(self.env.entropy() > 0.6, axis=1)
@@ -212,9 +212,9 @@ class PGAgent(BaseAgent):
                 "policy_loss"       : loss.item(),
                 "policy_total_norm" : total_norm.item(),
                 "nsolved"           : sum(self.env.disentangled()),
-                "nsteps"            : ((~mask[:,-1])*torch.sum(mask, axis=1)).cpu().numpy(),
-                "easy_states"       : states.detach().cpu().numpy()[mask_easy, 0][:32],
-                "hard_states"       : states.detach().cpu().numpy()[mask_hard, 0][:32],
+                "nsteps"            : ((done[:,-1])*torch.sum(mask, dim=1)).cpu().numpy(),
+                # "easy_states"       : states.detach().cpu().numpy()[mask_easy, 0][:32],
+                # "hard_states"       : states.detach().cpu().numpy()[mask_hard, 0][:32],
             })
             toc = time.time()
 
@@ -258,7 +258,7 @@ class PGAgent(BaseAgent):
                         "log_dir" : log_dir,
                         "logfile" : logfile,
                     }
-                }, f"checkpoint_{i}")
+                }, os.path.join(log_dir, f"checkpoint_{i}"))
 
     def train(self, num_iter, steps, learning_rate, lr_decay=1.0, clip_grad=10.0, reg=0.0,
               entropy_reg=0.0, log_every=1, test_every=100, save_every=1000000,

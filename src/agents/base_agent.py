@@ -79,13 +79,17 @@ class BaseAgent:
         batch = np.hstack([batch.real, batch.imag])
         states[steps] = torch.from_numpy(batch)
 
+        # Permute `step` and `batch_size` dimensions.
+        states = states.permute(1, 0, 2)
+        actions = actions.permute(1, 0)
+        rewards = rewards.permute(1, 0)
+        done = done.permute(1, 0)
+
         # Mask out the rewards after a trajectory is done.
         mask = self.generate_mask(done)
         rewards = mask*rewards
 
-        # Permute `step` and `batch_size` dimensions.
-        return (states.permute(1, 0, 2), actions.permute(1, 0),
-                rewards.permute(1, 0), done.permute(1,0))
+        return states, actions, rewards, done
 
     @torch.no_grad()
     def generate_mask(self, done):
@@ -103,7 +107,9 @@ class BaseAgent:
             mask (torch.Tensor): Tensor of shape (b, t), of boolean values, that masks
                 out the part of the trajectory after it has finished.
         """
-        return ~torch.cat((torch.zeros_like(done[0:1], dtype=bool), done[:-1]), dim=0)
+        m = torch.roll(done, shifts=1, dims=1)
+        m[:, 0] = False
+        return ~m
 
     @torch.no_grad()
     def test_accuracy(self, num_test, steps, initial_states=None, greedy=True):
