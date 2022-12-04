@@ -76,11 +76,9 @@ class BeamSearch:
                 to the solution state.
         """
         goal = self._run(psi, env, qubit, num_iters, verbose)
-        solution = goal.path
+        solution = goal.path if goal is not None else []
         env.states = np.expand_dims(psi, 0)
-        for a in solution:
-            env.step([a])
-        return solution if env.disentangled() else None
+        return solution
 
     #--------------------------------- private methods ----------------------------------#
     # def _run(self, psi, env, qubit, num_iters, verbose):
@@ -168,32 +166,37 @@ class BeamSearch:
 
     def _run(self, psi, env, qubit, num_iters, verbose=False):
         fringe = [Node2(psi)]
-
+        states = [psi]
         for _ in range(num_iters):
             states = [node.item for node in fringe]
             states = np.repeat(np.array(states), env.num_actions, axis=0)
             assert len(states) == len(fringe) * env.num_actions
             env.states = states
-
             # Transition into the next states by considering all possible actions.
             actions = np.tile(np.array(list(env.actions.keys())), (len(fringe),))
-            next_states, _, done = env.step(actions)
-            costs = env.entropy().mean(axis=-1) if qubit is None else env.entropy()[:, qubit]
-
-            if np.any(done):
-                i = np.argmax(done)
-                assert done[i]
-                node = fringe[i // env.num_actions]
-                assert env.Disentangled(np.expand_dims(next_states[i], 0), epsi=env.epsi)
-                return Node2(next_states[i], node.path + (actions[i],), costs[i])
-            
+            next_states, _, _ = env.step(actions)
+            if qubit is None:
+                costs = env.entropy().mean(axis=-1)
+            else:
+                costs = env.Entropy(next_states)[:, qubit]
+            imincost = np.argmin(costs)
+            mincost = costs[imincost]
+            if mincost < env.epsi:
+                # assert env.Entropy(np.expand_dims(next_states[i], 0)) < env.epsi
+                path = fringe[imincost // env.num_actions].path
+                act = actions[imincost]
+                return Node2(next_states[imincost], path + (act,), mincost)
             successors = []
             for i in range(len(next_states)):
                 parent = fringe[i // env.num_actions]
-                path = parent.path + (actions[i],)
-                successors.append(Node2(next_states[i], path, costs[i]))
+                node = Node2(next_states[i], parent.path + (actions[i],), costs[i])
+                successors.append(node)
             fringe = self._getKBest(successors, self.beam_size)
-        return Node2(psi)
+            # Maybe plot progress results
+            if verbose:
+                mean_cost = np.mean([node.cost for node in fringe])
+                print("Mean cost in current beam: ", mean_cost)
+        return None
 
     def _decode(self, goalNode):
         """Given a goalNode produced from the tree search algorithm, trace the backward
