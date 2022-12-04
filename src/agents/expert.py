@@ -28,16 +28,18 @@ class SearchExpert:
                 states.append(s)
                 env.step([a])
             psi = env.states[0]
+            # states.append(np.hstack([psi.ravel().real, psi.ravel().imag]))
 
             new_env_acts = {k:v for k,v in env.actions.items() if q not in v}
             env.actions = new_env_acts
             env.num_actions = len(new_env_acts)
-
-            if env.disentangled():
-                break
-            else:
-                return None, None
-
+            # if env.disentangled():
+            #     break
+            # else:
+            #     return None, None
+        # Append the last state
+        if states:
+            states.append(np.hstack([psi.ravel().real, psi.ravel().imag]))
         # Restore the environment parameters.
         self.env.actions = original_env_actions
         self.env.num_actions = len(original_env_actions)
