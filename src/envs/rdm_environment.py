@@ -1,10 +1,9 @@
 from itertools import permutations
-
 import numpy as np
+from scipy.linalg import expm
 
 from src.envs import util
 # from src.envs.batch_transpose import cy_transpose_batch
-from src.envs.util import _QSYSTEMS_P, _QSYSTEMS_INV_P
 
 
 class QubitsEnvironment:
@@ -29,11 +28,15 @@ class QubitsEnvironment:
         num_actions (int): Number of allowable actions.
         actions (dict): A mapping from action index to action name.
         actToKey (dict): A mapping from action name to action index.
-        shape (Tuple[Int]): A tuple of int giving the shape of the tensor representing the
-            environment.
+        shape (Tuple[Int]): A tuple of int giving the shape of the tensor
+            representing the environment.
+        stochastic (bool): Flag, indicating if transitions are stochastic.
+        stochastic_eps (float): Magnitude of the added noise - 0
+
     """
 
-    def __init__(self, num_qubits=2, epsi=1e-4, batch_size=1):
+    def __init__(self, num_qubits=2, epsi=1e-4, batch_size=1, stochastic=False,
+                 stochastic_eps=1e-3):
         """Initialize an environment with a batch of multi-qubit states.
 
         Args:
@@ -43,11 +46,17 @@ class QubitsEnvironment:
                 Default value is 1e-4.
             batch_size (int, optional): Number of states in the environment.
                 Default value is 1.
+            stochastic (bool, optional): If `True`, transitions are stochastic.
+                Default value is False.
+            stochastic_eps (float, optional): Controls the noise magnitude.
+                Default value is 1e-3.
         """
         assert num_qubits >= 2
         self.L = num_qubits
         self.epsi = epsi
         self.batch_size = batch_size
+        self.stochastic = bool(stochastic)
+        self.stochastic_eps = float(stochastic_eps)
 
         # The action space consists of all possible pairs of qubits.
         self.num_actions = self.L * (self.L - 1)
@@ -57,7 +66,7 @@ class QubitsEnvironment:
         # The states of the system are represented as a numpy array of shape (b, 2,2,...,2).
         self.shape = (batch_size,) + (2,) * num_qubits
         self._states = np.zeros(self.shape, dtype=np.complex64)
-        self._states_swap_buffer = np.zeros(self.shape, dtype=np.complex64)
+        # self._states_swap_buffer = np.zeros(self.shape, dtype=np.complex64)
         self._entropies_cache = np.zeros((self.batch_size, self.L), dtype=np.float32)
         self.reset()
 
@@ -79,8 +88,8 @@ class QubitsEnvironment:
             raise ValueError(f"Shape missmatch!\nshape: {self.shape}\nnew: {newstates.shape}")
         self.batch_size = newstates.shape[0]
         self.shape = (self.batch_size,) + (2,) * self.L
-        self._states = util._phase_norm(newstates)
-        self._entropies_cache = util._entropy(self._states)
+        self._states = util.phase_norm(newstates)
+        self._entropies_cache = util.entropy(self._states)
 
     def set_random_states(self, copy=False):
         """Set all states of the environment to random pure states. If copy is True,
@@ -88,12 +97,12 @@ class QubitsEnvironment:
         Compute the entropy of the states and cache them for later use.
         """
         if copy:
-            psi = util._random_pure_state(self.L)
+            psi = util.random_pure_state(self.L)
             psi = np.tile(psi, (self.batch_size, 1))
         else:
-            psi = util._random_batch(self.L, self.batch_size)
-        self._states = util._phase_norm(psi.reshape(self.shape))
-        self._entropies_cache = util._entropy(self._states)
+            psi = util.random_batch(self.L, self.batch_size)
+        self._states = util.phase_norm(psi.reshape(self.shape))
+        self._entropies_cache = util.entropy(self._states)
 
     def step(self, actions):
         """Applies a batch of actions to the states batch and transitions the environment
@@ -101,7 +110,7 @@ class QubitsEnvironment:
         of the environment inplace.
 
         Args:
-            actions (np.Array): A numpy array of shape (b, 1), giving the action selected
+            actions (np.Array): A numpy array of shape (b,), giving the action selected
                 for each state of the environment states.
 
         Returns:
@@ -121,35 +130,50 @@ class QubitsEnvironment:
         qubit_indices = np.array([self.actions[a] for a in actions], dtype=np.int32)
         # ----
         # Move qubits which are modified by ``actions`` at indices (0, 1)
-        util._transpose_batch_inplace(batch, qubit_indices, self.L)
-        batch = np.ascontiguousarray(batch)
+        # batch = np.ascontiguousarray(batch)
+        util.permute_qubits(batch, qubit_indices, L, inverse=False)
         # batch = cy_transpose_batch(batch, qubit_indices, _QSYSTEMS_P[self.L])
         # ----
         # Compute 2x2 reduced density matrices
         batch = batch.reshape(B, 4, 2 ** (L - 2))
-        rdms = batch @ np.transpose(batch.conj(), [0, 2, 1])  #TODO Try with jax
+        rdms = batch @ np.transpose(batch.conj(), [0, 2, 1])
         # ----
+        # TODO Add noise
+        # U = expm(-1j  eps  H)
+        # H = (A + A^\dagger)/2
+        # A ~ random matrix
+        # 
         # Compute single qubit entropies
-        rhos, Us = np.linalg.eigh(rdms)     #TODO Try @jit(jax.lax.eigh)
-        # eigh_res = jax.jit(jnp.linalg.eigh)(rdms)
-        # rhos, Us = np.asarray(eigh_res[0]), np.asarray(eigh_res[1])
+        rdms[np.abs(rdms) < 1e-7] = 0.0
+        rhos, Us = np.linalg.eigh(rdms)
+        phase = np.exp(-1j * np.angle(np.diagonal(Us, axis1=1, axis2=2)))
+        np.einsum('kij,kj->kij', Us, phase, out=Us)
         Us = np.swapaxes(Us.conj(), 1, 2)
-        Sent_q0, Sent_q1 = util._calculate_q0_q1_entropy_from_rhos(rhos)  #TODO Try @jit
+        Sent_q0, Sent_q1 = util.calculate_q0_q1_entropy_from_rhos(rhos)
         # ----
         # Apply unitary gates
-        batch = (Us @ batch).reshape(self.shape)  #TODO Try jax.jit
+        batch = (Us @ batch)
+        self.unitary = Us
+        # ----
+        # Add noise
+        if self.stochastic:
+            A = np.random.uniform(size=Us.shape)
+            H = 0.5 * (A + np.swapaxes(A.conj(), 1, 2))
+            R = expm(-1j * self.stochastic_eps * H)
+            batch = (R @ batch)
+        batch = batch.reshape(self.shape)
         # ----
         # Undo qubit permutations
-        util._transpose_batch_inplace(batch, qubit_indices, L, inverse=True)
-        batch = np.ascontiguousarray(batch)
+        # batch = np.ascontiguousarray(batch)
+        util.permute_qubits(batch, qubit_indices, L, inverse=True)
         # batch = cy_transpose_batch(batch, qubit_indices, _QSYSTEMS_INV_P[self.L])
         # ----
         # The new entropies
         self._entropies_cache[np.arange(B), qubit_indices[:, 0]] = Sent_q0
         self._entropies_cache[np.arange(B), qubit_indices[:, 1]] = Sent_q1
         # ----
-        self._states = util._phase_norm(batch)
-        return self._states, self.reward(), self.disentangled()
+        self._states = util.phase_norm(batch)
+        return self.states, self.reward(), self.disentangled()
 
     def peek(self, actions, state_only=False):
         """Applies a batch of actions to the states batch and peeks at the next states of
@@ -202,7 +226,7 @@ class QubitsEnvironment:
         Returns:
             entropies (np.array): A numpy array of shape (b, L), giving single-qubit entropies.
         """
-        return util._entropy(states)
+        return util.entropy(states)
 
     @classmethod
     def Reward(cls, states, epsi=1e-4, entropies=None):
@@ -224,7 +248,7 @@ class QubitsEnvironment:
         # return rewards
 
     @staticmethod
-    def Disentangled(states, epsi=1e-4, entropies=None):
+    def Disentangled(states, epsi=1e-3, entropies=None):
         """ Returns an array of booleans, yielding True for every state in the batch whose
         mean "multi-qubit entropy" is smaller than `epsi`.
 
@@ -232,7 +256,7 @@ class QubitsEnvironment:
             done (np.Array): A numpy array of shape (b,).
         """
         if entropies is None:
-            entropies = util._entropy(states)
+            entropies = util.entropy(states)
         return np.all(entropies <= epsi, axis=1)
 
     @staticmethod
@@ -254,7 +278,7 @@ class QubitsEnvironment:
                 states in the batch.
         """
         if subsys_A is None:
-            return util._entropy(states).mean()
+            return util.entropy(states).mean()
         return util._ent_entropy(states, subsys_A)
 
 #

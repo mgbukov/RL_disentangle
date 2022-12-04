@@ -1,6 +1,7 @@
 import numpy as np
 from itertools import permutations
 
+
 #----------------------------------- System variables -----------------------------------#
 def _generate_permutation_maps(L):
     qubits_permutations = np.zeros((L, L, L), dtype=np.int32)
@@ -22,40 +23,55 @@ for L in range(2, 15):
 
 
 #---------------------------------- Utility functions -----------------------------------#
-def _random_pure_state(L):
+def random_pure_state(L):
     # Sample from Gaussian distribution, as it gives uniformly distributed
     # points in L dimensional unit sphere
     psi = np.random.randn(2 ** L) + 1j * np.random.randn(2 ** L)
     psi /= np.linalg.norm(psi)
     return psi.astype(np.complex64)
 
-def _random_batch(L, batch_size=1):
+def random_batch(L, batch_size=1):
     states = np.random.randn(batch_size, 2 ** L) + 1j * np.random.randn(batch_size, 2 ** L)
     states /= np.linalg.norm(states, axis=1, keepdims=True)
     return states.astype(np.complex64)
 
-def _transpose_batch_inplace(batch, qubits_indices, L, inverse=False):
+def permute_qubits(batch, qubits_indices, L, inverse=False, inplace=True):
     P = _QSYSTEMS_INV_P[L] if inverse else _QSYSTEMS_P[L]
+    if inplace:
+        for i, (q0, q1) in enumerate(qubits_indices):
+            batch[i] = np.transpose(batch[i], P[q0, q1])
+        return
+    result = np.zeros_like(batch)
     for i, (q0, q1) in enumerate(qubits_indices):
-        batch[i] = np.transpose(batch[i], P[q0, q1])
+        result[i] = np.transpose(batch[i], P[q0, q1])
+    return result
 
-def _calculate_q0_q1_entropy_from_rhos(rhos):
-    a = rhos[:, 0] + rhos[:, 1]  # rho_{q0-1}
-    b = rhos[:, 2] + rhos[:, 3]  # rho_{q0-2}
-    c = rhos[:, 0] + rhos[:, 2]  # rho_{q1-1}
-    d = rhos[:, 1] + rhos[:, 3]  # rho_{q1-2}
-    Sent_q0 = -a*np.log(a + np.finfo(a.dtype).eps) - b*np.log(b + np.finfo(b.dtype).eps)
-    Sent_q1 = -c*np.log(c + np.finfo(c.dtype).eps) - d*np.log(d + np.finfo(d.dtype).eps)
+def calculate_q0_q1_entropy_from_rhos(rhos):
+    a = rhos[:, 0] + rhos[:, 1] # rho_{q0-1}
+    b = rhos[:, 2] + rhos[:, 3] # rho_{q0-2}
+    c = rhos[:, 0] + rhos[:, 2] # rho_{q1-1}
+    d = rhos[:, 1] + rhos[:, 3] # rho_{q1-2}
+    Sent_q0 = -a*np.log(np.maximum(a, np.finfo(a.dtype).eps)) - \
+               b*np.log(np.maximum(b, np.finfo(b.dtype).eps))
+    Sent_q1 = -c*np.log(np.maximum(c, np.finfo(c.dtype).eps)) - \
+               d*np.log(np.maximum(d, np.finfo(d.dtype).eps))
     return Sent_q0, Sent_q1
 
-def _phase_norm(states):
+def phase_norm(states):
     """Normalizes the relative phase shift between different qubits in one state."""
     B = states.shape[0]
     L = states.ndim - 1
     first = states.reshape(B, -1)[:, 0]
     phi = np.angle(first)
     z = np.cos(phi) - 1j * np.sin(phi)
-    return states * z.reshape((B,) + (1,) * L)
+    result = states * z.reshape((B,) + (1,) * L)
+    # Set explicitly the imaginary part of first component to 0. This operation
+    # is mandatory, because above multiplication can leave the imaginary part
+    # nonzero, which beaks batch & solo rollout equivalence tests.
+    for i in range(B):
+        result[i].flat[0] = result[i].flat[0].real
+    return result
+
 
 def _ent_entropy(states, subsys_A):
     """Returns the entanglement entropy for every state in the batch w.r.t. `subsys_A`.
@@ -82,19 +98,18 @@ def _ent_entropy(states, subsys_A):
     lmbda += np.finfo(lmbda.dtype).eps # shift lmbda to be positive within machine precision
     return -2.0 / subsys_A_size * np.einsum('ai, ai->a', lmbda ** 2, np.log(lmbda))
 
-def _entropy(states):
-    """For each state in the batch compute the entanglement entropies by considering each
-    qubit as a subsystem.
+def entropy(states):
+    """ For each state in the batch compute the entanglement entropies by
+    considering each qubit as a subsystem.
 
     Args:
-        states (np.array): A numpy array of shape (b, 2,2,...,2), giving the states in the
-            batch.
+        states (np.array): A numpy array of shape (b, 2,2,...,2), giving the
+        states in the batch.
 
     Returns:
-        entropies (np.array): A numpy array of shape (b, L), giving single-qubit entropies.
+        entropies (np.array): A numpy array of shape (b, L), giving single-qubit
+        entropies.
     """
     L = states.ndim - 1
     entropies = [_ent_entropy(states, [i]) for i in range(L)]
     return np.stack(entropies).T
-
-#
