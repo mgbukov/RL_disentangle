@@ -11,10 +11,12 @@ SEED = 15 #
 
 def test_state_norm():
     """ Tests if rollout presrves state norm. """
-    _test_state_norm(None, 64, 10)
+    _test_state_norm(nqubits=None, batch_size=64, stochastic=(False, True),
+                     nrepeats=10)
 
-def _test_state_norm(nqubits=None, batch_size=None, nrepeats=10):
-    envgen = environment_generator(nqubits, batch_size)
+def _test_state_norm(nqubits=None, batch_size=None, stochastic=False,
+                     nrepeats=10):
+    envgen = environment_generator(nqubits, batch_size, stochastic, SEED, EPSI)
     for env in envgen:
         action_set = env.actions
         for _ in range(nrepeats):
@@ -31,7 +33,7 @@ def test_repeated_action():
     _test_repeated_action(None, 64, 100)
 
 def _test_repeated_action(nqubits=None, batch_size=None, nrepeats=10):
-    envgen = environment_generator(nqubits, batch_size)
+    envgen = environment_generator(nqubits, batch_size, False, SEED, EPSI)
     I = np.eye(4, 4, dtype=np.complex64)
     for env in envgen:
         for a in env.actions.keys():
@@ -49,10 +51,12 @@ def _test_repeated_action(nqubits=None, batch_size=None, nrepeats=10):
 
 def test_entropy_cache():
     """ Tests if the entropy cache is updated correctly."""
-    _test_entropy_cache(None, 300, 250)
+    _test_entropy_cache(nqubits=None, batch_size=64, stochastic=(False, True),
+                        nrepeats=250)
 
-def _test_entropy_cache(nqubits=None, batch_size=None, nrepeats=10):
-    for env in environment_generator(nqubits, batch_size):
+def _test_entropy_cache(nqubits=None, batch_size=None, stochastic=False,
+                        nrepeats=10):
+    for env in environment_generator(nqubits, batch_size, stochastic, SEED, EPSI):
         action_set = list(env.actions.keys())
         for _ in range(nrepeats):
             actions = np.random.choice(action_set, env.batch_size, True)
@@ -75,7 +79,7 @@ def test_batch_precision():
     _test_batch_precision(7, 64, 120)
 
 def _test_batch_precision(nqubits, batch_size, nsteps, debug=False):
-    for env in environment_generator(nqubits, batch_size, SEED, EPSI):
+    for env in environment_generator(nqubits, batch_size, False, SEED, EPSI):
         env.set_random_states()
         start_states = env.states.copy()
         action_set = list(env.actions.keys())
@@ -138,7 +142,7 @@ def test_batch_copy_equivalence():
     _test_batch_copy_equivalence(8, (1, 2, 8, 64, 256, 1024), 50)
 
 def _test_batch_copy_equivalence(nqubits=None, bsizes=None, nsteps=50):
-    for env in environment_generator(nqubits, bsizes, SEED, EPSI):
+    for env in environment_generator(nqubits, bsizes, False, SEED, EPSI):
         B = env.batch_size
         state = env.states[0].copy()
         batch = np.broadcast_to(state, env.shape)
@@ -168,13 +172,13 @@ def _test_batch_copy_equivalence(nqubits=None, bsizes=None, nsteps=50):
 
 def test_phase_norm():
     """Tests if phase_norm() """
-    _test_phase_norm(4, (1, 2, 8, 64, 256, 1024))
-    _test_phase_norm(5, (1, 2, 8, 64, 256, 1024))
-    _test_phase_norm(6, (1, 2, 8, 64, 256, 1024))
-    _test_phase_norm(7, (1, 2, 8, 64, 256, 1024))
+    _test_phase_norm(4, (1, 2, 8, 64, 256, 1024), stochastic=(False, True))
+    _test_phase_norm(5, (1, 2, 8, 64, 256, 1024), stochastic=(False, True))
+    _test_phase_norm(6, (1, 2, 8, 64, 256, 1024), stochastic=(False, True))
+    _test_phase_norm(7, (1, 2, 8, 64, 256, 1024), stochastic=(False, True))
 
-def _test_phase_norm(nqubits, bsizes, repeats=10, debug=False):
-    for env in environment_generator(nqubits, bsizes, SEED, EPSI):
+def _test_phase_norm(nqubits, bsizes, stochastic=False, repeats=10, debug=False):
+    for env in environment_generator(nqubits, bsizes, stochastic, SEED, EPSI):
         start_states = env.states.copy()
         for s in start_states:
             assert s.flat[0].imag == 0.0

@@ -43,7 +43,8 @@ def make_product_state(num_qubits):
         psi = np.kron(psi, q)
     return psi / np.linalg.norm(psi)
 
-def environment_generator(nqubits=None, bsizes=None, seed=14, epsi=1e-3):
+def environment_generator(nqubits=None, bsizes=None, stochastic=False,
+                          seed=14, epsi=1e-3):
     """ Python generator for environments parameterized by batch sizes and
     number of qubits. """
     if nqubits is None:
@@ -53,7 +54,7 @@ def environment_generator(nqubits=None, bsizes=None, seed=14, epsi=1e-3):
     elif isinstance(nqubits, tuple):
         pass
     else:
-        raise ValueError('nqubits must be of type tuple or int')
+        raise ValueError('`nqubits` must be of type tuple or int')
 
     if bsizes is None:
         bsizes = TEST_BATCHES
@@ -62,29 +63,18 @@ def environment_generator(nqubits=None, bsizes=None, seed=14, epsi=1e-3):
     elif isinstance(bsizes, tuple):
         pass
     else:
-        raise ValueError('batch_size must be of type tuple or int')
-    for q, B in itertools.product(nqubits, bsizes):
+        raise ValueError('`batch_size` must be of type tuple or int')
+
+    if isinstance(stochastic, bool):
+        stochastic = (stochastic,)
+    elif isinstance(stochastic, tuple):
+        pass
+    else:
+        raise ValueError('`stochastic` must be of type tuple or bool')
+
+    for q, B, s in itertools.product(nqubits, bsizes, stochastic):
         fix_random_seeds(seed)
-        env = QubitsEnvironment(num_qubits=q, epsi=epsi, batch_size=B)
+        env = QubitsEnvironment(
+            num_qubits=q, epsi=epsi, batch_size=B, stochastic=s)
         env.set_random_states(copy=False)
         yield env
-
-
-import matplotlib.pyplot as plt
-
-def plot_qubits_2d(psi, filename='sample'):
-    qmap = psi.reshape(-1, 1) / psi.reshape(1, -1)
-    fig, axs = plt.subplots(1, 2)
-    pmesh0 = axs[0].pcolormesh(qmap.real)
-    pmesh1 = axs[1].pcolormesh(qmap.imag)
-    axs[0].set_aspect(1.0)
-    axs[1].set_aspect(1.0)
-    plt.colorbar(pmesh0, ax=axs[0], use_gridspec=True, orientation='horizontal')
-    plt.colorbar(pmesh1, ax=axs[1], use_gridspec=True, orientation='horizontal')
-    fig.savefig(filename + '.png', dpi=120)
-    plt.close(fig)
-
-psi = make_product_state(4)
-plot_qubits_2d(psi, filename='dissentangled')
-phi = make_semientagled_state(4, 0)
-plot_qubits_2d(phi, filename='entangled')

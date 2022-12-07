@@ -138,40 +138,37 @@ class QubitsEnvironment:
         batch = batch.reshape(B, 4, 2 ** (L - 2))
         rdms = batch @ np.transpose(batch.conj(), [0, 2, 1])
         # ----
-        # TODO Add noise
-        # U = expm(-1j  eps  H)
-        # H = (A + A^\dagger)/2
-        # A ~ random matrix
-        # 
         # Compute single qubit entropies
         rdms[np.abs(rdms) < 1e-7] = 0.0
         rhos, Us = np.linalg.eigh(rdms)
         phase = np.exp(-1j * np.angle(np.diagonal(Us, axis1=1, axis2=2)))
         np.einsum('kij,kj->kij', Us, phase, out=Us)
         Us = np.swapaxes(Us.conj(), 1, 2)
-        Sent_q0, Sent_q1 = util.calculate_q0_q1_entropy_from_rhos(rhos)
         # ----
         # Apply unitary gates
         batch = (Us @ batch)
         self.unitary = Us
         # ----
-        # Add noise
         if self.stochastic:
+            # Add noise
             A = np.random.uniform(size=Us.shape)
             H = 0.5 * (A + np.swapaxes(A.conj(), 1, 2))
             R = expm(-1j * self.stochastic_eps * H)
-            batch = (R @ batch)
-        batch = batch.reshape(self.shape)
-        # ----
-        # Undo qubit permutations
-        # batch = np.ascontiguousarray(batch)
-        util.permute_qubits(batch, qubit_indices, L, inverse=True)
-        # batch = cy_transpose_batch(batch, qubit_indices, _QSYSTEMS_INV_P[self.L])
-        # ----
-        # The new entropies
-        self._entropies_cache[np.arange(B), qubit_indices[:, 0]] = Sent_q0
-        self._entropies_cache[np.arange(B), qubit_indices[:, 1]] = Sent_q1
-        # ----
+            batch = (R @ batch).reshape(self.shape)
+            # Undo qubit permutations
+            util.permute_qubits(batch, qubit_indices, L, inverse=True)
+            # Recalculate all entropies
+            self._entropies_cache = util.entropy(batch)
+        else:
+            batch = batch.reshape(self.shape)
+            # Undo qubit permutations
+            util.permute_qubits(batch, qubit_indices, L, inverse=True)
+            # batch = np.ascontiguousarray(batch)
+            # batch = cy_transpose_batch(batch, qubit_indices, _QSYSTEMS_INV_P[self.L])
+            # Recalculate entropies only for q0 and q1
+            Sent_q0, Sent_q1 = util.calculate_q0_q1_entropy_from_rhos(rhos)
+            self._entropies_cache[np.arange(B), qubit_indices[:, 0]] = Sent_q0
+            self._entropies_cache[np.arange(B), qubit_indices[:, 1]] = Sent_q1
         self._states = util.phase_norm(batch)
         return self.states, self.reward(), self.disentangled()
 
