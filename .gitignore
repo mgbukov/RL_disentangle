@@ -1,8 +1,8 @@
+data/
 # data files
 *.dat
-*.txt
 *.pkl
-
+.DS_Store
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
