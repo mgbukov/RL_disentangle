@@ -241,7 +241,8 @@ class PGAgent(BaseAgent):
 
             # Save checkpoint.
             if i % save_every == 0:
-                self.policy.save(os.path.join(log_dir, f"policy_{i}.bin"))
+                os.makedirs(os.path.join(log_dir, "policies"), exist_ok=True)
+                self.policy.save(os.path.join(log_dir, "policies", f"policy_{i}.bin"))
                 torch.save({
                     "optim_state_dict": optimizer.state_dict(),
                     "optim_kwargs": {"lr": learning_rate, "weight_decay": reg},
@@ -259,7 +260,7 @@ class PGAgent(BaseAgent):
                         "log_dir" : log_dir,
                         "logfile" : logfile,
                     }
-                }, f"checkpoint_{i}")
+                }, os.path.join(log_dir, "policies", f"checkpoint_{i}"))
 
     def train(self, num_iter, steps, learning_rate, lr_decay=1.0, clip_grad=10.0, reg=0.0,
               entropy_reg=0.0, log_every=1, test_every=100, save_every=1000000,
@@ -280,7 +281,7 @@ class PGAgent(BaseAgent):
         self._train(num_iter, steps, learning_rate, lr_decay, clip_grad, reg, entropy_reg,
             log_every, test_every, save_every, log_dir, logfile)
 
-    def train_from_checkpoint(self, checkpoint_path, num_iter):
+    def train_from_checkpoint(self, checkpoint_path, num_iter, steps):
         # Move the neural network to device and prepare for training.
         device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         # device = torch.device("cpu")
@@ -290,12 +291,13 @@ class PGAgent(BaseAgent):
         # Load the optimizer and scheduler.
         params = torch.load(checkpoint_path)
         self.optimizer = torch.optim.Adam(self.policy.parameters(), **params["optim_kwargs"])
-        self.optimizer.load_state_dict(params["optimizer_state_dict"])
+        self.optimizer.load_state_dict(params["optim_state_dict"])
         self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, **params["scheduler_kwargs"])
         self.scheduler.load_state_dict(params["scheduler_state_dict"])
 
         # Start training.
         params["train_kwargs"]["num_iter"] = num_iter
+        params["train_kwargs"]["steps"] = steps # we maybe want to train with shorter/longer episodes
         self._train(**params["train_kwargs"])
 
 #
