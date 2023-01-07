@@ -238,10 +238,21 @@ def plot_entropy_curves(train_history, filepath, lw=[0.4, 0.4, 0.6, 0.6]):
     ent_mean = np.array([np.mean(train_history[i]["entropy"]) for i in keys])
     ent_quantile = np.array([np.quantile(train_history[i]["entropy"], 0.95) for i in keys])
 
+    # Instad of plotting the maximum of the entanglement entropy at each step
+    # of the lerning process we will plot an averaged value over a number of
+    # training steps. This makes the plot prettier, as the fluctuation of the
+    # max value is reduced.
+    avg_every = 100
+    avg_ent_max = np.convolve(ent_max, np.ones(avg_every), mode="valid") / avg_every
+    avg_ent_max = avg_ent_max[::-1][::avg_every][::-1]
+    avg_ent_max = np.concatenate((ent_max[:1], avg_ent_max))
+    num_iter = len(keys)
+    xs = np.arange(0, num_iter, avg_every)
+
     # Plot curves.
     logPlot(figname=filepath,
-            xs=[keys, keys, keys, keys],
-            funcs=[ent_min, ent_max, ent_mean, ent_quantile],
+            xs=[keys, xs, keys, keys],  # Note using `xs` for the `avg_ent_max`.
+            funcs=[ent_min, avg_ent_max, ent_mean, ent_quantile],
             legends=["min", "max", "mean", "95%quantile"],
             labels={"x":"Iteration", "y":"Entropy"},
             fmt=["--r", "--b", "-k", ":m"], lw=lw,
