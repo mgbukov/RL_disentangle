@@ -141,7 +141,8 @@ class ILAgent(BaseAgent):
                 total_loss += loss.item()
                 total_grad_norm += total_norm
                 probs = F.softmax(logits, dim=-1) + torch.finfo(torch.float32).eps
-                total_policy_ent +=-torch.mean(torch.sum(probs*torch.log(probs),dim=-1)).item()
+                total_policy_ent +=-(torch.mean(torch.sum(probs*torch.log(probs),dim=-1))
+                            / torch.log(torch.Tensor([self.env.num_actions]).to(self.policy.device))).item()
                 j += 1
 
             self.train_history[i] = {

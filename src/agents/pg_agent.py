@@ -198,7 +198,8 @@ class PGAgent(BaseAgent):
 
             # Compute average policy entropy.
             probs = F.softmax(logits, dim=-1) + torch.finfo(torch.float32).eps
-            avg_policy_ent = -torch.mean(torch.sum(probs*torch.log(probs),axis=-1))
+            avg_policy_ent = -(torch.mean(torch.sum(probs*torch.log(probs), dim=-1))
+                        / torch.log(torch.Tensor([self.env.num_actions]).to(self.policy.device)))
 
             # Book-keeping.
             mask_hard = np.any(self.env.entropy() > 0.6, axis=1)
