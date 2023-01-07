@@ -11,12 +11,18 @@ sys.path.append("..")
 from src.infrastructure.logging import (
     plot_distribution, plot_entropy_curves, plot_nsolved_curves, plot_nsteps,
     plot_policy_entropy, plot_policy_loss, plot_return_curves)
+from src.infrastructure.util_funcs import plt_style_use
+
 
 # Parse command line arguments.
 parser = argparse.ArgumentParser()
 parser.add_argument("-q", "--num_qubits", dest="num_qubits", type=int, default=2)
 parser.add_argument("--log_dir", dest="log_dir", type=str)
 args = parser.parse_args()
+
+
+# Use custom plt stylesheet.
+plt_style_use()
 
 
 # Construct the log directory to store generated plots.

@@ -11,6 +11,7 @@ sys.path.append("..")
 from src.infrastructure.logging import (
         plot_entropy_curves, plot_policy_loss, logPlot, plot_policy_entropy
 )
+from src.infrastructure.util_funcs import plt_style_use
 
 
 # Parse command line arguments.
@@ -18,6 +19,10 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-q", "--num_qubits", dest="num_qubits", type=int, default=2)
 parser.add_argument("--log_dir", dest="log_dir", type=str)
 args = parser.parse_args()
+
+
+# Use custom plt stylesheet.
+plt_style_use()
 
 
 # Plot the results.
