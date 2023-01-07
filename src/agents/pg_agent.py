@@ -213,9 +213,9 @@ class PGAgent(BaseAgent):
                 "policy_loss"       : loss.item(),
                 "policy_total_norm" : total_norm.item(),
                 "nsolved"           : sum(self.env.disentangled()),
-                "nsteps"            : ((~mask[:,-1])*torch.sum(mask, axis=1)).cpu().numpy(),
-                "easy_states"       : states.detach().cpu().numpy()[mask_easy, 0][:32],
-                "hard_states"       : states.detach().cpu().numpy()[mask_hard, 0][:32],
+                "nsteps"            : (torch.sum(mask, dim=1)).cpu().numpy(),
+                # "easy_states"       : states.detach().cpu().numpy()[mask_easy, 0][:32],
+                # "hard_states"       : states.detach().cpu().numpy()[mask_hard, 0][:32],
             })
             toc = time.time()
 
