@@ -181,10 +181,10 @@ def log_train_stats(stats, logfile):
     logText(f"""\
     Mean return:              {np.mean(np.sum(stats["rewards"], axis=1)):.4f}
     Mean episode entropy:     {np.mean(stats["exploration"]):.4f}
-    Mean final entropy:       {np.mean(stats["entropy"]):.4f}
-    Median final entropy:     {np.median(stats["entropy"]):.4f}
-    Max final entropy:        {np.max(stats["entropy"]):.4f}
-    95 percentile entropy:    {np.percentile(stats["entropy"], 95.0):.5f}
+    Mean final entropy:       {np.mean(stats["entropies"]):.4f}
+    Median final entropy:     {np.median(stats["entropies"]):.4f}
+    Max final entropy:        {np.max(stats["entropies"]):.4f}
+    95 percentile entropy:    {np.percentile(stats["entropies"], 95.0):.5f}
     Value loss:               {stats["value_loss"]:.4f}
     Value Total grad norm     {stats["value_total_norm"]:.5f}
     Policy entropy:           {stats["policy_entropy"]:.4f}
@@ -233,10 +233,10 @@ def plot_entropy_curves(train_history, filepath, lw=[0.4, 0.4, 0.6, 0.6]):
     keys = sorted(train_history.keys())
 
     # Define entropies curve.
-    ent_min = np.array([np.min(train_history[i]["entropy"]) for i in keys])
-    ent_max = np.array([np.max(train_history[i]["entropy"]) for i in keys])
-    ent_mean = np.array([np.mean(train_history[i]["entropy"]) for i in keys])
-    ent_quantile = np.array([np.quantile(train_history[i]["entropy"], 0.95) for i in keys])
+    ent_min = np.array([np.min(train_history[i]["entropies"]) for i in keys])
+    ent_max = np.array([np.max(train_history[i]["entropies"]) for i in keys])
+    ent_mean = np.array([np.mean(train_history[i]["entropies"]) for i in keys])
+    ent_quantile = np.array([np.quantile(train_history[i]["entropies"], 0.95) for i in keys])
 
     # Instad of plotting the maximum of the entanglement entropy at each step
     # of the lerning process we will plot an averaged value over a number of

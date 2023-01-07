@@ -208,7 +208,7 @@ class ACAgent(BaseAgent):
             mask_easy = np.any(~mask.cpu().numpy(), axis=1)
             self.train_history[i] = defaultdict(lambda: np.nan)
             self.train_history[i].update({
-                "entropy"           : self.env.entropy(),
+                "entropies"         : self.env.entropy(),
                 "rewards"           : rewards.cpu().numpy(),
                 # "exploration"       : episode_entropy[:, 0].detach().cpu().numpy(),
                 "value_loss"        : total_loss.item() / j,
