@@ -90,7 +90,7 @@ class BeamSearch:
             if qubit is None:
                 costs = env.entropy().mean(axis=-1)
             else:
-                costs = env.Entropy(next_states)[:, qubit]
+                costs = env.entropy()[:, qubit]
             imincost = np.argmin(costs)
             mincost = costs[imincost]
             # Check if a goal state is reached
