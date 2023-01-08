@@ -8,7 +8,10 @@ import pickle
 import sys
 sys.path.append("..")
 
-from src.infrastructure.logging import plot_entropy_curves, plot_policy_loss, logPlot
+from src.infrastructure.logging import (
+        plot_entropy_curves, plot_policy_loss, logPlot, plot_policy_entropy
+)
+from src.infrastructure.util_funcs import plt_style_use
 
 
 # Parse command line arguments.
@@ -16,6 +19,10 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-q", "--num_qubits", dest="num_qubits", type=int, default=2)
 parser.add_argument("--log_dir", dest="log_dir", type=str)
 args = parser.parse_args()
+
+
+# Use custom plt stylesheet.
+plt_style_use()
 
 
 # Plot the results.
@@ -33,6 +40,7 @@ test_act_acc = [test_history[i]["accuracy"] for i in sorted(test_history.keys())
 
 # Plot curves.
 plot_policy_loss(train_history, os.path.join(log_dir, "training_loss.png"), lw=1.4)
+plot_policy_entropy(train_history, os.path.join(log_dir, "policy_entropy.png"), lw=1.4)
 plot_entropy_curves(test_history, os.path.join(log_dir, "entropy.png"),
     lw=[2., 2., 2., 2.])
 logPlot(figname= os.path.join(log_dir, "returns.png"),

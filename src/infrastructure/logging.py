@@ -24,7 +24,7 @@ def logText(msg, logfile):
         logger.addHandler(fileh)    # set the new handler
     logging.info(msg)
 
-def logPlot(figname, xs=None, funcs=[], legends=[None], labels={}, fmt=["--k"], lw=[0.8],
+def logPlot(figname, xs=None, funcs=[], legends=[None], labels={}, lw=[0.8],
             fills=[], figtitle="", logscaleX=False, logscaleY=False):
     """Plot @funcs as curves on a figure and save the figure as `figname`.
 
@@ -41,8 +41,6 @@ def logPlot(figname, xs=None, funcs=[], legends=[None], labels={}, fmt=["--k"], 
             `labels["x"]` specifies the label of the x-axis.
             `labels["y"]` specifies the label of the y-axis.
             Default value is {}.
-        fmt (list[str], optional): A list of formating strings for every curve.
-            Default value is ["--k"].
         lw (list[float], optional): A list of line widths for every curve.
             Default value is [0.8].
         fills (list[tuple(np.Array)], optional): A list of tuples of curves [(f11,f21), (f12,f22), ...].
@@ -57,8 +55,6 @@ def logPlot(figname, xs=None, funcs=[], legends=[None], labels={}, fmt=["--k"], 
         xs = [np.arange(len(f)) for f in funcs]
     if len(legends) == 1:
         legends = legends * len(funcs)
-    if len(fmt) == 1:
-        fmt = fmt * len(funcs)
     if len(lw) == 1:
         lw = lw * len(funcs)
 
@@ -79,8 +75,8 @@ def logPlot(figname, xs=None, funcs=[], legends=[None], labels={}, fmt=["--k"], 
         ax.set_yscale("log")
 
     # Plot curves.
-    for x, f, l, c, w in zip(xs, funcs, legends, fmt, lw):
-        ax.plot(x, f, c, label=l, linewidth=w)
+    for x, f, l, w in zip(xs, funcs, legends, lw):
+        ax.plot(x, f, label=l, linewidth=w)
     for f1, f2 in fills:
         x = np.arange(len(f1))
         ax.fill_between(x, f1, f2, color='k', alpha=0.25)
@@ -181,10 +177,10 @@ def log_train_stats(stats, logfile):
     logText(f"""\
     Mean return:              {np.mean(np.sum(stats["rewards"], axis=1)):.4f}
     Mean episode entropy:     {np.mean(stats["exploration"]):.4f}
-    Mean final entropy:       {np.mean(stats["entropy"]):.4f}
-    Median final entropy:     {np.median(stats["entropy"]):.4f}
-    Max final entropy:        {np.max(stats["entropy"]):.4f}
-    95 percentile entropy:    {np.percentile(stats["entropy"], 95.0):.5f}
+    Mean final entropy:       {np.mean(stats["entropies"]):.4f}
+    Median final entropy:     {np.median(stats["entropies"]):.4f}
+    Max final entropy:        {np.max(stats["entropies"]):.4f}
+    95 percentile entropy:    {np.percentile(stats["entropies"], 95.0):.5f}
     Value loss:               {stats["value_loss"]:.4f}
     Value Total grad norm     {stats["value_total_norm"]:.5f}
     Policy entropy:           {stats["policy_entropy"]:.4f}
@@ -233,36 +229,47 @@ def plot_entropy_curves(train_history, filepath, lw=[0.4, 0.4, 0.6, 0.6]):
     keys = sorted(train_history.keys())
 
     # Define entropies curve.
-    ent_min = np.array([np.min(train_history[i]["entropy"]) for i in keys])
-    ent_max = np.array([np.max(train_history[i]["entropy"]) for i in keys])
-    ent_mean = np.array([np.mean(train_history[i]["entropy"]) for i in keys])
-    ent_quantile = np.array([np.quantile(train_history[i]["entropy"], 0.95) for i in keys])
+    ent_min = np.array([np.min(train_history[i]["entropies"]) for i in keys])
+    ent_max = np.array([np.max(train_history[i]["entropies"]) for i in keys])
+    ent_mean = np.array([np.mean(train_history[i]["entropies"]) for i in keys])
+    ent_quantile = np.array([np.quantile(train_history[i]["entropies"], 0.95) for i in keys])
+
+    # Instad of plotting the maximum of the entanglement entropy at each step
+    # of the lerning process we will plot an averaged value over a number of
+    # training steps. This makes the plot prettier, as the fluctuation of the
+    # max value is reduced.
+    avg_every = 100
+    avg_ent_max = np.convolve(ent_max, np.ones(avg_every), mode="valid") / avg_every
+    avg_ent_max = avg_ent_max[::-1][::avg_every][::-1]
+    avg_ent_max = np.concatenate((ent_max[:1], avg_ent_max))
+    num_iter = len(keys)
+    xs = np.arange(0, num_iter, avg_every)
 
     # Plot curves.
     logPlot(figname=filepath,
-            xs=[keys, keys, keys, keys],
-            funcs=[ent_min, ent_max, ent_mean, ent_quantile],
+            xs=[keys, xs, keys, keys],  # Note using `xs` for the `avg_ent_max`.
+            funcs=[ent_min, avg_ent_max, ent_mean, ent_quantile],
             legends=["min", "max", "mean", "95%quantile"],
             labels={"x":"Iteration", "y":"Entropy"},
-            fmt=["--r", "--b", "-k", ":m"], lw=lw,
+            lw=lw,
             figtitle="System entropy at episode end")
 
 def plot_policy_loss(train_history, filepath, lw=0.4):
     num_iter = len(train_history)
     policy_loss = [train_history[i]["policy_loss"] for i in range(num_iter)]
     logPlot(figname=filepath, funcs=[policy_loss], legends=["loss"],
-        labels={"x":"Iteration", "y":"Loss"}, fmt=["-b"], lw=[lw], figtitle="Policy Training Loss")
+        labels={"x":"Iteration", "y":"Loss"}, lw=[lw], figtitle="Policy Training Loss")
 
 def plot_value_loss(train_history, filepath, lw=0.4):
     num_iter = len(train_history)
     value_loss = [train_history[i]["value_loss"] for i in range(num_iter)]
     logPlot(figname=filepath, funcs=[value_loss], legends=["loss"],
-        labels={"x":"Iteration", "y":"Loss"}, fmt=["-b"], lw=[lw], figtitle="Value Training Loss")
+        labels={"x":"Iteration", "y":"Loss"}, lw=[lw], figtitle="Value Training Loss")
 
 def plot_policy_entropy(train_history, filepath, lw=0.4):
     num_iters = len(train_history)
     policy_entropy = [train_history[i]["policy_entropy"] for i in range(num_iters)]
-    logPlot(figname=filepath, funcs=[policy_entropy], legends=["policy_entropy"], fmt=["-b"], lw=[lw],
+    logPlot(figname=filepath, funcs=[policy_entropy], legends=["policy_entropy"], lw=[lw],
         labels={"x":"Iteration", "y":"Policy Entropy"}, figtitle="Average policy entropy")
 
 def plot_return_curves(train_history, test_history, filepath):
@@ -286,7 +293,6 @@ def plot_return_curves(train_history, test_history, filepath):
             funcs=[returns, avg_returns, test_returns],
             legends=["mean_batch_returns", "avg_returns", "test_returns"],
             labels={"x":"Iteration", "y":"Return"},
-            fmt=["--r", "-k", "-b"],
             lw=[0.4, 1.2, 1.2],
             figtitle="Agent Obtained Return")
 
@@ -312,7 +318,6 @@ def plot_nsolved_curves(train_history, test_history, filepath):
             funcs=[nsolved, avg_nsolved, test_nsolved],
             legends=["batch_nsolved", "avg_nsolved", "test_nsolved"],
             labels={"x":"Episode", "y":"nsolved"},
-            fmt=["--r", "-k", "-b"],
             lw=[0.4, 1.2, 1.2],
             figtitle="Agent accuracy of solved states")
 
@@ -334,7 +339,6 @@ def plot_nsteps(train_history, filepath):
             funcs=[ys],
             legends=["nsteps"],
             labels={"x": "Iteration", "y": "Steps"},
-            fmt=["-r"],
             lw=[0.4],
             figtitle="Steps to Disentangle")
 
