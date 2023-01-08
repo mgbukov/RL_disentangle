@@ -1,12 +1,6 @@
 """
-python3 generate_data.py -s 0 -q 5 --beam_size 100 --epsi 1e-3 --num_episodes 100000
+python3 generate_data.py -s 0 -q 5 --beam_size 100 --epsi 1e-3 --num_episodes 100000 --env rdm
 """
-#
-# There is an unknown bug in beam_search.py
-# Run "python3 generate_data.py -q 5 --beam_size 100 --epsi 1e-3 --num_episodes 10 -s 13"
-# to reproduce
-#
-
 import argparse
 import os
 import pickle
@@ -18,8 +12,10 @@ import numpy as np
 from tqdm import tqdm
 
 from src.agents.expert import SearchExpert
-from src.envs.chipoff_environment import QubitsEnvironment
+from src.envs.rdm_environment import QubitsEnvironment as RDMEnvironment
+from src.envs.chipoff_environment import QubitsEnvironment as ChipOffEnvironment
 from src.infrastructure.logging import logText
+from src.infrastructure.util_funcs import fix_random_seeds
 
 
 # Parse command line arguments.
@@ -33,19 +29,28 @@ parser.add_argument("--epsi", dest="epsi", type=float,
                     help="Threshold for disentanglement", default=1e-3)
 parser.add_argument("--num_episodes", dest="num_episodes", type=int,
                     help="Number of episodes to be generated", default=1)
+parser.add_argument("--env", dest="env", type=str, default="rdm",
+                    help="The type of the environment: rdm or chip-off.")
 args = parser.parse_args()
 
+
+assert args.env in ["rdm", "chip-off"], f"unknown environment {args.env}"
+
+
 # Fix seeds
-np.random.seed(args.seed)
+fix_random_seeds(args.seed)
 
 
 # Create file to log output during training.
-log_dir = os.path.join("..", "data", f"{args.num_qubits}qubits-chipoff")
+log_dir = os.path.join("..", "data", f"{args.num_qubits}qubits", args.env)
 os.makedirs(log_dir, exist_ok=True)
 logfile = os.path.join(log_dir, "generate.log")
 
 # Create the environment and the expert.
-env = QubitsEnvironment(args.num_qubits, epsi=args.epsi, batch_size=1)
+if args.env == "rdm":
+    env = RDMEnvironment(args.num_qubits, epsi=args.epsi, batch_size=1)
+else:
+    env = ChipOffEnvironment(args.num_qubits, epsi=args.epsi, batch_size=1)
 expert = SearchExpert(env, args.beam_size)
 
 
@@ -59,14 +64,18 @@ for _ in tqdm(range(args.num_episodes)):
         env.set_random_states()
         psi = env.states[0]
         states, actions = expert.rollout(psi, num_iter=1000, verbose=False)
-        if states is not None and actions is not None:
-            dataset["states"].append(states)
-            dataset["actions"].append(actions)
-            flag = True
+
+        # If (states, actions) = (None, None) then the expert could not solve the state.
+        if states is None or actions is None:
+            continue
+
+        dataset["states"].append(states)
+        dataset["actions"].append(actions)
+        flag = True
+
 toc = time.time()
 logText(f"Data generation took {toc-tic:.3f} seconds", logfile)
 
-print(dataset['states'])
 dataset["states"] = np.vstack(dataset["states"])
 dataset["actions"] = np.hstack(dataset["actions"])
 

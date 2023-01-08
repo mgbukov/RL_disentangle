@@ -46,22 +46,22 @@ plot_entropy_curves(test_history, os.path.join(log_dir, "entropy.png"),
 logPlot(figname= os.path.join(log_dir, "returns.png"),
         xs=[sorted(test_history.keys())], funcs=[test_returns],
         legends=["test_returns"], labels={"x":"Episode", "y":"Return"},
-        fmt=["-r"], lw=[1.4],
+        lw=[1.4],
         figtitle="Agent achieved average return")
 logPlot(figname= os.path.join(log_dir, "nsolved.png"),
         xs=[sorted(test_history.keys())], funcs=[test_nsolved],
         legends=["test_nsolved"], labels={"x":"Episode", "y":"nsolved"},
-        fmt=["-r"], lw=[1.4],
+        lw=[1.4],
         figtitle="Agent accuracy of solved states")
 logPlot(figname= os.path.join(log_dir, "nsteps.png"),
         xs=[sorted(test_history.keys())], funcs=[test_nsteps],
         legends=["test_nsteps"], labels={"x":"Episode", "y":"nsteps"},
-        fmt=["-r"], lw=[1.4],
+        lw=[1.4],
         figtitle="Avg. number of steeps to disentangle")
 logPlot(figname= os.path.join(log_dir, "act_acc.png"),
         xs=[sorted(test_history.keys())], funcs=[test_act_acc],
         legends=["test_action_accuracy"], labels={"x":"Episode", "y":"Action Accuracy"},
-        fmt=["-r"], lw=[1.4],
+        lw=[1.4],
         figtitle="Agent accuracy of picking the correct action")
 
 #
