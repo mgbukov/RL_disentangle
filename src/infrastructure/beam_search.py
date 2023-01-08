@@ -56,12 +56,15 @@ class BeamSearch:
             verbose (bool): If true, print search statistics.
 
         Returns:
-            path (list[actions]): A list of actions giving the path from the start state
-                to the solution state.
+            path (list[actions]): A list of actions giving the path from the
+                start state to the solution state.
+                If the input state is already disentangled this function returns
+                an empty list. If the search procedure cannot find a solution
+                this function returns None.
         """
         envstate = env.states
         goal = self._run(psi, env, qubit, num_iters, verbose)
-        solution = goal.path if goal is not None else []
+        solution = goal.path if goal is not None else None
         env.states = envstate
         return solution
 
