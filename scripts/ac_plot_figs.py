@@ -11,6 +11,8 @@ sys.path.append("..")
 from src.infrastructure.logging import (
     plot_distribution, plot_entropy_curves, plot_nsolved_curves, plot_nsteps,
     plot_policy_entropy, plot_policy_loss, plot_value_loss, plot_return_curves)
+from src.infrastructure.util_funcs import plt_style_use
+
 
 # Parse command line arguments.
 parser = argparse.ArgumentParser()
@@ -23,6 +25,10 @@ args = parser.parse_args()
 log_dir = os.path.join("..", "logs", f"{args.num_qubits}qubits", args.log_dir)
 log_probs_dir = os.path.join(log_dir, "probs")
 os.makedirs(log_probs_dir, exist_ok=True)
+
+
+# Use custom plt stylesheet.
+plt_style_use()
 
 
 # Plot the results.

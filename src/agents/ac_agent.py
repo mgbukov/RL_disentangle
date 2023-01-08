@@ -204,11 +204,11 @@ class ACAgent(BaseAgent):
             avg_policy_ent = -torch.mean(torch.sum(probs*torch.log(probs),axis=-1))
 
             # Book-keeping.
-            mask_hard = np.any(self.env.entropy() > 0.6, axis=1)
-            mask_easy = np.any(~mask.cpu().numpy(), axis=1)
+            # mask_hard = np.any(self.env.entropy() > 0.6, axis=1)
+            # mask_easy = np.any(~mask.cpu().numpy(), axis=1)
             self.train_history[i] = defaultdict(lambda: np.nan)
             self.train_history[i].update({
-                "entropy"           : self.env.entropy(),
+                "entropies"         : self.env.entropy(),
                 "rewards"           : rewards.cpu().numpy(),
                 # "exploration"       : episode_entropy[:, 0].detach().cpu().numpy(),
                 "value_loss"        : total_loss.item() / j,
@@ -217,9 +217,9 @@ class ACAgent(BaseAgent):
                 "policy_loss"       : loss.item(),
                 "policy_total_norm" : total_norm.item(),
                 "nsolved"           : sum(self.env.disentangled()),
-                "nsteps"            : ((~mask[:,-1])*torch.sum(mask, axis=1)).cpu().numpy(),
-                "easy_states"       : states.detach().cpu().numpy()[mask_easy, 0][:32],
-                "hard_states"       : states.detach().cpu().numpy()[mask_hard, 0][:32],
+                "nsteps"            : (torch.sum(mask, axis=1)).cpu().numpy(),
+                # "easy_states"       : states.detach().cpu().numpy()[mask_easy, 0][:32],
+                # "hard_states"       : states.detach().cpu().numpy()[mask_hard, 0][:32],
             })
             toc = time.time()
 

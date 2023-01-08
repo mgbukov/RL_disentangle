@@ -9,7 +9,7 @@ import time
 sys.path.append("..")
 
 from src.agents.pg_agent import PGAgent
-from src.envs.chipoff_environment import QubitsEnvironment
+from src.envs.rdm_environment import QubitsEnvironment
 from src.infrastructure.logging import logText, plot_reward_function
 from src.infrastructure.util_funcs import fix_random_seeds, set_printoptions
 from src.policies.fcnn_policy import FCNNPolicy
@@ -48,7 +48,6 @@ args = parser.parse_args()
 # Fix the random seeds for NumPy and PyTorch, and set print options.
 fix_random_seeds(args.seed)
 set_printoptions(precision=5, sci_mode=False)
-
 
 # Create file to log output during training.
 pretrain = ""
@@ -93,7 +92,7 @@ policy = FCNNPolicy(input_size, hidden_dims, output_size, args.dropout)
 
 # Maybe load a pre-trained model.
 if args.model_path is not None:
-    logText(f"Loading pre-trained model from {args.model_path}...")
+    logText(f"Loading pre-trained model from {args.model_path}...", logfile)
     policy = FCNNPolicy.load(args.model_path)
 
 

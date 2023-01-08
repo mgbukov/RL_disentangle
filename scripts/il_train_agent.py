@@ -39,7 +39,7 @@ parser.add_argument("--dropout", dest="dropout", type=float, default=0.0)
 parser.add_argument("--log_every", dest="log_every", type=int, default=1)
 parser.add_argument("--test_every", dest="test_every", type=int, default=10)
 parser.add_argument("--save_every", dest="save_every", type=int, default=10)
-parser.add_argument("--data_file", dest="data_file", type=str, default="beam_100_episodes_100000",
+parser.add_argument("--data_file", dest="data_file", type=str, default="beam_100_episodes_100000.pickle",
     help="Name of a pickle file containing training data located inside /data/Nqubits/")
 args = parser.parse_args()
 
@@ -50,7 +50,7 @@ set_printoptions(precision=5, sci_mode=False)
 
 
 # Load the dataset.
-data_path = os.path.join("..", "data", f"{args.num_qubits}qubits", f"{args.data_file}.pickle")
+data_path = os.path.join("..", "data", f"{args.num_qubits}qubits", args.data_file)
 with open(data_path, "rb") as f:
     dataset = pickle.load(f)
 dataset["states"] = torch.from_numpy(dataset["states"])
@@ -70,6 +70,7 @@ log_file = os.path.join(log_dir, "train.log")
 # args.lr_decay = np.power(0.1, 1.0/num_iter)
 logText(f"""##############################
 Training parameters:
+    Dataset size:                   {dataset["states"].shape[0]}
     Minimum system entropy (epsi):  {args.epsi}
     Number of epochs:               {args.num_epochs}
     Batch size:                     {args.batch_size}

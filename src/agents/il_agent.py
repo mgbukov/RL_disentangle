@@ -119,7 +119,7 @@ class ILAgent(BaseAgent):
             tic = time.time()
 
             # Loop over the entire dataset in random order.
-            total_loss, total_grad_norm, j = 0.0, 0.0, 0
+            total_loss, total_grad_norm, total_policy_ent, j = 0.0, 0.0, 0.0, 0
             for idxs in torch.randperm(train_size).to(device).split(batch_size):
                 # Draw a random mini-batch of samples from the dataset.
                 states = dataset["states"][idxs].to(device)
@@ -140,10 +140,14 @@ class ILAgent(BaseAgent):
                 # Bookkeeping.
                 total_loss += loss.item()
                 total_grad_norm += total_norm
+                probs = F.softmax(logits, dim=-1) + torch.finfo(torch.float32).eps
+                total_policy_ent +=-(torch.mean(torch.sum(probs*torch.log(probs),dim=-1))
+                            / torch.log(torch.Tensor([self.env.num_actions]).to(self.policy.device))).item()
                 j += 1
 
             self.train_history[i] = {
                 "policy_loss" : total_loss / j,
+                "policy_entropy" : total_policy_ent / j,
             }
 
             toc = time.time()
@@ -151,8 +155,9 @@ class ILAgent(BaseAgent):
             # Log results to file.
             if i % log_every == 0:
                 logText(f"Epoch ({i}/{num_epochs}) took {toc-tic:.3f} seconds.", logfile)
-                logText(f"  Avg Loss:  {total_loss / j:.5f}", logfile)
-                logText(f"  Avg Grad norm:   {total_grad_norm / j:.5f}", logfile)
+                logText(f"  Avg Loss:           {total_loss / j:.5f}", logfile)
+                logText(f"  Avg Grad norm:      {total_grad_norm / j:.5f}", logfile)
+                logText(f"  Avg policy entropy: {total_policy_ent / j:.5f}", logfile)
 
             # Test the agent.
             if i % test_every == 0:
