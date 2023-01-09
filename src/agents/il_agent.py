@@ -1,4 +1,5 @@
 import time
+import os
 
 import numpy as np
 import torch
@@ -180,7 +181,7 @@ class ILAgent(BaseAgent):
 
             # Checkpoint save.
             if i % save_every == 0:
-                self.save_policy(log_dir, filename=f"policy_{i}.bin")
-                self.save_history(log_dir)
+                os.makedirs(os.path.join(log_dir, "policies"), exist_ok=True)
+                self.policy.save(os.path.join(log_dir, "policies", f"policy_{i}.bin"))
 
 #

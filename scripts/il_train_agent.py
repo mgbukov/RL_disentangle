@@ -39,7 +39,7 @@ parser.add_argument("--dropout", dest="dropout", type=float, default=0.0)
 parser.add_argument("--log_every", dest="log_every", type=int, default=1)
 parser.add_argument("--test_every", dest="test_every", type=int, default=10)
 parser.add_argument("--save_every", dest="save_every", type=int, default=10)
-parser.add_argument("--data_file", dest="data_file", type=str, default="beam_100_episodes_100000.pickle",
+parser.add_argument("--data_file", dest="data_file", type=str, default="beam_100_episodes_10000.pickle",
     help="Name of a pickle file containing training data located inside /data/Nqubits/")
 args = parser.parse_args()
 
@@ -50,7 +50,7 @@ set_printoptions(precision=5, sci_mode=False)
 
 
 # Load the dataset.
-data_path = os.path.join("..", "data", f"{args.num_qubits}qubits", args.data_file)
+data_path = os.path.join("..", "data", f"{args.num_qubits}qubits", "rdm", args.data_file)
 with open(data_path, "rb") as f:
     dataset = pickle.load(f)
 dataset["states"] = torch.from_numpy(dataset["states"])
@@ -58,10 +58,8 @@ dataset["actions"] = torch.from_numpy(dataset["actions"])
 
 
 # Create file to log output during training.
-# args.data_file = "../data/5qubits/beam_size_100/1000000_episodes.pickle"
-num_epochs = int(args.data_file.split("/")[-1].split("_")[0])
 log_dir = os.path.join("..", "logs", f"{args.num_qubits}qubits",
-    f"il_epochs_{num_epochs // 1000}k_batch_{args.batch_size}")
+    f"il_epochs_{args.num_epochs}_batch_{args.batch_size}")
 os.makedirs(log_dir, exist_ok=True)
 log_file = os.path.join(log_dir, "train.log")
 
