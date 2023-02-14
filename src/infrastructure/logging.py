@@ -184,6 +184,8 @@ def log_train_stats(stats, logfile):
     Value loss:               {stats["value_loss"]:.4f}
     Value Total grad norm     {stats["value_total_norm"]:.5f}
     Policy entropy:           {stats["policy_entropy"]:.4f}
+    PPO KL-divergence:        {stats["PPO_avg_KL_div"]:.4f}
+    PPO Avg num of updates:   {stats["PPO_avg_num_updates"]: .2f}
     Policy pseudo loss:       {stats["policy_loss"]:.5f}
     Policy Total grad norm:   {stats["policy_total_norm"]:.5f}
     Solved trajectories:      {stats["nsolved"]} / {batch_size}
