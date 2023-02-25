@@ -22,15 +22,14 @@ class PGAgent(BaseAgent):
         test_history (dict): A dict object used for bookkeeping.
     """
 
-    def __init__(self, env, policy):
+    def __init__(self, env, policy, kind="vec"):
         """Initialize policy gradient agent.
 
         Args:
             env (QubitsEnvironment object): Environment object.
             policy (Policy object): Policy object.
         """
-        self.env = env
-        self.policy = policy
+        super().__init__(env, policy, kind)
         self.train_history = {}
         self.test_history = {}
 
@@ -274,7 +273,7 @@ class PGAgent(BaseAgent):
 
         # Initialize the optimizer and the scheduler.
         self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=learning_rate, weight_decay=reg)
-        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=1, gamma=lr_decay)
+        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=100, gamma=lr_decay)
         logText(f"Using optimizer:\n{str(self.optimizer)}\n", logfile)
 
         # Start training.

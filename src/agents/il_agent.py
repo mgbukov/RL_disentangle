@@ -28,8 +28,7 @@ class ILAgent(BaseAgent):
             env (QubitsEnvironment object): Environment object.
             policy (Policy object): Policy object.
         """
-        self.env = env
-        self.policy = policy
+        super().__init__(env, policy)
         self.train_history = {}
         self.test_history = {}
 
@@ -103,7 +102,7 @@ class ILAgent(BaseAgent):
 
         # Initialize the optimizer and the scheduler.
         optimizer = torch.optim.Adam(self.policy.parameters(), lr=learning_rate, weight_decay=reg)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=lr_decay)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=lr_decay)
         logText(f"Using optimizer:\n{str(optimizer)}\n", logfile)
 
         # Split the dataset into a training set and a test set.
