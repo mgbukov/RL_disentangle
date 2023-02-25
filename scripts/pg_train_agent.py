@@ -24,7 +24,11 @@ parser.add_argument("--env_batch", dest="env_batch", type=int,
     help="Number of states in the environment batch", default=1)
 parser.add_argument("--steps", dest="steps", type=int,
     help="Number of steps in an episode", default=10)
+<<<<<<< HEAD
 parser.add_argument("--kind", choices=["vec", "rdm", "cvec", "ctrdm"], default="vec",
+=======
+parser.add_argument("--kind", choices=["vec", "rdm"], default="vec",
+>>>>>>> 88d04b9 (Updated train scripts for Immitation Learning and Policy Gradient)
     help="Kind of agent observation - either \"vec\" or \"rdm\"")
 parser.add_argument("--epsi", dest="epsi", type=float,
     help="Threshold for disentanglement", default=1e-3)
@@ -90,6 +94,14 @@ plot_reward_function(env, os.path.join(log_dir, "reward_function.png"))
 # TODO
 # `input_size` should be return value of an Agent's getter, instead of
 # manually calculated. But Agent cannot be initialized without policy... ?
+<<<<<<< HEAD
+=======
+if args.kind == "vec":
+    input_size = 2 ** (args.num_qubits + 1)
+else:
+    input_size = (env.num_actions // 2) * 16 * 2
+hidden_dims = [4096, 4096, 512]
+>>>>>>> 88d04b9 (Updated train scripts for Immitation Learning and Policy Gradient)
 output_size = env.num_actions
 if args.kind == "vec":
     hidden_dims = [4096, 4096, 512]
