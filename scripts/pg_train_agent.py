@@ -24,6 +24,8 @@ parser.add_argument("--env_batch", dest="env_batch", type=int,
     help="Number of states in the environment batch", default=1)
 parser.add_argument("--steps", dest="steps", type=int,
     help="Number of steps in an episode", default=10)
+parser.add_argument("--kind", choices=["vec", "rdm"], default="vec",
+    help="Kind of agent observation - either \"vec\" or \"rdm\"")
 parser.add_argument("--epsi", dest="epsi", type=float,
     help="Threshold for disentanglement", default=1e-3)
 parser.add_argument("-i", "--num_iter", dest="num_iter", type=int,
@@ -55,7 +57,7 @@ if args.model_path is not None:
     # args.model_path = "../logs/5qubits/imitation_100k/policy_80.bin"
     pretrain = "_pretrain_" + args.model_path.split("_")[-1].split(".")[0]
 log_dir = os.path.join("..", "logs", f"{args.num_qubits}qubits",
-    f"pg_traj_{args.env_batch}_iters_{args.num_iter}_entreg_{args.entropy_reg}{pretrain}")
+    f"pg_traj_{args.kind}_{args.env_batch}_iters_{args.num_iter}_entreg_{args.entropy_reg}{pretrain}")
 os.makedirs(log_dir, exist_ok=True)
 logfile = os.path.join(log_dir, "train.log")
 
@@ -66,6 +68,7 @@ logText(f"""##############################
 Training parameters:
     Number of trajectories:         {args.env_batch}
     Maximum number of steps:        {args.steps}
+    Kind of observations:           {args.kind}
     Minimum system entropy (epsi):  {args.epsi}
     Number of iterations:           {args.num_iter}
     Learning rate:                  {args.learning_rate}
@@ -84,7 +87,13 @@ plot_reward_function(env, os.path.join(log_dir, "reward_function.png"))
 
 
 # Initialize the policy.
-input_size = 2 ** (args.num_qubits + 1)
+# TODO
+# `input_size` should be return value of an Agent's getter, instead of
+# manually calculated. But Agent cannot be initialized without policy... ?
+if args.kind == "vec":
+    input_size = 2 ** (args.num_qubits + 1)
+else:
+    input_size = (env.num_actions // 2) * 16 * 2
 hidden_dims = [4096, 4096, 512]
 output_size = env.num_actions
 policy = FCNNPolicy(input_size, hidden_dims, output_size, args.dropout)
@@ -97,7 +106,7 @@ if args.model_path is not None:
 
 
 # Train a policy-gradient agent.
-agent = PGAgent(env, policy)
+agent = PGAgent(env, policy, kind=args.kind)
 tic = time.time()
 agent.train(args.num_iter, args.steps, args.learning_rate, args.lr_decay, args.clip_grad,
     args.reg, args.entropy_reg, args.log_every, args.test_every, args.save_every,
