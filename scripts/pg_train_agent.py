@@ -42,6 +42,7 @@ parser.add_argument("--test_every", dest="test_every", type=int, default=1000)
 parser.add_argument("--save_every", dest="save_every", type=int, default=1000)
 parser.add_argument("--model_path", dest="model_path", type=str,
     help="File path to load the parameters of a saved policy", default=None)
+parser.add_argument("--use_baseline", dest="use_baseline", action="store_true", default=False)
 args = parser.parse_args()
 
 
@@ -51,11 +52,14 @@ set_printoptions(precision=5, sci_mode=False)
 
 # Create file to log output during training.
 pretrain = ""
+baseline = ""
 if args.model_path is not None:
     # args.model_path = "../logs/5qubits/imitation_100k/policy_80.bin"
     pretrain = "_pretrain_" + args.model_path.split("_")[-1].split(".")[0]
+if args.use_baseline:
+    baseline = "_baseline"
 log_dir = os.path.join("..", "logs", f"{args.num_qubits}qubits",
-    f"pg_traj_{args.env_batch}_iters_{args.num_iter}_entreg_{args.entropy_reg}{pretrain}")
+    f"pg_traj_{args.env_batch}_iters_{args.num_iter}_entreg_{args.entropy_reg}_new_normalized{pretrain}{baseline}")
 os.makedirs(log_dir, exist_ok=True)
 logfile = os.path.join(log_dir, "train.log")
 
@@ -89,6 +93,10 @@ hidden_dims = [4096, 4096, 512]
 output_size = env.num_actions
 policy = FCNNPolicy(input_size, hidden_dims, output_size, args.dropout)
 
+value_network = None
+if args.use_baseline:
+    logText(f"Training with value network as a baseline", logfile)
+    value_network = FCNNPolicy(input_size, [256, 256], 1, args.dropout)
 
 # Maybe load a pre-trained model.
 if args.model_path is not None:
@@ -97,7 +105,7 @@ if args.model_path is not None:
 
 
 # Train a policy-gradient agent.
-agent = PGAgent(env, policy)
+agent = PGAgent(env, policy, value_network)
 tic = time.time()
 agent.train(args.num_iter, args.steps, args.learning_rate, args.lr_decay, args.clip_grad,
     args.reg, args.entropy_reg, args.log_every, args.test_every, args.save_every,

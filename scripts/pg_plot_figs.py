@@ -10,7 +10,9 @@ sys.path.append("..")
 
 from src.infrastructure.logging import (
     plot_distribution, plot_entropy_curves, plot_nsolved_curves, plot_nsteps,
-    plot_policy_entropy, plot_policy_loss, plot_return_curves)
+    plot_policy_entropy, plot_policy_loss, plot_return_curves, plot_value_loss,
+    plot_pg_norm, plot_policy_KL,
+)
 from src.infrastructure.util_funcs import plt_style_use
 
 
@@ -44,5 +46,12 @@ plot_return_curves(train_history, test_history, os.path.join(log_dir, "returns.p
 plot_nsolved_curves(train_history, test_history, os.path.join(log_dir, "nsolved.png"))
 plot_nsteps(train_history, os.path.join(log_dir, "nsteps.png"))
 # plot_distribution(train_history, args.log_every, log_probs_dir)
+plot_pg_norm(train_history, os.path.join(log_dir, "policy_grad_norm.png"))
+
+# for value network baseline
+plot_value_loss(train_history, os.path.join(log_dir, "value_loss.png"))
+
+# for ppo
+plot_policy_KL(train_history, os.path.join(log_dir, "policy_KL.png"))
 
 #

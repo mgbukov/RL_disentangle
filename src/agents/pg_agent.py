@@ -5,6 +5,7 @@ import time
 import numpy as np
 import torch
 import torch.nn.functional as F
+import torch.utils.data as data
 from tqdm import tqdm
 
 from src.agents.base_agent import BaseAgent
@@ -18,19 +19,23 @@ class PGAgent(BaseAgent):
     Attributes:
         env (QubitsEnvironment): Environment object that the agent interacts with.
         policy (Policy): Policy object that the agent uses to decide on the next action.
+        value_network (NN object): A neural network that the agent uses to score
+            the environment states.
         train_history (dict): A dict object used for bookkeeping.
         test_history (dict): A dict object used for bookkeeping.
     """
 
-    def __init__(self, env, policy):
+    def __init__(self, env, policy, value_network=None):
         """Initialize policy gradient agent.
 
         Args:
             env (QubitsEnvironment object): Environment object.
             policy (Policy object): Policy object.
+            value_network (NN object): Value network object.
         """
         self.env = env
         self.policy = policy
+        self.value_network = value_network
         self.train_history = {}
         self.test_history = {}
 
@@ -100,6 +105,32 @@ class PGAgent(BaseAgent):
         baseline = mask * torch.tile(baseline, dims=(batch_size, 1))
         return baseline
 
+
+    @torch.no_grad()
+    def _normalized_returns(self, returns, mask=None):
+        """Normalize the returns.
+
+        Args:
+            returns (torch.Tensor): Tensor of shape (episodes, steps), containing the
+                returns obtained at every step.
+            masks (torch.Tensor. optional): A tensor of shape (episodes, steps), of boolean
+                values, that mask out the part of an episode after it has finished.
+                Default value is None, meaning there is no masking.
+        Returns:
+            normalized_returns (torch.Tensor): Tensor of shape (episodes, steps), giving
+                the normalized returns for each time-step of every episode.
+        """
+        eps = torch.finfo(torch.float32).eps
+
+        # If there is no masking, then simply calculate the mean and the std.
+        if mask is None:
+            return (returns - returns.mean()) / (returns.std() + eps)
+
+        # If some parts of the episodes are masked then we have to exclude them
+        # from the calculation of the mean and the std.
+        returns_ = returns.ravel()[mask.ravel()]
+        return (returns - returns_.mean()) / (returns_.std() + eps)
+
     def entropy_term(self, logits, actions, mask):
         """Compute the entropy regularization term.
         Check out: https://arxiv.org/pdf/1805.00909.pdf
@@ -167,6 +198,8 @@ class PGAgent(BaseAgent):
 
         # Start the training loop.
         for i in tqdm(range(num_iter)):
+            self.train_history[i] = defaultdict(lambda: np.nan)
+
             tic = time.time()
 
             # Set the initial state and perform policy rollout.
@@ -179,11 +212,23 @@ class PGAgent(BaseAgent):
             # in these states!
             states = states[:, :-1, :]
 
-            # Compute the loss.
+            # Compute the returns and baseline them.
+            q_values = self.reward_to_go(rewards)
+            if self.value_network != None:
+                self.update_value(i, states, q_values, mask)
+                with torch.no_grad():
+                    baseline = self.value_network(states).squeeze(dim=-1) # shape (B, 1)
+                    q_values -= baseline
+
             logits = self.policy(states)
             episode_entropy = self.entropy_term(logits, actions, mask)
-            q_values = self.reward_to_go(rewards) - 0.5 * entropy_reg * episode_entropy
-            q_values -= self.reward_baseline(q_values, mask)
+            q_values -= 0.5 * entropy_reg * episode_entropy
+
+            # To provide for a more stable learning process we want to scale the
+            # returns at every time-step so that the they are normalized.
+            q_values = self._normalized_returns(q_values)
+
+            # Compute the loss.
             nll = F.cross_entropy(logits.permute(0,2,1), actions, reduction="none")
             weighted_nll = torch.mul(mask * nll, q_values)
             loss = torch.sum(weighted_nll) / torch.sum(mask)
@@ -201,10 +246,14 @@ class PGAgent(BaseAgent):
             avg_policy_ent = -(torch.mean(torch.sum(probs*torch.log(probs), dim=-1))
                         / torch.log(torch.Tensor([self.env.num_actions]).to(self.policy.device)))
 
+            with torch.no_grad():
+                new_logits = self.policy(states)
+                new_nll = F.cross_entropy(new_logits.permute(0,2,1), actions, reduction="none")
+            KL = torch.mean(-nll + new_nll) # KL(P,Q) = Sum(P log(Q/P)) = E_P[logQ-logP]
+
             # Book-keeping.
-            mask_hard = np.any(self.env.entropy() > 0.6, axis=1)
-            mask_easy = np.any(~mask.cpu().numpy(), axis=1)
-            self.train_history[i] = defaultdict(lambda: np.nan)
+            # mask_hard = np.any(self.env.entropy() > 0.6, axis=1)
+            # mask_easy = np.any(~mask.cpu().numpy(), axis=1)
             self.train_history[i].update({
                 "entropies"         : self.env.entropy(),
                 "rewards"           : rewards.cpu().numpy(),
@@ -214,6 +263,7 @@ class PGAgent(BaseAgent):
                 "policy_total_norm" : total_norm.item(),
                 "nsolved"           : sum(self.env.disentangled()),
                 "nsteps"            : (torch.sum(mask, dim=1)).cpu().numpy(),
+                "kl_divergence"     : KL.item(),
                 # "easy_states"       : states.detach().cpu().numpy()[mask_easy, 0][:32],
                 # "hard_states"       : states.detach().cpu().numpy()[mask_hard, 0][:32],
             })
@@ -270,11 +320,16 @@ class PGAgent(BaseAgent):
         # device = torch.device("cpu")
         logText(f"Using device: {device}\n", logfile)
         self.policy.train()
-        self.policy = self.policy.to(device)
+        self.policy.to(device)
+        if self.value_network != None:
+            self.value_network.train()
+            self.value_network.to(device)
 
         # Initialize the optimizer and the scheduler.
         self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=learning_rate, weight_decay=reg)
         self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=1, gamma=lr_decay)
+        if self.value_network != None:
+            self.value_optim = torch.optim.Adam(self.value_network.parameters(), lr=learning_rate)
         logText(f"Using optimizer:\n{str(self.optimizer)}\n", logfile)
 
         # Start training.
@@ -299,5 +354,57 @@ class PGAgent(BaseAgent):
         params["train_kwargs"]["num_iter"] = num_iter
         params["train_kwargs"]["steps"] = steps # we maybe want to train with shorter/longer episodes
         self._train(**params["train_kwargs"])
+
+    def update_value(self, i, obs, returns, mask=None):
+        """Update the value network to fit the value function of the current
+        policy `V_pi`. This functions performs a single iteration over the
+        observations and fits the value network using MSE loss.
+
+        Args:
+            obs: torch.Tensor
+                A tensor of shape (b, t, *), giving the observations of the agent.
+            returns: torch.Tensor
+                A tensor of shape (b, t), giving the obtained returns.
+            mask: torch.Tensor, optional
+                A boolean tensor of shape (b, t), that masks out the part of an
+                episode after it has finished. Default value is None, no masking.
+        """
+        device = self.value_network.device
+        if mask is None:
+            mask = torch.ones_like(returns, device=device)
+
+        # Flatten all the tensors and discard the masked parts of every episode.
+        N, T = returns.shape
+        mask = mask.ravel()
+        obs = obs.reshape(N*T, *obs.shape[2:])[mask]
+        returns = returns.reshape(N*T, 1)[mask]
+
+        # Iterate over the collected observations and update the value network.
+        dataset = data.TensorDataset(obs, returns)
+        train_dataloader = data.DataLoader(dataset, batch_size=128, shuffle=True)
+        value_optim = self.value_optim
+        total_loss, total_grad_norm, j = 0., 0., 0
+        for o, r in train_dataloader:
+            # Forward pass.
+            pred = self.value_network(o)
+            value_loss = F.mse_loss(pred, r)
+            # Backward pass.
+            value_optim.zero_grad()
+            value_loss.backward()
+            total_norm = torch.norm(torch.stack(
+                [torch.norm(p.grad) for p in self.value_network.parameters()]))
+            torch.nn.utils.clip_grad_norm_(self.value_network.parameters(), 10.)
+            value_optim.step()
+
+            # Bookkeeping.
+            total_loss += value_loss.item()
+            total_grad_norm += total_norm.item()
+            j += 1
+
+        # Store the stats.
+        self.train_history[i].update({
+            "value_loss"        : total_loss / j,
+            "value_total_norm"  : total_grad_norm / j,
+        })
 
 #

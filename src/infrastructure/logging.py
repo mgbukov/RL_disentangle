@@ -371,4 +371,16 @@ def plot_reward_function(env, filepath):
     fig.savefig(filepath, dpi=160)
     plt.close(fig)
 
+def plot_policy_KL(train_history, filepath, lw=0.4):
+    num_iter = len(train_history)
+    policy_KL = [train_history[i]["kl_divergence"] for i in range(num_iter)]
+    logPlot(figname=filepath, funcs=[policy_KL],
+        labels={"x":"Iteration", "y":"KL divergence"}, lw=[lw], figtitle="Policy KL Divergence")
+
+def plot_pg_norm(train_history, filepath, lw=0.4):
+    num_iter = len(train_history)
+    pg_norm = [train_history[i]["policy_total_norm"] for i in range(num_iter)]
+    logPlot(figname=filepath, funcs=[pg_norm],
+        labels={"x":"Iteration", "y":"PG total norm"}, lw=[lw], figtitle="PG Total norm")
+
 #
