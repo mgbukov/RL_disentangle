@@ -16,18 +16,12 @@ class BaseAgent:
     def __init__(self, env, policy, kind='vec'):
         self.env = env
         self.policy = policy
-<<<<<<< HEAD
         if kind not in ('vec', 'rdm', 'cvec', 'ctrdm'):
             raise ValueError('`kind` must be one of ("vec", "rdm", "cvec", "ctrdm")')
-=======
-        if kind not in ('vec', 'rdm'):
-            raise ValueError('`kind` must be one of ("vec", "rdm")')
->>>>>>> 2a69c6d (Added RDM observation in BaseAgent. Other changes:)
         self.observation_kind = kind
         # Bind `self.observe()` method dynamically
         if kind == 'vec':
             self.observe = self._observe_vec
-<<<<<<< HEAD
             self._shape = (2 ** (self.env.L + 1),)
         elif kind == 'cvec':
             self.observe = self._observe_cvec
@@ -38,12 +32,6 @@ class BaseAgent:
         elif kind == 'ctrdm':
             self.observe = self._observe_rdm
             self._shape = (self.env.num_actions, 16)
-=======
-            self._obslen = 2 ** (self.env.L + 1)
-        else:
-            self.observe = self._observe_rdm
-            self._obslen = (self.env.num_actions // 2) * 16 * 2
->>>>>>> 2a69c6d (Added RDM observation in BaseAgent. Other changes:)
 
     def train(self, *args, **kwargs):
         raise NotImplementedError("This method must be implemented by the subclass")
@@ -65,25 +53,17 @@ class BaseAgent:
     def _observe_vec(self):
         psi = self.env.states.reshape(self.env.batch_size, -1)
         return np.hstack([psi.real, psi.imag])
-<<<<<<< HEAD
     
     @torch.no_grad()
     def _observe_cvec(self):
         return self.env.states.reshape(self.env.batch_size, -1)
-=======
->>>>>>> 2a69c6d (Added RDM observation in BaseAgent. Other changes:)
 
     @torch.no_grad()
     def _observe_rdm(self):
         states = self.env.states
         rdms = []
-<<<<<<< HEAD
         # qubit_pairs = [a for a in self.env.actions.values() if a[0] < a[1]]
         qubit_pairs = list(self.env.actions.values())
-=======
-        qubit_pairs = [a for a in self.env.actions.values() if a[0] < a[1]]
-        # qubit_pairs = list(self.env.actions.values())
->>>>>>> 2a69c6d (Added RDM observation in BaseAgent. Other changes:)
         for qubits in qubit_pairs:
             sysA = tuple(q+1 for q in qubits)
             sysB = tuple(q+1 for q in range(self.env.L) if q not in qubits)
@@ -95,7 +75,6 @@ class BaseAgent:
             # Reset permutation
             states = np.transpose(states, np.argsort(permutation))
             assert np.all(states == self.env.states)
-<<<<<<< HEAD
         rdms = np.array(rdms)                   # rdms.shape == (Q, B, 4, 4)
         rdms = rdms.transpose((1, 0, 2, 3))     # rdms.shape == (B, Q, 4, 4)
         if self.observation_kind == 'ctrdm':
@@ -103,14 +82,6 @@ class BaseAgent:
         elif self.observation_kind == 'rdm':
             result = rdms.reshape(self.env.batch_size, -1, 16)
             return np.dstack([result.real, result.imag]).reshape((-1,) + self._shape)
-=======
-        rdms = np.array(rdms)           # rdms.shape == (Q, B, 4, 4)
-        rdms.transpose((1, 0, 2, 3))    # rdms.shape == (B, Q, 4, 4)
-        result = rdms.reshape(self.env.batch_size, -1, 16)
-        result = np.dstack([result.real, result.imag]).reshape(-1, self._obslen)
-        return result
-
->>>>>>> 2a69c6d (Added RDM observation in BaseAgent. Other changes:)
 
     @torch.no_grad()
     def rollout(self, steps, plan=None, greedy=False, beta=1.0):
@@ -141,7 +112,6 @@ class BaseAgent:
         L = self.env.L
 
         # Allocate torch tensors to store the data from the rollout.
-<<<<<<< HEAD
         if self.observation_kind.startswith('c'):
             states = torch.zeros(size=(steps+1,b)+self._shape, dtype=torch.complex64)
         else:
@@ -149,12 +119,6 @@ class BaseAgent:
         actions = torch.zeros(size=(steps, b), dtype=torch.int64)
         rewards = torch.zeros(size=(steps, b), dtype=torch.float32)
         done = torch.zeros(size=(steps, b), dtype=torch.bool)
-=======
-        states = torch.zeros(size=(steps+1, b, self._obslen), dtype=torch.float32, device=device)
-        actions = torch.zeros(size=(steps, b), dtype=torch.int64, device=device)
-        rewards = torch.zeros(size=(steps, b), dtype=torch.float32, device=device)
-        done = torch.zeros(size=(steps, b), dtype=torch.bool, device=device)
->>>>>>> 2a69c6d (Added RDM observation in BaseAgent. Other changes:)
 
         # Perform parallel rollout along all trajectories.
         for i in range(steps):
