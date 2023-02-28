@@ -12,7 +12,7 @@ from src.agents.pg_agent import PGAgent
 from src.envs.rdm_environment import QubitsEnvironment
 from src.infrastructure.logging import logText, plot_reward_function
 from src.infrastructure.util_funcs import fix_random_seeds, set_printoptions
-from src.policies.fcnn_policy import FCNNPolicy
+from src.policies.fcnn_policy import FCNNPolicy, ComplexNet
 
 
 # Parse command line arguments.
@@ -24,7 +24,7 @@ parser.add_argument("--env_batch", dest="env_batch", type=int,
     help="Number of states in the environment batch", default=1)
 parser.add_argument("--steps", dest="steps", type=int,
     help="Number of steps in an episode", default=10)
-parser.add_argument("--kind", choices=["vec", "rdm"], default="vec",
+parser.add_argument("--kind", choices=["vec", "rdm", "cvec", "ctrdm"], default="vec",
     help="Kind of agent observation - either \"vec\" or \"rdm\"")
 parser.add_argument("--epsi", dest="epsi", type=float,
     help="Threshold for disentanglement", default=1e-3)
@@ -90,13 +90,22 @@ plot_reward_function(env, os.path.join(log_dir, "reward_function.png"))
 # TODO
 # `input_size` should be return value of an Agent's getter, instead of
 # manually calculated. But Agent cannot be initialized without policy... ?
-if args.kind == "vec":
-    input_size = 2 ** (args.num_qubits + 1)
-else:
-    input_size = (env.num_actions // 2) * 16 * 2
-hidden_dims = [4096, 4096, 512]
 output_size = env.num_actions
-policy = FCNNPolicy(input_size, hidden_dims, output_size, args.dropout)
+if args.kind == "vec":
+    hidden_dims = [4096, 4096, 512]
+    input_size = 2 ** (args.num_qubits + 1)
+    policy = FCNNPolicy(input_size, hidden_dims, output_size, args.dropout)
+elif args.kind == "rdm":
+    hidden_dims = [4096, 4096, 512]
+    input_size = env.num_actions * 16 * 2
+    policy = FCNNPolicy(input_size, hidden_dims, output_size, args.dropout)
+elif args.kind == "cvec":
+    hidden_dims = [2048, 2048, 256]
+    input_size = 2 ** args.num_qubits
+    policy = ComplexNet(input_size, hidden_dims, output_size)
+elif args.kind == "ctrdm":
+    # TODO
+    exit()
 
 
 # Maybe load a pre-trained model.
