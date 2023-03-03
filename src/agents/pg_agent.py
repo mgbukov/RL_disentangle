@@ -5,6 +5,7 @@ import time
 import numpy as np
 import torch
 import torch.nn.functional as F
+from torch.distributions import Categorical
 from tqdm import tqdm
 
 from src.agents.base_agent import BaseAgent
@@ -181,12 +182,18 @@ class PGAgent(BaseAgent):
 
             # Compute the loss.
             logits = self.policy(states)
-            episode_entropy = self.entropy_term(logits, actions, mask)
-            q_values = self.reward_to_go(rewards) - 0.5 * entropy_reg * episode_entropy
+            q_values = self.reward_to_go(rewards)
             q_values -= self.reward_baseline(q_values, mask)
             nll = F.cross_entropy(logits.permute(0,2,1), actions, reduction="none")
             weighted_nll = torch.mul(mask * nll, q_values)
             loss = torch.sum(weighted_nll) / torch.sum(mask)
+
+            # Add entropy regularization. Augment the loss with the mean entropy of
+            # the policy calculated over the sampled observations.
+            N, T = rewards.shape
+            logits = logits.reshape(N*T, -1)[mask.ravel()]
+            avg_policy_ent = Categorical(logits=logits).entropy().mean(dim=-1)
+            loss -= entropy_reg * avg_policy_ent
 
             # Perform backward pass.
             optimizer.zero_grad()
@@ -196,11 +203,6 @@ class PGAgent(BaseAgent):
             optimizer.step()
             scheduler.step()
 
-            # Compute average policy entropy.
-            probs = F.softmax(logits, dim=-1) + torch.finfo(torch.float32).eps
-            avg_policy_ent = -(torch.mean(torch.sum(probs*torch.log(probs), dim=-1))
-                        / torch.log(torch.Tensor([self.env.num_actions]).to(self.policy.device)))
-
             # Book-keeping.
             mask_hard = np.any(self.env.entropy() > 0.6, axis=1)
             mask_easy = np.any(~mask.cpu().numpy(), axis=1)
@@ -208,7 +210,6 @@ class PGAgent(BaseAgent):
             self.train_history[i].update({
                 "entropies"         : self.env.entropy(),
                 "rewards"           : rewards.cpu().numpy(),
-                "exploration"       : episode_entropy[:, 0].detach().cpu().numpy(),
                 "policy_entropy"    : avg_policy_ent.item(),
                 "policy_loss"       : loss.item(),
                 "policy_total_norm" : total_norm.item(),
