@@ -1,4 +1,4 @@
-from itertools import permutations
+from itertools import permutations, product
 from math import log2
 
 import torch
@@ -256,4 +256,91 @@ def _qubit_perm_apply(x, g):
     # After transposing the tensor, reshape back into the original shape.
     return x_p.reshape(b, t, 2**(L+1))
 
-#
+
+class PermutationLayer(nn.Module):
+
+    def __init__(self, n_inputs, in_features, out_features,
+                 hidden_dims=()):
+        super().__init__()
+        self.n_inputs = int(n_inputs)
+        self.in_features = int(in_features)
+        self.out_features = int(out_features)
+        self.weights_outer = nn.Linear(
+            self.in_features ** 2, 128, bias=False, dtype=torch.complex64)
+        self.weights_proj = nn.Linear(
+            self.in_features, 64, bias=False, dtype=torch.complex64)
+        fan_in = 256
+        self.hidden_layers = nn.ModuleList()
+        for fan_out in hidden_dims:
+            layer = nn.Linear(fan_in, fan_out, dtype=torch.complex64)
+            self.hidden_layers.append(layer)
+            fan_in = fan_out
+        self.output_layer = nn.Linear(fan_in, out_features, dtype=torch.complex64)
+
+    def forward(self, inputs):
+        assert inputs.ndim == 3
+        assert inputs.dtype == torch.complex64
+        batch_size = inputs.shape[0]
+        assert inputs.shape[1] == self.n_inputs
+        assert inputs.shape[2] == self.in_features
+        y = {}
+        for i,j in product(range(self.n_inputs), range(self.n_inputs)):
+            in_A, in_B = inputs[:, i, :], inputs[:, j, :]
+            assert in_A.shape == in_B.shape == (batch_size, self.in_features)
+            # Calculate the outer product of input pairs
+            outer_prod = torch.einsum('Bi,Bj->Bij', in_A, in_B)
+            assert outer_prod.shape == \
+                (batch_size, self.in_features, self.in_features)
+            outer_prod = outer_prod.reshape(batch_size, -1)
+            assert outer_prod.shape == (batch_size, self.in_features ** 2)
+            # (B, f**2) x (f**2, 128) => (B, 128)
+            enc_outer = self.weights_outer(outer_prod)
+            assert enc_outer.shape == (batch_size, 128)
+            # Calculate embeddings
+            # (B, f) x (f, 64) => (B, 64)
+            enc_A = self.weights_proj(in_A)
+            enc_B = self.weights_proj(in_B)
+            assert enc_A.shape == enc_B.shape == (batch_size, 64)
+            # Stack outer embedding and projections
+            z = torch.hstack([enc_outer, enc_A, enc_B])
+            # Apply hidden layers
+            for layer in self.hidden_layers:
+                z = layer(z)
+                z = PermutationLayer.phase_amplitude_relu(z)
+            z = self.output_layer(z)
+            assert z.shape == (batch_size, self.out_features)
+            y.setdefault(i, []).append(z)
+
+        # Average outputs
+        result = []
+        for k, v in y.items():
+            assert len(v) == self.n_inputs
+            v_mean = torch.stack(v, dim=0).mean(axis=0)
+            assert v_mean.shape == (batch_size, self.out_features)
+            result.append(v_mean)
+        result = torch.stack(result, dim=1)
+        assert result.shape == (batch_size, self.n_inputs, self.out_features)
+        return result
+
+    @staticmethod
+    def phase_amplitude_relu(z):
+        return F.relu(torch.abs(z)) * torch.exp(1j * torch.angle(z))
+
+
+class PEPolicy(nn.Module, BasePolicy):
+
+    def __init__(self, n_inputs, n_features):
+        super().__init__()
+        self.n_inputs = int(n_inputs)
+        self.n_features = list(n_features)
+        self.pe_layers = nn.ModuleList()
+        for in_f, out_f in zip(self.n_features[:-1], self.n_features[1:]):
+            pe_layer = PermutationLayer(self.n_inputs, in_f, out_f, (1024, 512, 128))
+            self.pe_layers.append(pe_layer)
+
+    def forward(self, inputs):
+        out = inputs
+        for layer in self.pe_layers:
+            out = layer(out)
+        out = torch.abs(out)
+        return out
