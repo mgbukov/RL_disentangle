@@ -3,6 +3,12 @@ data/
 *.dat
 *.pkl
 .DS_Store
+*.pdf
+*.png
+*.txt
+*.pickle
+*.bin
+logs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
