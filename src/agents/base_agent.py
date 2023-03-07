@@ -16,8 +16,8 @@ class BaseAgent:
     def __init__(self, env, policy, kind='vec'):
         self.env = env
         self.policy = policy
-        if kind not in ('vec', 'rdm', 'cvec', 'ctrdm'):
-            raise ValueError('`kind` must be one of ("vec", "rdm", "cvec", "ctrdm")')
+        if kind not in ('vec', 'rdm', 'cvec', 'crdm'):
+            raise ValueError('`kind` must be one of ("vec", "rdm", "cvec", "crdm")')
         self.observation_kind = kind
         # Bind `self.observe()` method dynamically
         if kind == 'vec':
@@ -29,9 +29,9 @@ class BaseAgent:
         elif kind == 'rdm':
             self.observe = self._observe_rdm
             self._shape = (self.env.num_actions * 16 * 2,)
-        elif kind == 'ctrdm':
+        elif kind == 'crdm':
             self.observe = self._observe_rdm
-            self._shape = (self.env.num_actions, 16)
+            self._shape = (self.env.num_actions * 16,)
 
     def train(self, *args, **kwargs):
         raise NotImplementedError("This method must be implemented by the subclass")
@@ -77,7 +77,7 @@ class BaseAgent:
             assert np.all(states == self.env.states)
         rdms = np.array(rdms)                   # rdms.shape == (Q, B, 4, 4)
         rdms = rdms.transpose((1, 0, 2, 3))     # rdms.shape == (B, Q, 4, 4)
-        if self.observation_kind == 'ctrdm':
+        if self.observation_kind == 'crdm':
             return rdms.reshape((-1,) + self._shape)
         elif self.observation_kind == 'rdm':
             result = rdms.reshape(self.env.batch_size, -1, 16)

@@ -13,6 +13,7 @@ from src.envs.rdm_environment import QubitsEnvironment
 from src.infrastructure.logging import logText, plot_reward_function
 from src.infrastructure.util_funcs import fix_random_seeds, set_printoptions
 from src.policies.fcnn_policy import FCNNPolicy, ComplexNet
+from src.policies.equivariant_policy import PEPolicy
 
 
 # Parse command line arguments.
@@ -24,7 +25,7 @@ parser.add_argument("--env_batch", dest="env_batch", type=int,
     help="Number of states in the environment batch", default=1)
 parser.add_argument("--steps", dest="steps", type=int,
     help="Number of steps in an episode", default=10)
-parser.add_argument("--kind", choices=["vec", "rdm", "cvec", "ctrdm"], default="vec",
+parser.add_argument("--kind", choices=["vec", "rdm", "cvec", "crdm"], default="vec",
     help="Kind of agent observation - either \"vec\" or \"rdm\"")
 parser.add_argument("--epsi", dest="epsi", type=float,
     help="Threshold for disentanglement", default=1e-3)
@@ -103,9 +104,8 @@ elif args.kind == "cvec":
     hidden_dims = [2048, 2048, 256]
     input_size = 2 ** args.num_qubits
     policy = ComplexNet(input_size, hidden_dims, output_size)
-elif args.kind == "ctrdm":
-    # TODO
-    exit()
+elif args.kind == "crdm":
+    policy = PEPolicy(env.num_actions, (16, 64))
 
 
 # Maybe load a pre-trained model.

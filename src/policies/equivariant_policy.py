@@ -311,11 +311,14 @@ class PermutationLayer(nn.Module):
             assert z.shape == (batch_size, self.out_features)
             y.setdefault(i, []).append(z)
 
+        assert len(y) == self.n_inputs
         # Average outputs
         result = []
         for k, v in y.items():
             assert len(v) == self.n_inputs
-            v_mean = torch.stack(v, dim=0).mean(axis=0)
+            v_mean = torch.stack(v, dim=0)
+            assert v_mean.shape == (self.n_inputs, batch_size, self.out_features)
+            v_mean = v_mean.mean(axis=0)
             assert v_mean.shape == (batch_size, self.out_features)
             result.append(v_mean)
         result = torch.stack(result, dim=1)
@@ -337,10 +340,23 @@ class PEPolicy(nn.Module, BasePolicy):
         for in_f, out_f in zip(self.n_features[:-1], self.n_features[1:]):
             pe_layer = PermutationLayer(self.n_inputs, in_f, out_f, (1024, 512, 128))
             self.pe_layers.append(pe_layer)
+        self.output_layer = PermutationLayer(
+            self.n_inputs, self.n_features[-1], 1, (1024, 512, 128)
+        )
+
+    @property
+    def device(self):
+        return self.output_layer.output_layer.weight.device
 
     def forward(self, inputs):
+        if inputs.shape[1:] != (self.n_inputs, self.n_features[0]):
+            oshape = inputs.shape[:-1] + (self.n_inputs,)
+            inputs = inputs.reshape(-1, self.n_inputs, self.n_features[0])
+        else:
+            oshape = (inputs.shape[0], self.n_inputs)
         out = inputs
         for layer in self.pe_layers:
             out = layer(out)
-        out = torch.abs(out)
+        out = torch.abs(self.output_layer(out)).squeeze(dim=-1)
+        out = out.reshape(oshape)
         return out
