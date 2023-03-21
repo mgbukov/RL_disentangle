@@ -13,7 +13,7 @@ from src.envs.rdm_environment import QubitsEnvironment
 from src.infrastructure.logging import logText, plot_reward_function
 from src.infrastructure.util_funcs import fix_random_seeds, set_printoptions
 from src.policies.fcnn_policy import FCNNPolicy, ComplexNet
-from src.policies.equivariant_policy import PEPolicy
+from src.policies.equivariant_policy import PEPolicy2
 
 
 # Parse command line arguments.
@@ -96,6 +96,7 @@ if args.kind == "vec":
     hidden_dims = [4096, 4096, 512]
     input_size = 2 ** (args.num_qubits + 1)
     policy = FCNNPolicy(input_size, hidden_dims, output_size, args.dropout)
+    # Total parameters: 19 015 680
 elif args.kind == "rdm":
     hidden_dims = [4096, 4096, 512]
     input_size = env.num_actions * 16 * 2
@@ -105,7 +106,14 @@ elif args.kind == "cvec":
     input_size = 2 ** args.num_qubits
     policy = ComplexNet(input_size, hidden_dims, output_size)
 elif args.kind == "crdm":
-    policy = PEPolicy(env.num_actions, (16, 64))
+    policy = PEPolicy2(n_inputs=env.num_actions, in_features=16, n_hidden=1,
+                       hidden_units=(512, 256, 128))
+    # Total parameters:
+    #   Layer 1: 2 * 16 * 512 + 512 * 256 + 256 * 128
+    #       180 224
+    #   Layer 2: 2 * 128 * 512 + 512 * 256 + 256 * 128 + 128 * 1
+    #       295 040
+    #   Total: 475 264
 
 
 # Maybe load a pre-trained model.

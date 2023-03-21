@@ -62,7 +62,6 @@ class BaseAgent:
     def _observe_rdm(self):
         states = self.env.states
         rdms = []
-        # qubit_pairs = [a for a in self.env.actions.values() if a[0] < a[1]]
         qubit_pairs = list(self.env.actions.values())
         for qubits in qubit_pairs:
             sysA = tuple(q+1 for q in qubits)
@@ -78,10 +77,11 @@ class BaseAgent:
         rdms = np.array(rdms)                   # rdms.shape == (Q, B, 4, 4)
         rdms = rdms.transpose((1, 0, 2, 3))     # rdms.shape == (B, Q, 4, 4)
         if self.observation_kind == 'crdm':
-            return rdms.reshape((-1,) + self._shape)
+            return rdms.reshape((-1,) + self._shape)    # shape == (B, Q * 16)
         elif self.observation_kind == 'rdm':
             result = rdms.reshape(self.env.batch_size, -1, 16)
-            return np.dstack([result.real, result.imag]).reshape((-1,) + self._shape)
+            result = np.dstack([result.real, result.imag])
+            return result.reshape((-1,) + self._shape)  # shape == (B, Q * 32)
 
     @torch.no_grad()
     def rollout(self, steps, plan=None, greedy=False, beta=1.0):

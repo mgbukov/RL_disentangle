@@ -311,14 +311,11 @@ class PermutationLayer(nn.Module):
             assert z.shape == (batch_size, self.out_features)
             y.setdefault(i, []).append(z)
 
-        assert len(y) == self.n_inputs
         # Average outputs
         result = []
         for k, v in y.items():
             assert len(v) == self.n_inputs
-            v_mean = torch.stack(v, dim=0)
-            assert v_mean.shape == (self.n_inputs, batch_size, self.out_features)
-            v_mean = v_mean.mean(axis=0)
+            v_mean = torch.stack(v, dim=0).mean(axis=0)
             assert v_mean.shape == (batch_size, self.out_features)
             result.append(v_mean)
         result = torch.stack(result, dim=1)
@@ -328,6 +325,42 @@ class PermutationLayer(nn.Module):
     @staticmethod
     def phase_amplitude_relu(z):
         return F.relu(torch.abs(z)) * torch.exp(1j * torch.angle(z))
+
+
+
+class PermutationLayer2(nn.Module, BasePolicy):
+
+    def __init__(self, subnet, pooling='mean'):
+        super().__init__()
+        self.subnet = subnet
+        self.pooling = pooling
+
+    def forward(self, inputs):
+        assert inputs.ndim == 3
+        # inputs.shape == (B, n_inputs, in_features)
+        # We transform the input to (B, n_inputs**2, 2 * n_features)
+        B, n_inputs, in_features = inputs.shape
+        x1 = torch.tile(inputs, (1, n_inputs, 1))
+        # z1.shape == (B, n_inputs**2, in_features)
+        x2 = torch.tile(inputs, (1, 1, n_inputs)).view(B, -1, in_features)
+        # z2.shape == (B, n_inputs**2, in_features)
+        assert x1.shape == x2.shape == (B, n_inputs ** 2, in_features)
+        x = torch.concatenate([x1, x2], dim=2)
+        # x.shape == (B, n_inputs**2, 2 * in_features)
+        assert x.shape == (B, n_inputs ** 2, 2 * in_features)
+        # Apply subnet
+        outputs = self.subnet(x)
+        # outputs.shape == (B, n_inputs ** 2, out_features)
+        outputs = outputs.view(B, n_inputs, n_inputs, -1)
+        if self.pooling == 'mean':
+            pooled = torch.mean(outputs, dim=2)
+        elif self.pooling == 'max':
+            pooled = torch.max(outputs, dim=2).values
+        else:
+            pooled = self.pooling(outputs, dim=2)
+        # `pooled` shape should be (B, n_inputs, out_features)
+        assert pooled.shape == (B, n_inputs, pooled.shape[2])
+        return pooled
 
 
 class PEPolicy(nn.Module, BasePolicy):
@@ -360,3 +393,74 @@ class PEPolicy(nn.Module, BasePolicy):
         out = torch.abs(self.output_layer(out)).squeeze(dim=-1)
         out = out.reshape(oshape)
         return out
+
+
+class ComplexDenseNet(nn.Module):
+
+    def __init__(self, inputs, hidden, outputs):
+        super().__init__()
+        units = [inputs] + list(hidden) + [outputs]
+        self.layers = nn.ModuleList()
+        for _in, _out in zip(units[:-1], units[1:]):
+            layer = nn.Linear(_in, _out, dtype=torch.complex64)
+            self.layers.append(layer)
+
+    def forward(self, x):
+        for layer in self.layers[:-1]:
+            x = layer(x)
+            x = ComplexDenseNet.real_imaginary_relu(x)
+        x = self.layers[-1](x)
+        return x
+
+    @staticmethod
+    def phase_amplitude_relu(z):
+        return F.relu(torch.abs(z)) * torch.exp(1.j * torch.angle(z))
+
+    @staticmethod
+    def real_imaginary_relu(z):
+        return F.relu(z.real) + 1.0j * F.relu(z.imag)
+
+
+class PEPolicy2(nn.Module, BasePolicy):
+
+    def __init__(self, n_inputs, in_features=16, n_hidden=1,
+                 hidden_units=(512, 256, 128)):
+        
+        super().__init__()
+
+        self.n_inputs     = int(n_inputs)
+        self.in_features  = int(in_features)
+        self.n_hidden     = int(n_hidden)
+        self.hidden_units = tuple(hidden_units)
+        # Save __init__()'s arguments
+        self.kwargs = dict(
+            n_inputs     = self.n_inputs,
+            in_features  = self.in_features,
+            n_hidden     = self.n_hidden,
+            hidden_units = self.hidden_units
+        )
+
+        self.layers = nn.ModuleList()
+        # Initialize hidden layers
+        _in = self.in_features
+        for i in range(n_hidden):
+            _out = hidden_units[-1]
+            subnet = ComplexDenseNet(2 * _in, hidden_units[:-1], hidden_units[-1])
+            layer = PermutationLayer2(subnet)
+            self.layers.append(layer)
+            _in = _out
+        # Initialize output layer
+        subnet = ComplexDenseNet(_in, hidden_units, 1)
+        self.output_layer = PermutationLayer2(subnet)
+
+
+    def forward(self, x):
+        # x.shape == (batch_size, n_inputs * in_features)
+        x = x.view(-1, self.n_inputs, self.in_features)
+        batch_size, n_inputs, _ = x.shape
+
+        for layer in self.layers:
+            x = layer(x)
+        out = self.output_layer(x)
+        assert out.shape == (batch_size, n_inputs, 1)
+        return torch.abs(out).square(-1)
