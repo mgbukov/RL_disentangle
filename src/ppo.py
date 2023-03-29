@@ -180,12 +180,12 @@ class PPOAgent(PGAgent):
 
         # Store the stats.
         self.train_history[-1].update({
-            "policy_loss"           : total_pi_loss / j,
-            "policy_avg_loss"       : total_loss / j,
-            "policy_avg_grad_norm"  : total_norm / j,
-            "policy_entropy"        : avg_policy_ent.item(), # policy entropy after all updates
-            "avg_KL_div"            : KL.item(),             # KL divergence after all updates
-            "num_ppo_updates"       : n_updates,
+            "policy_loss"       : total_pi_loss / j,
+            "total_loss"        : total_loss / j,
+            "policy_grad_norm"  : total_norm / j,
+            "policy_entropy"    : avg_policy_ent.item(), # policy entropy after all updates
+            "avg_KL_div"        : KL.item(),             # KL divergence after all updates
+            "num_ppo_updates"   : n_updates,
         })
 
     def update_value(self, obs, returns):

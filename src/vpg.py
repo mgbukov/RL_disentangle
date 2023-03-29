@@ -106,10 +106,10 @@ class VPGAgent(PGAgent):
 
         # Store the stats.
         self.train_history[-1].update({
-            "policy_loss"            : pi_loss.item(),
-            "total_loss"             : total_loss.item(),
-            "policy_entropy"         : avg_policy_ent.item(),
-            "policy_total_grad_norm" : total_norm.item(),
+            "policy_loss"      : pi_loss.item(),
+            "total_loss"       : total_loss.item(),
+            "policy_grad_norm" : total_norm.item(),
+            "policy_entropy"   : avg_policy_ent.item(),
         })
 
     def update_value(self, obs, returns):
