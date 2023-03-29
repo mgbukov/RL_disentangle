@@ -80,10 +80,9 @@ def pg_solves_quantum(args):
     # })
 
     # Run the environment loop
-    log_dir = os.path.join("logs", f"6q_Rscale_pg_pomdp_T_BnoPE_iters_{args.num_iters}_ent_{args.entropy_reg}")
-    log_every = 1
+    log_dir = os.path.join("logs", f"pg_pomdp_FC_{args.num_qubits}q_R{args.reward_fn}_iters_{args.num_iters}_ent_{args.entropy_reg}")
     os.makedirs(log_dir, exist_ok=True)
-    environment_loop(seed, agent, env, args.num_iters, args.steps, log_dir, log_every, demo=None)
+    environment_loop(seed, agent, env, args.num_iters, args.steps, log_dir, args.log_every, demo=None)
     plot_progress(log_dir)
 
 
@@ -101,6 +100,9 @@ def plot_progress(log_dir):
     policy_entropy = np.array([train_history[i]["policy_entropy"] for i in range(num_iters)])
     terminated = np.array([train_history[i]["terminated"] for i in range(num_iters)])
     total_ep = np.array([train_history[i]["total_ep"] for i in range(num_iters)])
+    vf_loss = np.array([train_history[i]["value_avg_loss"] for i in range(num_iters)])
+    pi_loss = np.array([train_history[i]["total_loss"] for i in range(num_iters)])
+    pi_gnorm = np.array([train_history[i]["policy_grad_norm"] for i in range(num_iters)])
 
     plt.style.use("ggplot")
 
@@ -130,6 +132,21 @@ def plot_progress(log_dir):
     ax.plot(terminated / total_ep, lw=0.8)
     fig.savefig(os.path.join(log_dir, "terminated.png"))
 
+    # Plot value function loss.
+    fig, ax = plt.subplots()
+    ax.plot(vf_loss, lw=0.8)
+    fig.savefig(os.path.join(log_dir, "vf_loss.png"))
+
+    # Plot policy loss.
+    fig, ax = plt.subplots()
+    ax.plot(pi_loss, lw=0.8)
+    fig.savefig(os.path.join(log_dir, "pi_loss.png"))
+
+    # Plot policy grad norm.
+    fig, ax = plt.subplots()
+    ax.plot(pi_gnorm, lw=0.8)
+    fig.savefig(os.path.join(log_dir, "policy_grad_norm.png"))
+
 
 if __name__ == "__main__":
     import argparse
@@ -138,7 +155,7 @@ if __name__ == "__main__":
     parser.add_argument("--vf_lr", default=3e-4, type=float)
     parser.add_argument("--discount", default=1., type=float)
     parser.add_argument("--batch_size", default=128, type=int)
-    parser.add_argument("--clip_grad", default=10., type=float)
+    parser.add_argument("--clip_grad", default=1., type=float)
     parser.add_argument("--entropy_reg", default=1e-2, type=float)
 
     parser.add_argument("--num_qubits", default=5, type=int)
@@ -149,6 +166,8 @@ if __name__ == "__main__":
     parser.add_argument("--epsi", default=1e-3, type=float)
     parser.add_argument("--reward_fn", default="sparse", type=str)
     parser.add_argument("--obs_fn", default="phase_norm", type=str)
+
+    parser.add_argument("--log_every", default=100, type=int)
 
     args = parser.parse_args()
     pg_solves_quantum(args)
