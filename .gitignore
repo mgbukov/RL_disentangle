@@ -1,4 +1,5 @@
 data/
+logs/
 # data files
 *.dat
 *.pkl
