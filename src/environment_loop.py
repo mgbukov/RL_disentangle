@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+import warnings
 
 import numpy as np
 import torch
@@ -40,7 +41,7 @@ def environment_loop(seed, agent, env, num_iters, steps, log_dir, log_every=1, d
     num_envs = env.num_envs
     o, _ = env.reset(seed=seed)
 
-    run_ret, run_len = None, None
+    run_ret, run_len = np.nan, np.nan
     for i in tqdm(range(num_iters)):
         # Allocate tensors for the rollout observations.
         obs = np.zeros(shape=(steps, num_envs, *env.single_observation_space.shape), dtype=np.float32)
@@ -84,10 +85,16 @@ def environment_loop(seed, agent, env, num_iters, steps, log_dir, log_every=1, d
 
         # Bookkeeping.
         assert len(episode_returns) == len(episode_lengths), "lengths must match"
-        avg_r, avg_l = np.array(episode_returns).mean(), np.array(episode_lengths).mean()
-        std_r, std_l = np.array(episode_returns).std(), np.array(episode_lengths).std()
-        run_ret = avg_r if run_ret is None else 0.99 * run_ret + 0.01 * avg_r
-        run_len = avg_l if run_len is None else 0.99 * run_len + 0.01 * avg_l
+        for r, l in zip(episode_returns, episode_lengths):
+            run_ret = r if run_ret is np.nan else 0.99 * run_ret + 0.01 * r
+            run_len = l if run_len is np.nan else 0.99 * run_len + 0.01 * l
+        with warnings.catch_warnings():
+            # We might finish the rollout without completing any episodes. Then
+            # taking the mean or std of an empty slice throws a runtime warning.
+            # As a result we would get a NaN, which is exactly what we want.
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            avg_r, avg_l = np.mean(episode_returns), np.mean(episode_lengths)
+            std_r, std_l = np.std(episode_returns), np.std(episode_lengths)
         agent.train_history[i].update({
             "run_return": run_ret,
             "avg_return": avg_r,
@@ -99,15 +106,15 @@ def environment_loop(seed, agent, env, num_iters, steps, log_dir, log_every=1, d
             "total_ep" : len(episode_lengths),
         })
 
+        # Demo.
+        if demo is not None:
+            demo(i, agent)
+
         # Log results.
         if i % log_every == 0:
             logging.info(f"\nIteration ({i+1} / {num_iters}):")
             for k, v in agent.train_history[i].items():
                 logging.info(f"    {k}: {v:.5f}")
-
-        # Demo.
-        if demo is not None:
-            demo(i, agent)
 
     # Time the entire agent-environment loop.
     toc = time.time()
