@@ -148,9 +148,9 @@ class TransformerPE(nn.Module):
         self.n_heads = n_heads
 
         # Define a stack of transformer encoder layers.
-        self.net = nn.Sequential(
-            nn.Linear(in_dim, embed_dim),
-            *[nn.TransformerEncoderLayer(embed_dim, n_heads, dim_mlp, dropout=0., batch_first=True)
+        self.embed = nn.Linear(in_dim, embed_dim, bias=False)
+        self.encoder = nn.Sequential(
+            *[nn.TransformerEncoderLayer(embed_dim, n_heads, dim_mlp, batch_first=True)
                 for _ in range(n_layers)],
         )
 
@@ -165,7 +165,8 @@ class TransformerPE(nn.Module):
         x = x.float().contiguous().to(self.device)
 
         # Encode the inputs with the transformer encoders.
-        z = self.net(x)
+        z = self.embed(x)
+        z = self.encoder(z)
 
         # Compute the attention scores from the encoder output embeddings.
         queries, keys = self.qk(z).chunk(chunks=2, dim=-1)
