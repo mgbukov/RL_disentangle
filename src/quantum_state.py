@@ -47,12 +47,8 @@ class VectorQuantumState:
         self.entanglements = entropy(self._states)
 
     def set_random_states_(self):
-        """Set all systems of the vectorized environment to random pure states.
-        Compute the entanglement of the systems and cache them for later use.
-        """
+        """Set all states of the vectorized environment to Haar random states."""
         N, Q = self.num_envs, self.num_qubits
-        # Sample from Gaussian distribution, as it gives uniformly distributed
-        # points in the Q-dimensional unit sphere
         states = np.random.randn(N, 2 ** Q) + 1j * np.random.randn(N, 2 ** Q)
         states /= np.linalg.norm(states, axis=1, keepdims=True)
         states = states.astype(np.complex64)
@@ -93,15 +89,50 @@ class VectorQuantumState:
         self._states = phase_norm(batch)
 
     def reset_sub_environment_(self, k):
-        Q = self.num_qubits
-        psi = np.random.randn(2 ** Q) + 1j * np.random.randn(2 ** Q)
-        psi /= np.linalg.norm(psi)
-        psi = psi.astype(np.complex64)
-        self._states[k] = phase_norm(psi.reshape((1,) + self.shape[1:]))
+        psi = random_quantum_state(self.num_qubits)
+        self._states[k] = phase_norm(psi)
         self.entanglements[k] = entropy(np.expand_dims(self._states[k], axis=0))
 
 
 #------------------------------ Utility functions -----------------------------#
+def random_quantum_state(Q):
+    """Generate a quantum state as a product between multiple Haar random states.
+    The state is further transformed by transposing the qubits at random.
+
+    Args:
+        Q: int
+            Number of qubits in the quantum state. Q must be >= 2.
+        low: int, optional
+            Minimum number of qubits in one of the Haar random states.
+            ## Revise the description
+
+    Returns:
+        psi: np.Array
+            Numpy array of shape (1, 2, 2, ..., 2) representing the generated
+            quantum state in the Hilbert space.
+    """
+    assert Q >= 2
+
+    # Generate the first Haar random state using at least 2 qubits.
+    l = np.random.randint(low=2, high=Q+1)
+    psi = np.random.randn(2 ** l) + 1j * np.random.randn(2 ** l)
+    num_qubits = l
+
+    # Continue generating states and combine them using tensor product.
+    while num_qubits < Q:
+        k = np.random.randint(low=1, high=Q-num_qubits+1)
+        B = np.random.randn(2 ** k) + 1j * np.random.randn(2 ** k)
+        psi = np.kron(psi, B)
+        num_qubits += k
+
+    # Reshape and normalize.
+    psi = psi.reshape((2,) * Q).astype(np.complex64)
+    psi /= np.linalg.norm(psi, keepdims=True)
+
+    # Permute the qubits at random positions.
+    psi = psi.reshape((2,) * Q).transpose(np.random.permutation(Q))
+    return psi
+
 def phase_norm(states):
     """Normalizes the relative phase shift between different qubits in one system."""
     B = states.shape[0]

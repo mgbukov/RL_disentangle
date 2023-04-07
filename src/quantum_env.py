@@ -1,4 +1,5 @@
 from collections import namedtuple
+import sys
 import numpy as np
 
 from src.quantum_state import VectorQuantumState
@@ -9,6 +10,9 @@ action_space = namedtuple("action_space", ["n"])
 
 
 class QuantumEnv():
+    """QuantumEnv is a wrapper around VectorQuantumState conforming to the
+    OpenAI Gym API.
+    """
 
     def __init__(self, num_qubits, num_envs, epsi=1e-3, max_episode_steps=1000,
         reward_fn="sparse", obs_fn="phase_norm"
@@ -35,8 +39,8 @@ class QuantumEnv():
         self.epsi = epsi
         self.max_episode_steps = max_episode_steps
         self.simulator = VectorQuantumState(num_qubits, num_envs)
-        self.reward_fn = globals()[reward_fn]
-        self.obs_fn = globals()[obs_fn]
+        self.reward_fn = getattr(sys.modules[__name__], reward_fn)  # get from this module
+        self.obs_fn = getattr(sys.modules[__name__], obs_fn)        # get from this module
 
         # Public attributes conforming to the OpenAI Gym API.
         self.num_envs = num_envs
@@ -50,7 +54,8 @@ class QuantumEnv():
 
     def reset(self, seed=0):
         """Reset the environment to its initial state."""
-        self.simulator.set_random_states_()
+        for k in range(self.num_envs):
+            self.simulator.reset_sub_environment_(k)
         self.episode_len = np.zeros(shape=(self.simulator.num_envs,))
         self.accumulated_return = np.zeros(shape=(self.simulator.num_envs,))
         return self.obs_fn(self.simulator.states), {}
@@ -111,13 +116,10 @@ class QuantumEnv():
 
             # Reset only the sub-environments that were done.
             for k in range(self.simulator.num_envs):
-                if not done[k]:
-                    continue
-
+                if not done[k]: continue
                 self.simulator.reset_sub_environment_(k)
                 self.accumulated_return[k] = 0.
                 self.episode_len[k] = 0
-
 
         # Finally, get the observations from the next obtained states.
         # Note that we have to do this only after we check for done environments.
@@ -137,10 +139,6 @@ class QuantumEnv():
         # the observation s_{T+1} is returned in the info dict.
         return obs, rewards, terminated, truncated, info
 
-    def _observations(self):
-        """Returns an observation of the states of the vector environment."""
-        return self.obs_fn(self.simulator.states)
-
 
 #--------------------------- Observation functions ----------------------------#
 def phase_norm(states):
@@ -148,7 +146,6 @@ def phase_norm(states):
     batch = states.reshape(N, -1)
     batch = np.hstack([batch.real, batch.imag])
     return batch
-
 
 def rdm_1q(states):
     """Returns an observation of the states of the vector environment.
