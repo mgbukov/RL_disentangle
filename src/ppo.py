@@ -89,7 +89,8 @@ class PPOAgent(PGAgent):
         values = self.value(obs).to(rewards.device) # uses torch.no_grad
         values = values.reshape(N, T)               # reshape back to rewards.shape
         adv = torch.zeros_like(rewards)
-        adv[:, -1] = torch.where(done[:, -1], rewards[:, -1] - values[:, -1], 0.)
+        # adv[:, -1] = torch.where(done[:, -1], rewards[:, -1] - values[:, -1], 0.)
+        adv[:, -1] = torch.where(done[:, -1], rewards[:, -1], values[:, -1]) - values[:, -1]
 
         # Compute the generalized advantages.
         for t in range(T-2, -1, -1): # O(T)  \_("/)_/
