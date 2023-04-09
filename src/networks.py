@@ -92,7 +92,7 @@ class Transformer(nn.Module):
         # layer uses dropout=0.1.
         self.embed = nn.Linear(in_dim, embed_dim, bias=False)
         self.encoder = nn.Sequential(
-            *[nn.TransformerEncoderLayer(embed_dim, n_heads, dim_mlp, batch_first=True)
+            *[nn.TransformerEncoderLayer(embed_dim, n_heads, dim_mlp, dropout=0., batch_first=True)
                 for _ in range(n_layers)],
         )
 
@@ -150,7 +150,7 @@ class TransformerPE(nn.Module):
         # Define a stack of transformer encoder layers.
         self.embed = nn.Linear(in_dim, embed_dim, bias=False)
         self.encoder = nn.Sequential(
-            *[nn.TransformerEncoderLayer(embed_dim, n_heads, dim_mlp, batch_first=True)
+            *[nn.TransformerEncoderLayer(embed_dim, n_heads, dim_mlp, dropout=0., batch_first=True)
                 for _ in range(n_layers)],
         )
 
