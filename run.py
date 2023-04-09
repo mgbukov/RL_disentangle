@@ -25,34 +25,44 @@ def demo(args):
             epsi=args.epsi, max_episode_steps=args.steps_limit,
             reward_fn=args.reward_fn, obs_fn=args.obs_fn,
         )
-        _ = env.reset()
-        env.simulator.set_random_states_() # test on fully-entangled states
-        o = env.obs_fn(env.simulator.states)
+        _ = env.reset() # prepare the environment
 
-        returns, lengths = [None] * env.num_envs, [None] * env.num_envs
-        done = np.array([False] * env.num_envs)
-        solved = 0
-        while not done.all():
-            o = torch.from_numpy(o)
-            pi = agent.policy(o)    # uses torch.no_grad
-            acts = torch.argmax(pi.probs, dim=1).cpu().numpy()
-            o, r, t, tr, infos = env.step(acts)
+        # Generate the initial states as fully-entangled states.
+        env.simulator.set_random_states_()
+        initial_states = env.simulator.states.copy()
 
-            if (t | tr).any():
-                for k in range(env.num_envs):
-                    if (t[k] | tr[k]) and (returns[k] is None):
-                        returns[k] = infos["episode"]["r"][k]
-                        lengths[k] = infos["episode"]["l"][k]
-                        done[k] = True
-                        if t[k]: solved += 1
+        # Choose actions greedily or by sampling from the distribution.
+        for choose in ["greedy", "sample"]:
+            env.simulator.states = initial_states
+            o = env.obs_fn(env.simulator.states)
+            returns, lengths = [None] * env.num_envs, [None] * env.num_envs
+            done = np.array([False] * env.num_envs)
+            solved = 0
+            while not done.all():
+                o = torch.from_numpy(o)
+                pi = agent.policy(o)    # uses torch.no_grad
 
-        agent.train_history[i].update({
-            "test_avg_r" : np.mean(returns),
-            "test_std_r" : np.std(returns),
-            "test_avg_l" : np.mean(lengths),
-            "test_std_l" : np.std(lengths),
-            "test_solved": solved / num_envs,
-        })
+                if choose == "greedy":
+                    acts = torch.argmax(pi.probs, dim=1).cpu().numpy()
+                if choose == "sample":
+                    acts = pi.sample().cpu().numpy()
+
+                o, r, t, tr, infos = env.step(acts)
+                if (t | tr).any():
+                    for k in range(env.num_envs):
+                        if (t[k] | tr[k]) and (returns[k] is None):
+                            returns[k] = infos["episode"]["r"][k]
+                            lengths[k] = infos["episode"]["l"][k]
+                            done[k] = True
+                            if t[k]: solved += 1
+
+            agent.train_history[i].update({
+                f"test_{choose}_avg_r" : np.mean(returns),
+                f"test_{choose}_std_r" : np.std(returns),
+                f"test_{choose}_avg_l" : np.mean(lengths),
+                f"test_{choose}_std_l" : np.std(lengths),
+                f"test_{choose}_solved": solved / num_envs,
+            })
 
     return thunk
 
@@ -143,17 +153,27 @@ def plot_progress(log_dir):
     ])
 
     # Unpack test data.
-    test_avg_r = np.array([train_history[i]["test_avg_r"]
-        for i in range(num_iters) if "test_avg_r" in train_history[i].keys()])
-    test_std_r = np.array([train_history[i]["test_std_r"]
-        for i in range(num_iters) if "test_std_r" in train_history[i].keys()])
-    test_avg_l = np.array([train_history[i]["test_avg_l"]
-        for i in range(num_iters) if "test_avg_l" in train_history[i].keys()])
-    test_std_l = np.array([train_history[i]["test_std_l"]
-        for i in range(num_iters) if "test_std_l" in train_history[i].keys()])
-    test_solved = np.array([train_history[i]["test_solved"]
-        for i in range(num_iters) if "test_solved" in train_history[i].keys()])
-    num_test = len(test_avg_r)
+    test_greedy_avg_r = np.array([train_history[i]["test_greedy_avg_r"]
+        for i in range(num_iters) if "test_greedy_avg_r" in train_history[i].keys()])
+    test_greedy_std_r = np.array([train_history[i]["test_greedy_std_r"]
+        for i in range(num_iters) if "test_greedy_std_r" in train_history[i].keys()])
+    test_greedy_avg_l = np.array([train_history[i]["test_greedy_avg_l"]
+        for i in range(num_iters) if "test_greedy_avg_l" in train_history[i].keys()])
+    test_greedy_std_l = np.array([train_history[i]["test_greedy_std_l"]
+        for i in range(num_iters) if "test_greedy_std_l" in train_history[i].keys()])
+    test_greedy_solved = np.array([train_history[i]["test_greedy_solved"]
+        for i in range(num_iters) if "test_greedy_solved" in train_history[i].keys()])
+    test_sample_avg_r = np.array([train_history[i]["test_sample_avg_r"]
+        for i in range(num_iters) if "test_sample_avg_r" in train_history[i].keys()])
+    test_sample_std_r = np.array([train_history[i]["test_sample_std_r"]
+        for i in range(num_iters) if "test_sample_std_r" in train_history[i].keys()])
+    test_sample_avg_l = np.array([train_history[i]["test_sample_avg_l"]
+        for i in range(num_iters) if "test_sample_avg_l" in train_history[i].keys()])
+    test_sample_std_l = np.array([train_history[i]["test_sample_std_l"]
+        for i in range(num_iters) if "test_sample_std_l" in train_history[i].keys()])
+    test_sample_solved = np.array([train_history[i]["test_sample_solved"]
+        for i in range(num_iters) if "test_sample_solved" in train_history[i].keys()])
+    num_test = len(test_greedy_avg_r)
 
     plt.style.use("ggplot")
 
@@ -211,21 +231,29 @@ def plot_progress(log_dir):
     xs = np.linspace(0, num_iters, num_test)
     # Returns.
     fig, ax = plt.subplots()
-    ax.plot(xs, test_avg_r)
-    ax.fill_between(xs, test_avg_r - 0.5*test_std_r, test_avg_r + 0.5*test_std_r, color="k", alpha=0.25)
+    ax.plot(xs, test_greedy_avg_r, label="Greedy")
+    ax.fill_between(xs, test_greedy_avg_r - 0.5*test_greedy_std_r, test_greedy_avg_r + 0.5*test_greedy_std_r, color="k", alpha=0.25)
+    ax.plot(xs, test_sample_avg_r, label="Sample")
+    ax.fill_between(xs, test_sample_avg_r - 0.5*test_sample_std_r, test_sample_avg_r + 0.5*test_sample_std_r, color="k", alpha=0.25)
+    ax.legend(loc="upper left")
     ax.set_xlabel("Number of iterations")
     ax.set_ylabel("Accumulated return")
     fig.savefig(os.path.join(log_dir, "test_returns.png"))
     # Lengths.
     fig, ax = plt.subplots()
-    ax.plot(xs, test_avg_l)
-    ax.fill_between(xs, test_avg_l - 0.5*test_std_l, test_avg_l + 0.5*test_std_l, color="k", alpha=0.25)
+    ax.plot(xs, test_greedy_avg_l, label="Greedy")
+    ax.fill_between(xs, test_greedy_avg_l - 0.5*test_greedy_std_l, test_greedy_avg_l + 0.5*test_greedy_std_l, color="k", alpha=0.25)
+    ax.plot(xs, test_sample_avg_l, label="Sample")
+    ax.fill_between(xs, test_sample_avg_l - 0.5*test_sample_std_l, test_sample_avg_l + 0.5*test_sample_std_l, color="k", alpha=0.25)
+    ax.legend(loc="upper left")
     ax.set_xlabel("Number of iterations")
     ax.set_ylabel("Accumulated return")
     fig.savefig(os.path.join(log_dir, "test_lengths.png"))
     # Solved.
     fig, ax = plt.subplots()
-    ax.plot(xs, test_solved, lw=0.8)
+    ax.plot(xs, test_greedy_solved, label="Greedy", lw=0.8)
+    ax.plot(xs, test_sample_solved, label="Sample", lw=0.8)
+    ax.legend(loc="upper left")
     ax.set_xlabel("Number of iterations")
     ax.set_ylabel("Ratio of terminated episodes")
     fig.savefig(os.path.join(log_dir, "test_solved.png"))
