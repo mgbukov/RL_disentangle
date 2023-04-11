@@ -34,7 +34,7 @@ class QuantumEnv():
                 ["sparse", "relative_delta"]. Default: "sparse".
             obs_fn: string, optional
                 The name of the observation function to be used. One of
-                ["phase_norm", "rdm_1q", "rdm_2q_complex"]. Default: "phase_norm".
+                ["phase_norm", "rdm_1q", "rdm_2q_complex", "rdm_2q_real"]. Default: "phase_norm".
         """
         # Private.
         self.epsi = epsi
@@ -181,11 +181,11 @@ def rdm_1q(states):
 
 def rdm_2q_complex(states):
     """
-    Returns 2-qubit RDM observations.
+    Returns 2-qubit RDM observations with complex64 dtype.
 
     Returns:
-        osb: np.ndarray, dtype=np.complex64
-            Numpy tensor with shape (N, Q, 16), where N = number of episodes,
+        obs: np.ndarray, dtype=np.complex64
+            Numpy tensor with shape (N, Q*(Q-1), 16), where N = number of episodes,
             Q = number of qubits
     """
     N = states.shape[0]
@@ -204,6 +204,18 @@ def rdm_2q_complex(states):
     rdms = rdms.transpose((1, 0, 2, 3))     # rdms.shape == (N, Q*(Q-1), 4, 4)
     obs = rdms.reshape(N, Q*(Q - 1), 16)    # obs.shape == (N, Q*(Q-1), 16)
     return obs
+
+def rdm_2q_real(states):
+    """
+    Returns 2-qubit RDM observations with float32 dtype.
+
+    Returns:
+        obs: np.ndarray, dtype=np.float32
+            Numpy tensor with shape (N, Q*(Q-1), 32), where N = number of episodes,
+            Q = number of qubits.
+    """
+    rdms = rdm_2q_complex(states)           # rdms.shape = (N, Q*(Q-1), 16)
+    return np.dstack([rdms.real, rdms.imag])
 
 
 #------------------------------ Reward functions ------------------------------#
