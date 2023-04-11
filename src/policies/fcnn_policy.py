@@ -87,11 +87,11 @@ class FCNNPolicy(nn.Module, BasePolicy):
 
 class ComplexNet(nn.Module, BasePolicy):
 
-    def __init__(self, input_size, hidden_sizes, output_size):
+    def __init__(self, input_size, hidden_sizes, out_size):
         super().__init__()
         self.input_size = int(input_size)
         self.hidden_sizes = list(hidden_sizes)
-        self.out_size = int(output_size)
+        self.out_size = int(out_size)
         # Store arguments for model initialization.
         # Kwargs dict is used to save and restore the model.
         self.kwargs = dict(input_size=self.input_size,

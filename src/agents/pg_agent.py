@@ -179,7 +179,8 @@ class PGAgent(BaseAgent):
             states = states[:, :-1, :]
 
             # Compute the loss.
-            logits = self.policy(states)
+            logits = self.policy(states.reshape(-1, states.shape[-1]))
+            logits = logits.reshape(states.shape[:-1] + (-1,))
             episode_entropy = self.entropy_term(logits, actions, mask)
             q_values = self.reward_to_go(rewards) - 0.5 * entropy_reg * episode_entropy
             q_values -= self.reward_baseline(q_values, mask)

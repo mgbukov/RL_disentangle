@@ -214,9 +214,9 @@ if __name__ == '__main__':
         print(f'\nTesting equivariance of transpositions (order = {order})')
         for n_qubits in range(3, 8):
             if (test_PElayer_equivariance(n_qubits, order)):
-                print('.', end='')
+                print('.', end='', flush=True)
             else:
-                print('F', end='')
+                print('F', end='', flush=True)
         print()
     # for n in range(3, 7):
     #     res = test_pe_layer_equivariance(n)

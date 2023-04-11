@@ -345,7 +345,7 @@ class PermutationLayer2(nn.Module, BasePolicy):
         x2 = torch.tile(inputs, (1, 1, n_inputs)).view(B, -1, in_features)
         # z2.shape == (B, n_inputs**2, in_features)
         assert x1.shape == x2.shape == (B, n_inputs ** 2, in_features)
-        x = torch.concatenate([x1, x2], dim=2)
+        x = torch.cat([x1, x2], dim=2)
         # x.shape == (B, n_inputs**2, 2 * in_features)
         assert x.shape == (B, n_inputs ** 2, 2 * in_features)
         # Apply subnet
@@ -423,9 +423,7 @@ class ComplexDenseNet(nn.Module):
 
 class PEPolicy2(nn.Module, BasePolicy):
 
-    def __init__(self, n_inputs, in_features=16, n_hidden=1,
-                 hidden_units=(512, 256, 128)):
-        
+    def __init__(self, n_inputs, in_features, n_hidden, hidden_units):
         super().__init__()
 
         self.n_inputs     = int(n_inputs)
@@ -439,28 +437,30 @@ class PEPolicy2(nn.Module, BasePolicy):
             n_hidden     = self.n_hidden,
             hidden_units = self.hidden_units
         )
-
-        self.layers = nn.ModuleList()
         # Initialize hidden layers
+        self.layers = nn.ModuleList()
         _in = self.in_features
         for i in range(n_hidden):
             _out = hidden_units[-1]
-            subnet = ComplexDenseNet(2 * _in, hidden_units[:-1], hidden_units[-1])
+            subnet = ComplexDenseNet(2 * _in, hidden_units[:-1], _out)
             layer = PermutationLayer2(subnet)
             self.layers.append(layer)
             _in = _out
         # Initialize output layer
-        subnet = ComplexDenseNet(_in, hidden_units, 1)
+        subnet = ComplexDenseNet(2 * _in, hidden_units, 1)
         self.output_layer = PermutationLayer2(subnet)
-
 
     def forward(self, x):
         # x.shape == (batch_size, n_inputs * in_features)
-        x = x.view(-1, self.n_inputs, self.in_features)
+        x = x.reshape(-1, self.n_inputs, self.in_features)
         batch_size, n_inputs, _ = x.shape
 
         for layer in self.layers:
             x = layer(x)
         out = self.output_layer(x)
         assert out.shape == (batch_size, n_inputs, 1)
-        return torch.abs(out).square(-1)
+        return torch.abs(out).squeeze(-1)
+
+    @property
+    def device(self):
+        return self.output_layer.subnet.layers[-1].weight.device
