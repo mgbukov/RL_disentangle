@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class MLP(nn.Module):
@@ -56,6 +57,42 @@ class MLP(nn.Module):
         """
         x = x.float().contiguous().to(self.device)
         return self.net(x)
+
+    @property
+    def device(self):
+        """str: Determine on which device is the model placed upon, CPU or GPU."""
+        return next(self.parameters()).device
+
+
+class MLPC(nn.Module):
+    """Fully connected multi-layer perceptron with complex weights."""
+
+    def __init__(self, in_shape, hidden_sizes, out_size):
+        super().__init__()
+        self.in_size = np.prod(in_shape)
+        self.hidden_sizes = hidden_sizes
+        self.out_size = out_size
+
+        units = [self.in_size] + list(self.hidden_sizes) + [self.out_size]
+        self.layers = nn.ModuleList()
+        for _in, _out in zip(units[:-1], units[1:]):
+            self.layers.append(nn.Linear(_in, _out, dtype=torch.complex64))
+
+    def forward(self, x):
+        x = x.reshape(-1, self.in_size).contiguous().to(self.device)
+        for layer in self.layers[:-1]:
+            x = layer(x)
+            x = MLPC.real_imaginary_relu(x)
+        out = torch.abs(self.layers[-1](x))
+        return out
+
+    @staticmethod
+    def phase_amplitude_relu(z):
+        return F.relu(torch.abs(z)) * torch.exp(1.j * torch.angle(z))
+
+    @staticmethod
+    def real_imaginary_relu(z):
+        return F.relu(z.real) + 1.0j * F.relu(z.imag)
 
     @property
     def device(self):
@@ -186,4 +223,76 @@ class TransformerPE(nn.Module):
         """str: Determine on which device is the model placed upon, CPU or GPU."""
         return next(self.parameters()).device
 
-#
+
+class PermutationLayer(nn.Module):
+
+    def __init__(self, subnet, pooling='mean'):
+        super().__init__()
+        self.subnet = subnet
+        self.pooling = pooling
+
+    def forward(self, inputs):
+        assert inputs.ndim == 3
+        # inputs.shape == (B, n_inputs, in_features)
+        # We transform the input to (B, n_inputs**2, 2 * n_features)
+        B, n_inputs, in_features = inputs.shape
+        x1 = torch.tile(inputs, (1, n_inputs, 1))
+        # z1.shape == (B, n_inputs**2, in_features)
+        x2 = torch.tile(inputs, (1, 1, n_inputs)).view(B, -1, in_features)
+        # z2.shape == (B, n_inputs**2, in_features)
+        assert x1.shape == x2.shape == (B, n_inputs ** 2, in_features)
+        x = torch.cat([x1, x2], dim=2)
+        # x.shape == (B, n_inputs**2, 2 * in_features)
+        assert x.shape == (B, n_inputs ** 2, 2 * in_features)
+        # Apply subnet
+        outputs = self.subnet(x)
+        # outputs.shape == (B, n_inputs ** 2, out_features)
+        outputs = outputs.view(B, n_inputs, n_inputs, -1)
+        if self.pooling == 'mean':
+            pooled = torch.mean(outputs, dim=2)
+        elif self.pooling == 'max':
+            pooled = torch.max(outputs, dim=2).values
+        else:
+            pooled = self.pooling(outputs, dim=2)
+        # `pooled` shape should be (B, n_inputs, out_features)
+        assert pooled.shape == (B, n_inputs, pooled.shape[2])
+        return pooled
+
+
+class PermutationNet(nn.Module):
+
+    def __init__(self, n_inputs, in_features, n_hidden, hidden_sizes):
+        super().__init__()
+
+        self.n_inputs     = int(n_inputs)
+        self.in_features  = int(in_features)
+        self.n_hidden     = int(n_hidden)
+        self.hidden_sizes = tuple(hidden_sizes)
+
+        # Initialize hidden layers
+        self.layers = nn.ModuleList()
+        _in = self.in_features
+        for i in range(n_hidden):
+            _out = hidden_sizes[-1]
+            subnet = MLPC(2 * _in, hidden_sizes[:-1], _out)
+            layer = PermutationLayer(subnet)
+            self.layers.append(layer)
+            _in = _out
+        # Initialize output layer
+        subnet = MLPC(2 * _in, hidden_sizes, 1)
+        self.output_layer = PermutationLayer(subnet)
+
+    def forward(self, x):
+        # x.shape == (batch_size, n_inputs, in_features)
+        x = x.reshape(-1, self.n_inputs, self.in_features)
+        batch_size, n_inputs, _ = x.shape
+
+        for layer in self.layers:
+            x = layer(x)
+        out = self.output_layer(x)
+        assert out.shape == (batch_size, n_inputs, 1)
+        return torch.abs(out).squeeze(-1)
+
+    @property
+    def device(self):
+        return self.output_layer.subnet.layers[-1].weight.device
