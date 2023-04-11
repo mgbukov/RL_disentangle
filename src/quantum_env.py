@@ -1,3 +1,4 @@
+from itertools import permutations
 from collections import namedtuple
 import sys
 import numpy as np
@@ -33,7 +34,7 @@ class QuantumEnv():
                 ["sparse", "relative_delta"]. Default: "sparse".
             obs_fn: string, optional
                 The name of the observation function to be used. One of
-                ["phase_norm", "rdm_1q", "rdm_2q"]. Default: "phase_norm".
+                ["phase_norm", "rdm_1q", "rdm_2q_complex"]. Default: "phase_norm".
         """
         # Private.
         self.epsi = epsi
@@ -41,6 +42,7 @@ class QuantumEnv():
         self.simulator = VectorQuantumState(num_qubits, num_envs)
         self.reward_fn = getattr(sys.modules[__name__], reward_fn)  # get from this module
         self.obs_fn = getattr(sys.modules[__name__], obs_fn)        # get from this module
+        self.obs_dtype = self.obs_fn(self.simulator.states).dtype
 
         # Public attributes conforming to the OpenAI Gym API.
         self.num_envs = num_envs
@@ -175,6 +177,32 @@ def rdm_1q(states):
     # flattened and the real and imaginary parts of each number are stacked.
     rdms = rdms.transpose((1, 0, 2, 3)).reshape(N, -1, 4)
     obs = np.dstack([rdms.real, rdms.imag])
+    return obs
+
+def rdm_2q_complex(states):
+    """
+    Returns 2-qubit RDM observations.
+
+    Returns:
+        osb: np.ndarray, dtype=np.complex64
+            Numpy tensor with shape (N, Q, 16), where N = number of episodes,
+            Q = number of qubits
+    """
+    N = states.shape[0]
+    Q = len(states.shape[1:])
+    rdms = []
+    qubit_pairs = permutations(range(Q), 2)
+
+    for qubits in qubit_pairs:
+        sysA = tuple(q+1 for q in qubits)
+        sysB = tuple(q+1 for q in range(Q) if q not in qubits)
+        permutation = (0,) + sysA + sysB
+        psi = np.transpose(states, permutation).reshape(N, 4, -1)
+        rdm = psi @ np.transpose(psi, (0, 2, 1)).conj()
+        rdms.append(rdm)
+    rdms = np.array(rdms)                   # rdms.shape == (Q*(Q-1), N, 4, 4)
+    rdms = rdms.transpose((1, 0, 2, 3))     # rdms.shape == (N, Q*(Q-1), 4, 4)
+    obs = rdms.reshape(N, Q*(Q - 1), 16)    # obs.shape == (N, Q*(Q-1), 16)
     return obs
 
 

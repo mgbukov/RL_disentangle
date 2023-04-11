@@ -44,7 +44,10 @@ def environment_loop(seed, agent, env, num_iters, steps, log_dir, log_every=1, d
     run_ret, run_len = np.nan, np.nan
     for i in tqdm(range(num_iters)):
         # Allocate tensors for the rollout observations.
-        obs = np.zeros(shape=(steps, num_envs, *env.single_observation_space.shape), dtype=np.float32)
+        obs = np.zeros(
+            shape=(steps, num_envs, *env.single_observation_space.shape),
+            dtype=env.obs_dtype
+        )
         actions = np.zeros(shape=(steps, num_envs), dtype=int)
         rewards = np.zeros(shape=(steps, num_envs), dtype=np.float32)
         done = np.zeros(shape=(steps, num_envs), dtype=bool)
