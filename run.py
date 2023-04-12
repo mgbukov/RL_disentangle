@@ -72,7 +72,7 @@ def pg_solves_quantum(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Set the random seeds.
-    seed = 0
+    seed = args.seed
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
@@ -124,7 +124,7 @@ def pg_solves_quantum(args):
 
     # Run the environment loop
     log_dir = os.path.join("logs",
-        f"pg_pomdp_TPE_{args.num_qubits}q_R{args.reward_fn}_iters_{args.num_iters}_ent_{args.entropy_reg}_pilr_{args.pi_lr}")
+        f"pg_pomdp_TPE_{args.num_qubits}q_R{args.reward_fn}_iters_{args.num_iters}_ent_{args.entropy_reg}_pilr_{args.pi_lr}_seed_{args.seed}")
     os.makedirs(log_dir, exist_ok=True)
     environment_loop(seed, agent, env, args.num_iters, args.steps, log_dir, args.log_every, demo=demo(args))
     plot_progress(log_dir)
@@ -262,6 +262,8 @@ def plot_progress(log_dir):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", default=0, type=int)
+
     parser.add_argument("--pi_lr", default=3e-4, type=float)
     parser.add_argument("--vf_lr", default=3e-4, type=float)
     parser.add_argument("--discount", default=1., type=float)
