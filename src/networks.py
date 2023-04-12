@@ -224,6 +224,29 @@ class TransformerPE(nn.Module):
         return next(self.parameters()).device
 
 
+class TransformerPE_2qRDM(nn.Module):
+    """Permutation-equivariant Transformer net for 2q-RDM input."""
+
+    def __init__(self, in_dim, embed_dim, dim_mlp, n_heads, n_layers):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(in_dim, embed_dim, bias=False),
+            *[nn.TransformerEncoderLayer(embed_dim, n_heads, dim_mlp, dropout=0., batch_first=True)
+                for _ in range(n_layers)],
+            nn.Linear(embed_dim, 1),
+            nn.Flatten(start_dim=-2), # squeeze the last dimension
+        )
+
+    def forward(self, x):
+        x = x.float().contiguous().to(self.device)
+        return self.net(x)
+
+    @property
+    def device(self):
+        """str: Determine on which device is the model placed upon, CPU or GPU."""
+        return next(self.parameters()).device
+
+
 class PermutationLayer(nn.Module):
 
     def __init__(self, subnet, pooling='mean'):

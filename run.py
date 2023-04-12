@@ -8,7 +8,7 @@ import numpy as np
 import torch
 
 from src.environment_loop import environment_loop
-from src.networks import MLP, Transformer, TransformerPE
+from src.networks import MLP, Transformer, TransformerPE, TransformerPE_2qRDM
 from src.vpg import VPGAgent
 from src.ppo import PPOAgent
 from src.quantum_env import QuantumEnv
@@ -95,8 +95,9 @@ def pg_solves_quantum(args):
     # policy_network = MLP(in_shape, [256, 256, 256], out_dim).to(device)
     # policy_network = Transformer(in_shape, embed_dim=128, hid_dim=256, out_dim=out_dim,
     #     dim_mlp=128, n_heads=4, n_layers=2).to(device)
-    policy_network = TransformerPE(in_dim, embed_dim=128, dim_mlp=128, n_heads=4, n_layers=2).to(device)
-    value_network = MLP(in_shape, [256, 256], 1).to(device)
+    # policy_network = TransformerPE(in_dim, embed_dim=128, dim_mlp=128, n_heads=4, n_layers=2).to(device)
+    policy_network = TransformerPE_2qRDM(in_dim, embed_dim=128, dim_mlp=128, n_heads=4, n_layers=2).to(device)
+    value_network = MLP(in_shape, [128, 128], 1).to(device)
     agent = VPGAgent(policy_network, value_network, config={
         "pi_lr"     : args.pi_lr,
         "vf_lr"     : args.vf_lr,
@@ -124,7 +125,7 @@ def pg_solves_quantum(args):
 
     # Run the environment loop
     log_dir = os.path.join("logs",
-        f"pg_pomdp_TPE_{args.num_qubits}q_R{args.reward_fn}_iters_{args.num_iters}_ent_{args.entropy_reg}_pilr_{args.pi_lr}_seed_{args.seed}")
+        f"pg_2qRDM_TPE_{args.num_qubits}q_R{args.reward_fn}_iters_{args.num_iters}_ent_{args.entropy_reg}_pilr_{args.pi_lr}_seed_{args.seed}")
     os.makedirs(log_dir, exist_ok=True)
     environment_loop(seed, agent, env, args.num_iters, args.steps, log_dir, args.log_every, demo=demo(args))
     plot_progress(log_dir)
