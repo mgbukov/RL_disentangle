@@ -284,25 +284,30 @@ class PermutationLayer(nn.Module):
 
 class PermutationNet(nn.Module):
 
-    def __init__(self, n_inputs, in_features, n_hidden, hidden_sizes):
+    def __init__(self, n_inputs, in_features, n_hidden, hidden_sizes,
+                dtype='torch.complex64'):
         super().__init__()
 
         self.n_inputs     = int(n_inputs)
         self.in_features  = int(in_features)
         self.n_hidden     = int(n_hidden)
         self.hidden_sizes = tuple(hidden_sizes)
+        self.dtype        = str(dtype)
+
+        assert self.dtype in ('torch.complex64', 'torch.float32')
+        SubnetType = MLP if self.dtype == 'torch.float32' else MLPC
 
         # Initialize hidden layers
         self.layers = nn.ModuleList()
         _in = self.in_features
         for i in range(n_hidden):
             _out = hidden_sizes[-1]
-            subnet = MLPC(2 * _in, hidden_sizes[:-1], _out)
+            subnet = SubnetType(2 * _in, hidden_sizes[:-1], _out)
             layer = PermutationLayer(subnet)
             self.layers.append(layer)
             _in = _out
         # Initialize output layer
-        subnet = MLPC(2 * _in, hidden_sizes, 1)
+        subnet = SubnetType(2 * _in, hidden_sizes, 1)
         self.output_layer = PermutationLayer(subnet)
 
     def forward(self, x):
