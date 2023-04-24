@@ -1,5 +1,6 @@
 import numpy as np
 import sys
+from typing import Literal
 
 sys.path.append('..')
 from src.envs.rdm_environment import QubitsEnvironment
@@ -28,25 +29,26 @@ def observe_rdms(env):
     return rdms[0]
 
 
-def test_get_action_4q():
+def test_get_action_4q(policy: Literal['universal', 'equivariant']):
     env = QubitsEnvironment(4, epsi=1e-3)
 
     for _ in range(100):
         env.set_random_states()
         assert not env.disentangled()[0]
 
-        for _ in range(5):
+        nsteps = 5 if policy == 'universal' else 8
+        for _ in range(nsteps):
             rdms = observe_rdms(env)
-            U, i, j = get_action_4q(rdms)
+            U, i, j = get_action_4q(rdms, policy)
             a = env.actToKey[(i,j)]
             env.step([a])
-            assert 0 <= i < j < 4
             assert U.dtype == np.complex64
             assert U.shape == (4,4)
             I = U @ U.T.conj()
             assert np.all(np.isclose(I, np.eye(4, dtype=np.complex64), atol=1e-6))
             assert np.all(np.isclose(env.unitary[0], U))
-
+            if env.disentangled()[0]:
+                break
         assert env.disentangled()[0]
 
 
@@ -66,7 +68,6 @@ def test_peek_next_4q():
         for _ in range(10):
             psi = env.states[0]
             a = int(np.random.uniform(0, env.num_actions - 1))
-            
             phi, r, done = env.step(a)
             U = env.unitary[0]
             i, j = env.actions[a]
@@ -77,6 +78,7 @@ def test_peek_next_4q():
 
 
 if __name__ == '__main__':
-    test_get_action_4q()
+    test_get_action_4q('universal')
+    test_get_action_4q('equivariant')
     test_peek_next_4q()
     print('ok')

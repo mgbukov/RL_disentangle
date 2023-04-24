@@ -1,7 +1,12 @@
-data/
-# data files
 *.dat
 *.pkl
+*.pdf
+*.png
+*.txt
+*.pickle
+.vscode/
+data/
+logs/
 .DS_Store
 
 # Byte-compiled / optimized / DLL files
