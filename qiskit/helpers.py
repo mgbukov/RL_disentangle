@@ -21,7 +21,7 @@ UNIVERSAL_CIRCUIT = cycle([(0, 1), (2, 3), (0, 2), (1, 2), (2, 3)])
 # Action set on which RL agents are currently trained (may change in future)
 ACTION_SET = list(permutations(range(4), 2))
 # Path to TorchScript file with policy from RL agent.
-POLICY_PATH = os.path.join(os.path.dirname(__file__), 'pe-policy-traced.pts')
+POLICY_PATH = os.path.join(os.path.dirname(__file__), 'pe-policy-2.0.pts')
 
 
 # If initialized returns probability for each action in ACTION_SET
