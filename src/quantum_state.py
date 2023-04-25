@@ -95,42 +95,47 @@ class VectorQuantumState:
 
 
 #------------------------------ Utility functions -----------------------------#
-def random_quantum_state(Q):
-    """Generate a quantum state as a product between multiple Haar random states.
-    The state is further transformed by transposing the qubits at random.
+def random_quantum_state(q, prob=0.95):
+    """Generate a quantum state as a Haar random state drawn from a subspace of
+    the full Hilbert space.
 
     Args:
-        Q: int
-            Number of qubits in the quantum state. Q must be >= 2.
-        low: int, optional
-            Minimum number of qubits in one of the Haar random states.
-            ## Revise the description
+        q: int
+            Number of qubits in the quantum state. Must be non-negative.
+        prob: float, optional
+            Probability for drawing the state from the full Hilbert space, i.e.
+            all the qubits are entangled. (prob \in (0, 1]). Default 0.95.
 
     Returns:
         psi: np.Array
-            Numpy array of shape (1, 2, 2, ..., 2) representing the generated
+            Numpy array of shape (2, 2, ..., 2) representing the generated
             quantum state in the Hilbert space.
     """
-    assert Q >= 2
+    # Base case.
+    if q == 0: return np.array([1.])
+    if q == 1 or q == 2:
+        psi = np.random.randn(2 ** q) + 1j * np.random.randn(2 ** q)
+        psi = psi.reshape((2,) * q).astype(np.complex64)
+        psi /= np.linalg.norm(psi, keepdims=True)
+        return psi
 
-    # Generate the first Haar random state using at least 2 qubits.
-    l = np.random.randint(low=2, high=Q+1)
-    psi = np.random.randn(2 ** l) + 1j * np.random.randn(2 ** l)
-    num_qubits = l
+    assert q > 2
+    assert prob > 0 and prob <= 1.
 
-    # Continue generating states and combine them using tensor product.
-    while num_qubits < Q:
-        k = np.random.randint(low=1, high=Q-num_qubits+1)
-        B = np.random.randn(2 ** k) + 1j * np.random.randn(2 ** k)
-        psi = np.kron(psi, B)
-        num_qubits += k
+    # Generate a geometric probability distribution for the subspace size.
+    distr = np.array([prob * (1-prob) ** (q-i) for i in range(1, q+1)])
+    distr /= distr.sum()
+
+    # Generate Haar randoms state from a subspace of the full Hilbert space.
+    # The final state is a product between the generated Haar states.
+    k = np.random.choice(range(1, q+1), p=distr)
+    A = np.random.randn(2 ** k) + 1j * np.random.randn(2 ** k)
+    B = random_quantum_state(q-k, prob)
+    psi = np.kron(A, B)
 
     # Reshape and normalize.
-    psi = psi.reshape((2,) * Q).astype(np.complex64)
+    psi = psi.reshape((2,) * q).astype(np.complex64)
     psi /= np.linalg.norm(psi, keepdims=True)
-
-    # Permute the qubits at random positions.
-    psi = psi.reshape((2,) * Q).transpose(np.random.permutation(Q))
     return psi
 
 def phase_norm(states):
