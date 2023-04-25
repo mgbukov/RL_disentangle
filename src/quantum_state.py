@@ -1,4 +1,4 @@
-from itertools import permutations
+from itertools import permutations, combinations
 import numpy as np
 
 
@@ -23,7 +23,7 @@ class VectorQuantumState:
 
         # The action space consists of all possible pairs of qubits.
         self.num_actions = num_qubits * (num_qubits - 1)
-        self.actions = dict(enumerate(permutations(range(num_qubits), 2)))
+        self.actions = dict(enumerate(combinations(range(num_qubits), 2)))
         self.actToKey = {v:k for k, v in self.actions.items()}
 
         # Every system in the vectorized environment is represented as a numpy

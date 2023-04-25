@@ -1,4 +1,4 @@
-from itertools import permutations
+from itertools import combinations
 from collections import namedtuple
 import sys
 import numpy as np
@@ -151,8 +151,8 @@ def phase_norm(states):
 
 def rdm_1q(states):
     """Returns an observation of the states of the vector environment.
-        The observation for a single quantum system is arrived at by calculating
-        all single qubit rdm for each and every qubit of the system separately.
+    The observation for a single quantum system is arrived at by calculating
+    all single qubit rdm for each and every qubit of the system separately.
 
         Returns:
             obs: np.Array
@@ -191,7 +191,7 @@ def rdm_2q_complex(states):
     N = states.shape[0]
     Q = len(states.shape[1:])
     rdms = []
-    qubit_pairs = permutations(range(Q), 2)
+    qubit_pairs = combinations(range(Q), 2)
 
     for qubits in qubit_pairs:
         sysA = tuple(q+1 for q in qubits)
@@ -200,9 +200,9 @@ def rdm_2q_complex(states):
         psi = np.transpose(states, permutation).reshape(N, 4, -1)
         rdm = psi @ np.transpose(psi, (0, 2, 1)).conj()
         rdms.append(rdm)
-    rdms = np.array(rdms)                   # rdms.shape == (Q*(Q-1), N, 4, 4)
-    rdms = rdms.transpose((1, 0, 2, 3))     # rdms.shape == (N, Q*(Q-1), 4, 4)
-    obs = rdms.reshape(N, Q*(Q - 1), 16)    # obs.shape == (N, Q*(Q-1), 16)
+    rdms = np.array(rdms)                   # rdms.shape == (Q*(Q-1)//2, N, 4, 4)
+    rdms = rdms.transpose((1, 0, 2, 3))     # rdms.shape == (N, Q*(Q-1)//2, 4, 4)
+    obs = rdms.reshape(N, Q*(Q - 1)//2, 16) # obs.shape  == (N, Q*(Q-1)//2, 16)
     return obs
 
 def rdm_2q_real(states):
