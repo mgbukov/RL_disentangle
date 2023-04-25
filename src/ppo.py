@@ -1,6 +1,5 @@
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data as data
 from torch.distributions import Categorical
@@ -130,7 +129,7 @@ class PPOAgent(PGAgent):
 
         # Update the policy multiple times.
         n_updates = 0
-        total_pi_loss, total_loss, total_norm, j = 0., 0., 0., 0
+        pi_losses, pi_norms, total_losses = [], [] , []
         for _ in range(self.n_epochs):
 
             # For each epoch run through the entire set of experiences and
@@ -155,38 +154,43 @@ class PPOAgent(PGAgent):
 
                 # Add entropy regularization. Augment the loss with the mean
                 # entropy of the policy calculated over the sampled observations.
-                avg_policy_ent = Categorical(logits=logits).entropy().mean(dim=-1)
-                loss = pi_loss - self.entropy_reg * avg_policy_ent
+                policy_entropy = Categorical(logits=logits).entropy()
+                loss = pi_loss - self.entropy_reg * policy_entropy.mean(dim=-1)
 
                 # Backward pass.
                 self.policy_optim.zero_grad()
                 loss.backward()
-                grad_norm = torch.norm(
+                total_norm = torch.norm(
                     torch.stack([torch.norm(p.grad) for p in self.policy_network.parameters()]))
                 torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), self.clip_grad)
                 self.policy_optim.step()
 
                 # Bookkeeping.
                 n_updates += 1
-                total_pi_loss += pi_loss.item() * o.shape[0]
-                total_loss += loss.item() * o.shape[0]
-                total_norm += grad_norm.item() * o.shape[0]
-                j += o.shape[0]
+                pi_losses.append(pi_loss.item())
+                pi_norms.append(total_norm.item())
+                total_losses.append(loss.item())
 
             # Check for early stopping.
             logp = self.policy(obs).log_prob(acts.to(device))   # uses torch.no_grad
-            KL = torch.mean(logp_old - logp)                    # KL(P,Q) = Sum(P log(Q/P)) = E_P[logQ-logP]
-            if self.tgt_KL is not None and KL > 1.5 * self.tgt_KL:
+            KL = logp_old - logp                                # KL(P,Q) = Sum(P log(Q/P)) = E_P[logQ-logP]
+            if self.tgt_KL is not None and KL.mean() > 1.5 * self.tgt_KL:
                 break
 
         # Store the stats.
         self.train_history[-1].update({
-            "policy_loss"       : total_pi_loss / j,
-            "total_loss"        : total_loss / j,
-            "policy_grad_norm"  : total_norm / j,
-            "policy_entropy"    : avg_policy_ent.item(), # policy entropy after all updates
-            "avg_KL_div"        : KL.item(),             # KL divergence after all updates
-            "num_ppo_updates"   : n_updates,
+            "Policy Loss"    : {"avg": np.mean(pi_losses), "std": np.std(pi_losses)},
+            "Total_Loss"     : {"avg": np.mean(total_losses), "std": np.std(total_losses)},
+            "Policy Entropy" : {                            # policy entropy after all updates
+                "avg": policy_entropy.mean(dim=-1).item(),
+                "std": policy_entropy.std(dim=-1).item(),
+            },
+            "KL Divergence"  : {                            # KL divergence after all updates
+                "avg": KL.mean().item(),
+                "std": KL.std().item(),
+            },
+            "Policy Grad Norm": {"avg": np.mean(pi_norms), "std": np.std(pi_norms)},
+            "Num PPO updates" : {"avg": n_updates},
         })
 
     def update_value(self, obs, returns):
@@ -207,7 +211,7 @@ class PPOAgent(PGAgent):
         values_old = self.value(obs).reshape(-1, 1) # uses torch.no_grad
 
         # Iterate over the collected experiences and update the value network.
-        total_vf_loss, total_norm, j = 0., 0., 0
+        vf_losses, vf_norms = [], []
         for _ in range(self.n_epochs):
 
             # For each epoch run through the entire set of experiences and
@@ -228,20 +232,19 @@ class PPOAgent(PGAgent):
                 # Backward pass.
                 self.value_optim.zero_grad()
                 vf_loss.backward()
-                grad_norm = torch.norm(torch.stack(
+                total_norm = torch.norm(torch.stack(
                     [torch.norm(p.grad) for p in self.value_network.parameters()]))
                 torch.nn.utils.clip_grad_norm_(self.value_network.parameters(), self.clip_grad)
                 self.value_optim.step()
 
                 # Bookkeeping.
-                total_vf_loss += vf_loss.item() * o.shape[0]
-                total_norm += grad_norm.item() * o.shape[0]
-                j += o.shape[0]
+                vf_losses.append(vf_loss.item())
+                vf_norms.append(total_norm.item())
 
         # Store the stats.
         self.train_history[-1].update({
-            "value_avg_loss"       : total_vf_loss / j,
-            "value_avg_grad_norm"  : total_norm / j,
+            "Value Loss"      : {"avg": np.mean(vf_losses), "std": np.std(vf_losses)},
+            "Value Grad Norm" : {"avg": np.mean(vf_norms), "std": np.std(vf_norms)},
         })
 
 #

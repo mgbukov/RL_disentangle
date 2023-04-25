@@ -88,6 +88,8 @@ def environment_loop(seed, agent, env, num_iters, steps, log_dir, log_every=1, d
 
         # Bookkeeping.
         assert len(episode_returns) == len(episode_lengths), "lengths must match"
+        total_ep = len(episode_returns)
+        ratio_terminated = terminated / total_ep if total_ep > 0 else np.nan
         for r, l in zip(episode_returns, episode_lengths):
             run_ret = r if run_ret is np.nan else 0.99 * run_ret + 0.01 * r
             run_len = l if run_len is np.nan else 0.99 * run_len + 0.01 * l
@@ -99,14 +101,9 @@ def environment_loop(seed, agent, env, num_iters, steps, log_dir, log_every=1, d
             avg_r, avg_l = np.mean(episode_returns), np.mean(episode_lengths)
             std_r, std_l = np.std(episode_returns), np.std(episode_lengths)
         agent.train_history[i].update({
-            "run_return": run_ret,
-            "avg_return": avg_r,
-            "std_return": std_r,
-            "run_length": run_len,
-            "avg_length": avg_l,
-            "std_length": std_l,
-            "terminated": terminated,
-            "total_ep" : len(episode_lengths),
+            "Return"           : {"avg" : avg_r, "std" : std_r, "run" : run_ret},
+            "Episode Length"   : {"avg" : avg_l, "std" : std_l, "run" : run_len},
+            "Ratio Terminated" : {"avg" : ratio_terminated},
         })
 
         # Demo.
@@ -117,7 +114,7 @@ def environment_loop(seed, agent, env, num_iters, steps, log_dir, log_every=1, d
         if i % log_every == 0:
             logging.info(f"\nIteration ({i+1} / {num_iters}):")
             for k, v in agent.train_history[i].items():
-                logging.info(f"    {k}: {v:.5f}")
+                logging.info(f"    {k}: {v}")
 
     # Time the entire agent-environment loop.
     toc = time.time()

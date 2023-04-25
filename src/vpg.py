@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.utils.data as data
@@ -93,8 +94,8 @@ class VPGAgent(PGAgent):
 
         # Add entropy regularization. Augment the loss with the mean entropy of
         # the policy calculated over the sampled observations.
-        avg_policy_ent = Categorical(logits=logits).entropy().mean(dim=-1)
-        total_loss = pi_loss - self.entropy_reg * avg_policy_ent
+        policy_entropy = Categorical(logits=logits).entropy()
+        total_loss = pi_loss - self.entropy_reg * policy_entropy.mean(dim=-1)
 
         # Backward pass.
         self.policy_optim.zero_grad()
@@ -106,10 +107,13 @@ class VPGAgent(PGAgent):
 
         # Store the stats.
         self.train_history[-1].update({
-            "policy_loss"      : pi_loss.item(),
-            "total_loss"       : total_loss.item(),
-            "policy_grad_norm" : total_norm.item(),
-            "policy_entropy"   : avg_policy_ent.item(),
+            "Policy Loss"    : {"avg": pi_loss.item()},
+            "Total_Loss"     : {"avg": total_loss.item()},
+            "Policy Entropy" : {
+                "avg": policy_entropy.mean(dim=-1).item(),
+                "std": policy_entropy.std(dim=-1).item(),
+            },
+            "Policy Grad Norm": {"avg": total_norm.item()},
         })
 
     def update_value(self, obs, returns):
@@ -131,7 +135,7 @@ class VPGAgent(PGAgent):
 
         # Iterate over the collected experiences and update the value network.
         self.value_network.train()
-        total_loss, total_norm, j = 0., 0., 0
+        vf_losses, vf_norms = [], []
         for o, r in train_dataloader:
             # Forward pass.
             pred = self.value_network(o)
@@ -139,20 +143,18 @@ class VPGAgent(PGAgent):
             # Backward pass.
             self.value_optim.zero_grad()
             vf_loss.backward()
-            grad_norm = torch.norm(torch.stack(
+            total_norm = torch.norm(torch.stack(
                 [torch.norm(p.grad) for p in self.value_network.parameters()]))
             torch.nn.utils.clip_grad_norm_(self.value_network.parameters(), self.clip_grad)
             self.value_optim.step()
 
             # Bookkeeping.
-            total_loss += vf_loss.item() * o.shape[0]
-            total_norm += grad_norm.item() * o.shape[0]
-            j += o.shape[0]
+            vf_losses.append(vf_loss.item())
+            vf_norms.append(total_norm.item())
 
         # Store the stats.
         self.train_history[-1].update({
-            "value_avg_loss"        : total_loss / j,
-            "value_avg_grad_norm"   : total_norm / j,
+            "Value Loss"      : {"avg": np.mean(vf_losses), "std": np.std(vf_losses)},
+            "Value Grad Norm" : {"avg": np.mean(vf_norms), "std": np.std(vf_norms)},
         })
-
 #
