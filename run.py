@@ -1,5 +1,5 @@
+import json
 import os
-import pickle
 import sys
 sys.path.append("..")
 
@@ -8,10 +8,10 @@ import numpy as np
 import torch
 
 from src.environment_loop import environment_loop
-from src.networks import MLP, TransformerPE_2qRDM, TransformerPI_2qRDM_V
-from src.vpg import VPGAgent
+from src.networks import MLP, TransformerPE_2qRDM
 from src.ppo import PPOAgent
 from src.quantum_env import QuantumEnv
+from src.quantum_state import random_quantum_state
 
 
 def demo(args):
@@ -22,7 +22,7 @@ def demo(args):
 
         num_envs = 1024
         env = QuantumEnv(num_qubits=args.num_qubits, num_envs=num_envs,
-            epsi=args.epsi, max_episode_steps=args.steps_limit,
+            epsi=args.epsi, p_gen=args.p_gen, max_episode_steps=args.steps_limit,
             reward_fn=args.reward_fn, obs_fn=args.obs_fn,
         )
         _ = env.reset() # prepare the environment
@@ -71,6 +71,91 @@ def demo(args):
     return thunk
 
 
+def test(agent, args):
+    # Define the initial states on which we want to test the agent. For each
+    # of the special configurations provide a generating function.
+    initial_states = {
+        "|RR-000>" : lambda: np.kron(
+            random_quantum_state(q=2, prob=1.),
+            np.kron(
+                np.kron(
+                    random_quantum_state(q=1, prob=1.),
+                    random_quantum_state(q=1, prob=1.),
+                ),
+                random_quantum_state(q=1, prob=1.),
+            ),
+        ).reshape((2,) * 5).astype(np.complex64),
+
+        "|RR-RR-0>": lambda: np.kron(
+            random_quantum_state(q=2, prob=1.),
+            np.kron(
+                random_quantum_state(q=2, prob=1.),
+                random_quantum_state(q=1, prob=1.),
+            ),
+        ).reshape((2,) * 5).astype(np.complex64),
+
+        "|RRR-00>" : lambda: np.kron(
+            random_quantum_state(q=3, prob=1.),
+            np.kron(
+                random_quantum_state(q=1, prob=1.),
+                random_quantum_state(q=1, prob=1.),
+            ),
+        ).reshape((2,) * 5).astype(np.complex64),
+
+        "|RRR-RR>" : lambda: np.kron(
+            random_quantum_state(q=3, prob=1.),
+            random_quantum_state(q=2, prob=1.),
+        ).reshape((2,) * 5).astype(np.complex64),
+
+        "|RRRR-0>" : lambda: np.kron(
+            random_quantum_state(q=4, prob=1.),
+            random_quantum_state(q=1, prob=1.),
+        ).reshape((2,) * 5).astype(np.complex64),
+
+        "|RRRRR>"  : lambda: random_quantum_state(q=5, prob=1.),
+    }
+
+    # Prepare the environment.
+    num_envs = 2048
+    env = QuantumEnv(num_qubits=args.num_qubits, num_envs=num_envs,
+        epsi=args.epsi, max_episode_steps=args.steps_limit,
+        reward_fn=args.reward_fn, obs_fn=args.obs_fn,
+    )
+    _ = env.reset()
+
+    # Try to solve each of the special configurations.
+    results = {}
+    for name, fn in initial_states.items():
+        states = np.array([fn() for _ in range(num_envs)])
+        env.simulator.states = states
+        o = env.obs_fn(env.simulator.states)
+
+        lengths = [None] * env.num_envs
+        done = np.array([False] * env.num_envs)
+        solved = 0
+        while not done.all():
+            o = torch.from_numpy(o)
+            pi = agent.policy(o)    # uses torch.no_grad
+            acts = torch.argmax(pi.probs, dim=1).cpu().numpy() # greedy selection
+
+            o, r, t, tr, infos = env.step(acts)
+            if (t | tr).any():
+                for k in range(env.num_envs):
+                    if (t[k] | tr[k]) and (lengths[k] is None):
+                        lengths[k] = infos["episode"]["l"][k]
+                        done[k] = True
+                        if t[k]: solved += 1
+
+        # Bookkeeping.
+        results[name] = {
+            "avg_len": np.mean(lengths),
+            "max_len": np.max(lengths),
+            "ratio_solved": solved / num_envs,
+        }
+
+    return results
+
+
 def pg_solves_quantum(args):
     # Use cuda.
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -87,6 +172,7 @@ def pg_solves_quantum(args):
         num_qubits=args.num_qubits,
         num_envs=args.num_envs,
         epsi=args.epsi,
+        p_gen=args.p_gen,
         max_episode_steps=args.steps_limit,
         reward_fn=args.reward_fn,
         obs_fn=args.obs_fn,
@@ -96,18 +182,15 @@ def pg_solves_quantum(args):
     in_shape = env.single_observation_space.shape
     in_dim = in_shape[1]
     out_dim = env.single_action_space.n
-    policy_network = TransformerPE_2qRDM(in_dim, embed_dim=256, dim_mlp=256, n_heads=4, n_layers=4).to(device)
-    value_network = TransformerPI_2qRDM_V(in_dim, embed_dim=128, dim_mlp=128, n_heads=4, n_layers=2).to(device)
-    # value_network = MLP(in_shape, [128, 128], 1).to(device)
+    policy_network = TransformerPE_2qRDM(
+        in_dim,
+        embed_dim=256,
+        dim_mlp=256,
+        n_heads=args.attn_heads,
+        n_layers=args.transformer_layers,
+    ).to(device)
+    value_network = MLP(in_shape, [256, 256], 1).to(device)
     # agent = VPGAgent(policy_network, value_network, config={
-    #     "pi_lr"     : args.pi_lr,
-    #     "vf_lr"     : args.vf_lr,
-    #     "discount"  : args.discount,
-    #     "batch_size": args.batch_size,
-    #     "clip_grad" : args.clip_grad,
-    #     "entropy_reg": args.entropy_reg,
-    # })
-
     agent = PPOAgent(policy_network, value_network, config={
         "pi_lr"     : args.pi_lr,
         "vf_lr"     : args.vf_lr,
@@ -126,9 +209,14 @@ def pg_solves_quantum(args):
 
     # Run the environment loop
     log_dir = os.path.join("logs",
-        f"ppo_2qRDM_TPE_VPI_{args.num_qubits}q_R{args.reward_fn}_iters_{args.num_iters}_ent_{args.entropy_reg}_pilr_{args.pi_lr}_seed_{args.seed}")
+        f"pGen_{args.p_gen}_attnHeads_{args.attn_heads}_tLayers_{args.transformer_layers}_ppoBatch_{args.batch_size}_entReg_{args.entropy_reg}")
     os.makedirs(log_dir, exist_ok=True)
     environment_loop(seed, agent, env, args.num_iters, args.steps, log_dir, args.log_every, demo=demo(args))
+
+    # Test the final agent and store the results.
+    results = test(agent, args)
+    with open(os.path.join(log_dir, "results.json"), "w") as f:
+        json.dump(results, f, indent=2)
 
     # Generate plots.
     plt.style.use("ggplot")
@@ -157,26 +245,30 @@ def pg_solves_quantum(args):
         ax.set_ylabel(k)
         fig.savefig(os.path.join(log_dir, k.replace(" ", "_")+".png"))
 
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", default=0, type=int)
 
-    parser.add_argument("--pi_lr", default=3e-4, type=float)
+    parser.add_argument("--pi_lr", default=1e-4, type=float)
     parser.add_argument("--vf_lr", default=3e-4, type=float)
     parser.add_argument("--discount", default=1., type=float)
-    parser.add_argument("--batch_size", default=128, type=int)
+    parser.add_argument("--batch_size", default=2048, type=int)
     parser.add_argument("--clip_grad", default=1., type=float)
-    parser.add_argument("--entropy_reg", default=1e-2, type=float)
+    parser.add_argument("--entropy_reg", default=0.1, type=float)
+    parser.add_argument("--attn_heads", default=4, type=int)
+    parser.add_argument("--transformer_layers", default=4, type=int)
 
     parser.add_argument("--num_qubits", default=5, type=int)
     parser.add_argument("--num_iters", default=1001, type=int)
     parser.add_argument("--num_envs", default=128, type=int)
-    parser.add_argument("--steps", default=40, type=int)
+    parser.add_argument("--steps", default=64, type=int)
     parser.add_argument("--steps_limit", default=40, type=int)
     parser.add_argument("--epsi", default=1e-3, type=float)
-    parser.add_argument("--reward_fn", default="sparse", type=str)
-    parser.add_argument("--obs_fn", default="phase_norm", type=str)
+    parser.add_argument("--reward_fn", default="relative_delta", type=str)
+    parser.add_argument("--obs_fn", default="rdm_2q_real", type=str)
+    parser.add_argument("--p_gen", default=0.95, type=float)
 
     parser.add_argument("--log_every", default=100, type=int)
     parser.add_argument("--demo_every", default=100, type=int)
