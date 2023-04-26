@@ -15,7 +15,7 @@ class QuantumEnv():
     OpenAI Gym API.
     """
 
-    def __init__(self, num_qubits, num_envs, epsi=1e-3, max_episode_steps=1000,
+    def __init__(self, num_qubits, num_envs, epsi=1e-3, p_gen=0.95, max_episode_steps=1000,
         reward_fn="sparse", obs_fn="phase_norm"
     ):
         """Init a Quantum environment.
@@ -27,6 +27,9 @@ class QuantumEnv():
                 Number of quantum states for the vectorized environment.
             epsi: float, optional
                 Threshold for disentangling a quantum state. Default: 1e-3.
+            p_gen: float, optional
+                Probability for drawing the state from the full Hilbert space,
+                i.e. all the qubits are entangled. (prob \in (0, 1]). Default 0.95.
             max_episode_steps: int, optional
                 Maximum number of steps before truncating the environment. Default: 1000.
             reward_fn: string, optional
@@ -39,7 +42,7 @@ class QuantumEnv():
         # Private.
         self.epsi = epsi
         self.max_episode_steps = max_episode_steps
-        self.simulator = VectorQuantumState(num_qubits, num_envs)
+        self.simulator = VectorQuantumState(num_qubits, num_envs, p_gen)
         self.reward_fn = getattr(sys.modules[__name__], reward_fn)  # get from this module
         self.obs_fn = getattr(sys.modules[__name__], obs_fn)        # get from this module
         self.obs_dtype = self.obs_fn(self.simulator.states).dtype

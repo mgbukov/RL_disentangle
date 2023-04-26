@@ -8,7 +8,7 @@ class VectorQuantumState:
     All quantum states in the Vector system have the same number of qubits.
     """
 
-    def __init__(self, num_qubits, num_envs):
+    def __init__(self, num_qubits, num_envs, p_gen=0.95):
         """Init a vector quantum system.
 
         Args:
@@ -16,10 +16,14 @@ class VectorQuantumState:
                 Number of qubits in each of the quantum states.
             num_envs: int
                 Number of quantum states in the vectorized environment.
+            p_gen: float, optional
+                Probability for drawing the state from the full Hilbert space,
+                i.e. all the qubits are entangled. (prob \in (0, 1]). Default 0.95.
         """
         assert num_qubits >= 2
         self.num_qubits = num_qubits
         self.num_envs = num_envs
+        self.p_gen = p_gen
 
         # The action space consists of all possible pairs of qubits.
         self.num_actions = num_qubits * (num_qubits - 1)
@@ -89,7 +93,7 @@ class VectorQuantumState:
         self._states = phase_norm(batch)
 
     def reset_sub_environment_(self, k):
-        psi = random_quantum_state(self.num_qubits)
+        psi = random_quantum_state(self.num_qubits, self.p_gen)
         self._states[k] = phase_norm(psi)
         self.entanglements[k] = entropy(np.expand_dims(self._states[k], axis=0))
 
