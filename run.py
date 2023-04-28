@@ -184,8 +184,8 @@ def pg_solves_quantum(args):
     out_dim = env.single_action_space.n
     policy_network = TransformerPE_2qRDM(
         in_dim,
-        embed_dim=256,
-        dim_mlp=256,
+        embed_dim=args.embed_dim,
+        dim_mlp=args.dim_mlp,
         n_heads=args.attn_heads,
         n_layers=args.transformer_layers,
     ).to(device)
@@ -209,7 +209,8 @@ def pg_solves_quantum(args):
 
     # Run the environment loop
     log_dir = os.path.join("logs",
-        f"pGen_{args.p_gen}_attnHeads_{args.attn_heads}_tLayers_{args.transformer_layers}_ppoBatch_{args.batch_size}_entReg_{args.entropy_reg}")
+        f"pGen_{args.p_gen}_attnHeads_{args.attn_heads}_tLayers_{args.transformer_layers}"+
+        f"_ppoBatch_{args.batch_size}_entReg_{args.entropy_reg}_embed_{args.embed_dim}_mlp_{args.dim_mlp}")
     os.makedirs(log_dir, exist_ok=True)
     environment_loop(seed, agent, env, args.num_iters, args.steps, log_dir, args.log_every, demo=demo(args))
 
@@ -257,6 +258,8 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", default=2048, type=int)
     parser.add_argument("--clip_grad", default=1., type=float)
     parser.add_argument("--entropy_reg", default=0.1, type=float)
+    parser.add_argument("--embed_dim", default=256, type=int)
+    parser.add_argument("--dim_mlp", default=256, type=int)
     parser.add_argument("--attn_heads", default=4, type=int)
     parser.add_argument("--transformer_layers", default=4, type=int)
 
