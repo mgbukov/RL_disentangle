@@ -71,11 +71,17 @@ def demo(args):
     return thunk
 
 
-def test(agent, args):
+def test(agent):
+    """Test the agent on a set of specifically generated quantum states.
+    Note that this function will reset the numpy rng seed.
+    """
+    # Define a function wrapper for executing a function with a set rng seed.
+    def fixed_rng(fn): np.random.seed(0); return fn
+
     # Define the initial states on which we want to test the agent. For each
     # of the special configurations provide a generating function.
     initial_states = {
-        "|RR-000>" : lambda: np.kron(
+        "|RR-000>" : fixed_rng(lambda: np.kron(
             random_quantum_state(q=2, prob=1.),
             np.kron(
                 np.kron(
@@ -84,49 +90,48 @@ def test(agent, args):
                 ),
                 random_quantum_state(q=1, prob=1.),
             ),
-        ).reshape((2,) * 5).astype(np.complex64),
+        ).reshape((2,) * 5).astype(np.complex64)),
 
-        "|RR-RR-0>": lambda: np.kron(
+        "|RR-RR-0>": fixed_rng(lambda: np.kron(
             random_quantum_state(q=2, prob=1.),
             np.kron(
                 random_quantum_state(q=2, prob=1.),
                 random_quantum_state(q=1, prob=1.),
             ),
-        ).reshape((2,) * 5).astype(np.complex64),
+        ).reshape((2,) * 5).astype(np.complex64)),
 
-        "|RRR-00>" : lambda: np.kron(
+        "|RRR-00>" : fixed_rng(lambda: np.kron(
             random_quantum_state(q=3, prob=1.),
             np.kron(
                 random_quantum_state(q=1, prob=1.),
                 random_quantum_state(q=1, prob=1.),
             ),
-        ).reshape((2,) * 5).astype(np.complex64),
+        ).reshape((2,) * 5).astype(np.complex64)),
 
-        "|RRR-RR>" : lambda: np.kron(
+        "|RRR-RR>" : fixed_rng(lambda: np.kron(
             random_quantum_state(q=3, prob=1.),
             random_quantum_state(q=2, prob=1.),
-        ).reshape((2,) * 5).astype(np.complex64),
+        ).reshape((2,) * 5).astype(np.complex64)),
 
-        "|RRRR-0>" : lambda: np.kron(
+        "|RRRR-0>" : fixed_rng(lambda: np.kron(
             random_quantum_state(q=4, prob=1.),
             random_quantum_state(q=1, prob=1.),
-        ).reshape((2,) * 5).astype(np.complex64),
+        ).reshape((2,) * 5).astype(np.complex64)),
 
-        "|RRRRR>"  : lambda: random_quantum_state(q=5, prob=1.),
+        "|RRRRR>"  : fixed_rng(lambda: random_quantum_state(q=5, prob=1.)),
     }
 
-    # Prepare the environment.
-    num_envs = 2048
-    env = QuantumEnv(num_qubits=args.num_qubits, num_envs=num_envs,
-        epsi=args.epsi, max_episode_steps=args.steps_limit,
-        reward_fn=args.reward_fn, obs_fn=args.obs_fn,
+    # Define the environment.
+    num_envs = 1024
+    env = QuantumEnv(num_qubits=5, num_envs=num_envs,
+        epsi=1e-3, max_episode_steps=40, obs_fn="rdm_2q_real",
     )
-    _ = env.reset()
 
     # Try to solve each of the special configurations.
     results = {}
     for name, fn in initial_states.items():
         states = np.array([fn() for _ in range(num_envs)])
+        _ = env.reset() # prepare the environment.
         env.simulator.states = states
         o = env.obs_fn(env.simulator.states)
 
@@ -149,6 +154,7 @@ def test(agent, args):
         # Bookkeeping.
         results[name] = {
             "avg_len": np.mean(lengths),
+            "95_percentile": np.percentile(lengths, 95.),
             "max_len": np.max(lengths),
             "ratio_solved": solved / num_envs,
         }
@@ -215,7 +221,7 @@ def pg_solves_quantum(args):
     environment_loop(seed, agent, env, args.num_iters, args.steps, log_dir, args.log_every, demo=demo(args))
 
     # Test the final agent and store the results.
-    results = test(agent, args)
+    results = test(agent)
     with open(os.path.join(log_dir, "results.json"), "w") as f:
         json.dump(results, f, indent=2)
 
