@@ -276,7 +276,7 @@ if __name__ == "__main__":
     parser.add_argument("--steps_limit", default=40, type=int)
     parser.add_argument("--epsi", default=1e-3, type=float)
     parser.add_argument("--reward_fn", default="relative_delta", type=str)
-    parser.add_argument("--obs_fn", default="rdm_2q_real", type=str)
+    parser.add_argument("--obs_fn", default="rdm_2q_mean_real", type=str)
     parser.add_argument("--p_gen", default=0.95, type=float)
 
     parser.add_argument("--log_every", default=100, type=int)

@@ -220,6 +220,48 @@ def rdm_2q_real(states):
     rdms = rdm_2q_complex(states)           # rdms.shape = (N, Q*(Q-1), 16)
     return np.dstack([rdms.real, rdms.imag])
 
+def rdm_2q_mean_complex(states):
+    """Returns 2-qubit RDM observations with complex64 dtype.
+    The rdms resulting from the two different combinations of qubits (i,j) and
+    (j, i) are averaged.
+
+    Returns:
+        obs: np.ndarray, dtype=np.complex64
+            Numpy tensor with shape (N, Q*(Q-1), 16), where N = number of episodes,
+            Q = number of qubits
+    """
+    N = states.shape[0]
+    Q = len(states.shape[1:])
+    rdms = []
+    qubit_pairs = combinations(range(Q), 2)
+
+    for qubits in qubit_pairs:
+        sysA = tuple(q+1 for q in qubits)
+        sysB = tuple(q+1 for q in range(Q) if q not in qubits)
+
+        # qubit pair (i, j)
+        permutation = (0,) + sysA + sysB
+        psi = np.transpose(states, permutation).reshape(N, 4, -1)
+        rdm = psi @ np.transpose(psi, (0, 2, 1)).conj() # rdm.shape = (N, 4, 4)
+        rdm = rdm.reshape(N, 16)
+
+        # qubit pair (j, i)
+        permutation_rev = (0,) + tuple(reversed(sysA)) + sysB
+        psi = np.transpose(states, permutation_rev).reshape(N, 4, -1)
+        rdm_rev = psi @ np.transpose(psi, (0, 2, 1)).conj() # rdm_rev.shape = (N, 4, 4)
+        rdm_rev = rdm_rev.reshape(N, 16)
+
+        # Concatenate the rdms for the two separate combinations.
+        rdm_avg = 0.5 * (rdm + rdm_rev) # rdm_avg.shape = (N, 16)
+
+        rdms.append(rdm_avg)
+    obs = np.array(rdms).transpose((1, 0, 2)) # rdms.shape == (Q*(Q-1)//2, N, 16)
+    return obs                                # obs.shape  == (N, Q*(Q-1)//2, 16)
+
+def rdm_2q_mean_real(states):
+    rdms = rdm_2q_mean_complex(states) # rdms.shape = (N, Q*(Q-1), 16)
+    return np.dstack([rdms.real, rdms.imag])
+
 
 #------------------------------ Reward functions ------------------------------#
 def sparse(entanglements, prev_entanglements, epsi):
