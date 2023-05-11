@@ -1,3 +1,23 @@
+"""Run
+This script runs the training procedure.
+The updates to the agent policy are performed using PPO.
+The policy network is a Transformer model, the value network is a fully-connected
+model. Training log is stored inside `logs/model`.
+When training finishes the model is tested on a set of specially defined states.
+Test results are stored in `logs/model/results.json`.
+
+The model configuration as well as the training parameters can be set by
+providing the respective command line parameters. Run `python3 run.py --help` to
+see the list of parameters that can be provided.
+
+Example usage:
+
+python3 run.py \
+    --seed 0 --num_qubits 4 --num_envs 32 --steps 16 --steps_limit 8 --num_iters 1001 \
+    --p_gen 0.9 --attn_heads 2 --transformer_layers 2 --embed_dim 128 --dim_mlp 256 \
+    --batch_size 512 --pi_lr 1e-4 --entropy_reg 0.1 --obs_fn="rdm_2q_mean_real"
+"""
+
 import json
 import os
 import sys
@@ -71,7 +91,7 @@ def demo(args):
     return thunk
 
 
-def test(agent):
+def test(agent, args):
     """Test the agent on a set of specifically generated quantum states.
     Note that this function will reset the numpy rng seed.
     """
@@ -80,8 +100,8 @@ def test(agent):
 
     # Define the initial states on which we want to test the agent. For each
     # of the special configurations provide a generating function.
-    initial_states = {
-        "|RR-000>" : fixed_rng(lambda: np.kron(
+    initial_5q_states = {
+        "|RR-R-R-R>": fixed_rng(lambda: np.kron(
             random_quantum_state(q=2, prob=1.),
             np.kron(
                 np.kron(
@@ -92,7 +112,7 @@ def test(agent):
             ),
         ).reshape((2,) * 5).astype(np.complex64)),
 
-        "|RR-RR-0>": fixed_rng(lambda: np.kron(
+        "|RR-RR-R>": fixed_rng(lambda: np.kron(
             random_quantum_state(q=2, prob=1.),
             np.kron(
                 random_quantum_state(q=2, prob=1.),
@@ -100,7 +120,7 @@ def test(agent):
             ),
         ).reshape((2,) * 5).astype(np.complex64)),
 
-        "|RRR-00>" : fixed_rng(lambda: np.kron(
+        "|RRR-R-R>": fixed_rng(lambda: np.kron(
             random_quantum_state(q=3, prob=1.),
             np.kron(
                 random_quantum_state(q=1, prob=1.),
@@ -108,24 +128,47 @@ def test(agent):
             ),
         ).reshape((2,) * 5).astype(np.complex64)),
 
-        "|RRR-RR>" : fixed_rng(lambda: np.kron(
+        "|RRR-RR>": fixed_rng(lambda: np.kron(
             random_quantum_state(q=3, prob=1.),
             random_quantum_state(q=2, prob=1.),
         ).reshape((2,) * 5).astype(np.complex64)),
 
-        "|RRRR-0>" : fixed_rng(lambda: np.kron(
+        "|RRRR-R>": fixed_rng(lambda: np.kron(
             random_quantum_state(q=4, prob=1.),
             random_quantum_state(q=1, prob=1.),
         ).reshape((2,) * 5).astype(np.complex64)),
 
-        "|RRRRR>"  : fixed_rng(lambda: random_quantum_state(q=5, prob=1.)),
+        "|RRRRR>": fixed_rng(lambda: random_quantum_state(q=5, prob=1.)),
+    }
+
+    initial_4q_states = {
+        "|RR-R-R>": fixed_rng(lambda: np.kron(
+            random_quantum_state(q=2, prob=1.),
+            np.kron(
+                random_quantum_state(q=1, prob=1.),
+                random_quantum_state(q=1, prob=1.),
+            ),
+        ).reshape((2,) * 4).astype(np.complex64)),
+
+        "|RR-RR>": fixed_rng(lambda: np.kron(
+            random_quantum_state(q=2, prob=1.),
+            random_quantum_state(q=2, prob=1.),
+        ).reshape((2,) * 4).astype(np.complex64)),
+
+        "|RRR-R>": fixed_rng(lambda: np.kron(
+            random_quantum_state(q=3, prob=1.),
+            random_quantum_state(q=1, prob=1.),
+        ).reshape((2,) * 4).astype(np.complex64)),
+
+        "|RRRR>": fixed_rng(lambda: random_quantum_state(q=4, prob=1.)),
     }
 
     # Define the environment.
     num_envs = 1024
-    env = QuantumEnv(num_qubits=5, num_envs=num_envs,
-        epsi=1e-3, max_episode_steps=40, obs_fn="rdm_2q_real",
+    env = QuantumEnv(num_qubits=args.num_qubits, num_envs=num_envs,
+        epsi=args.epsi, max_episode_steps=args.steps_limit, obs_fn=args.obs_fn,
     )
+    initial_states = initial_5q_states if args.num_qubits == 5 else initial_4q_states
 
     # Try to solve each of the special configurations.
     results = {}
@@ -221,7 +264,7 @@ def pg_solves_quantum(args):
     environment_loop(seed, agent, env, args.num_iters, args.steps, log_dir, args.log_every, demo=demo(args))
 
     # Test the final agent and store the results.
-    results = test(agent)
+    results = test(agent, args)
     with open(os.path.join(log_dir, "results.json"), "w") as f:
         json.dump(results, f, indent=2)
 
@@ -256,31 +299,53 @@ def pg_solves_quantum(args):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--seed", default=0, type=int)
+    parser.add_argument("--seed", default=0, type=int,
+        help="Seed for random number generation.")
 
-    parser.add_argument("--pi_lr", default=1e-4, type=float)
-    parser.add_argument("--vf_lr", default=3e-4, type=float)
-    parser.add_argument("--discount", default=1., type=float)
-    parser.add_argument("--batch_size", default=2048, type=int)
-    parser.add_argument("--clip_grad", default=1., type=float)
-    parser.add_argument("--entropy_reg", default=0.1, type=float)
-    parser.add_argument("--embed_dim", default=256, type=int)
-    parser.add_argument("--dim_mlp", default=256, type=int)
-    parser.add_argument("--attn_heads", default=4, type=int)
-    parser.add_argument("--transformer_layers", default=4, type=int)
+    parser.add_argument("--pi_lr", default=1e-4, type=float,
+        help="Policy network learning rate.")
+    parser.add_argument("--vf_lr", default=3e-4, type=float,
+        help="Value network learning rate.")
+    parser.add_argument("--discount", default=1., type=float,
+        help="Discount factor for future rewards.")
+    parser.add_argument("--batch_size", default=2048, type=int,
+        help="Batch size for PPO iterations.")
+    parser.add_argument("--clip_grad", default=1., type=float,
+        help="Clip value for gradient clipping by norm.")
+    parser.add_argument("--entropy_reg", default=0.1, type=float,
+        help="Entropy regularization parameter.")
+    parser.add_argument("--embed_dim", default=256, type=int,
+        help="Embedding dimension for self-attention keys, queries and values.")
+    parser.add_argument("--dim_mlp", default=256, type=int,
+        help="Transformer encoder layer MLP dimension size.")
+    parser.add_argument("--attn_heads", default=4, type=int,
+        help="Number of attention heads per transformer encoder layer.")
+    parser.add_argument("--transformer_layers", default=4, type=int,
+        help="Number of transformer layers.")
 
-    parser.add_argument("--num_qubits", default=5, type=int)
-    parser.add_argument("--num_iters", default=1001, type=int)
-    parser.add_argument("--num_envs", default=128, type=int)
-    parser.add_argument("--steps", default=64, type=int)
-    parser.add_argument("--steps_limit", default=40, type=int)
-    parser.add_argument("--epsi", default=1e-3, type=float)
-    parser.add_argument("--reward_fn", default="relative_delta", type=str)
-    parser.add_argument("--obs_fn", default="rdm_2q_mean_real", type=str)
-    parser.add_argument("--p_gen", default=0.95, type=float)
+    parser.add_argument("--num_qubits", default=5, type=int,
+        help="Number of qubits in the quantum state.")
+    parser.add_argument("--num_iters", default=1001, type=int,
+        help="Number of training iterations.")
+    parser.add_argument("--num_envs", default=128, type=int,
+        help="Number of parallel environments.")
+    parser.add_argument("--steps", default=64, type=int,
+        help="Number of episode steps.")
+    parser.add_argument("--steps_limit", default=40, type=int,
+        help="Maximum steps before truncating an environment.")
+    parser.add_argument("--epsi", default=1e-3, type=float,
+        help="Threshold for disentanglement.")
+    parser.add_argument("--reward_fn", default="relative_delta", type=str,
+        help="The name of the reward function to be used. One of ['sparse', 'relative_delta'].")
+    parser.add_argument("--obs_fn", default="rdm_2q_mean_real", type=str,
+        help="The name of the observation  function to be used. One of ['phase_norm', 'rdm_1q', 'rdm_2q_real', rdm_2q_mean_real']")
+    parser.add_argument("--p_gen", default=0.95, type=float,
+        help="Probability for generating a quantum state from the full Hilbert space.")
 
-    parser.add_argument("--log_every", default=100, type=int)
-    parser.add_argument("--demo_every", default=100, type=int)
+    parser.add_argument("--log_every", default=100, type=int,
+        help="Log training data ${log_every} iterations.")
+    parser.add_argument("--demo_every", default=100, type=int,
+        help="Demo the agent every ${demo_every} iterations.")
 
     args = parser.parse_args()
     pg_solves_quantum(args)
