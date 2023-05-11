@@ -1,4 +1,4 @@
-from itertools import combinations
+from itertools import combinations, permutations
 from collections import namedtuple
 import sys
 import numpy as np
@@ -42,7 +42,8 @@ class QuantumEnv():
         # Private.
         self.epsi = epsi
         self.max_episode_steps = max_episode_steps
-        self.simulator = VectorQuantumState(num_qubits, num_envs, p_gen)
+        act_space = "reduced" if obs_fn == "rdm_2q_mean_real" else "full"
+        self.simulator = VectorQuantumState(num_qubits, num_envs, p_gen, act_space)
         self.reward_fn = getattr(sys.modules[__name__], reward_fn)  # get from this module
         self.obs_fn = getattr(sys.modules[__name__], obs_fn)        # get from this module
         self.obs_dtype = self.obs_fn(self.simulator.states).dtype
@@ -194,7 +195,7 @@ def rdm_2q_complex(states):
     N = states.shape[0]
     Q = len(states.shape[1:])
     rdms = []
-    qubit_pairs = combinations(range(Q), 2)
+    qubit_pairs = permutations(range(Q), 2)
 
     for qubits in qubit_pairs:
         sysA = tuple(q+1 for q in qubits)
@@ -203,9 +204,9 @@ def rdm_2q_complex(states):
         psi = np.transpose(states, permutation).reshape(N, 4, -1)
         rdm = psi @ np.transpose(psi, (0, 2, 1)).conj()
         rdms.append(rdm)
-    rdms = np.array(rdms)                   # rdms.shape == (Q*(Q-1)//2, N, 4, 4)
-    rdms = rdms.transpose((1, 0, 2, 3))     # rdms.shape == (N, Q*(Q-1)//2, 4, 4)
-    obs = rdms.reshape(N, Q*(Q - 1)//2, 16) # obs.shape  == (N, Q*(Q-1)//2, 16)
+    rdms = np.array(rdms)                # rdms.shape == (Q*(Q-1), N, 4, 4)
+    rdms = rdms.transpose((1, 0, 2, 3))  # rdms.shape == (N, Q*(Q-1), 4, 4)
+    obs = rdms.reshape(N, Q*(Q - 1), 16) # obs.shape  == (N, Q*(Q-1), 16)
     return obs
 
 def rdm_2q_real(states):

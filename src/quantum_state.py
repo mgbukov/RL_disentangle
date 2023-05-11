@@ -8,7 +8,7 @@ class VectorQuantumState:
     All quantum states in the Vector system have the same number of qubits.
     """
 
-    def __init__(self, num_qubits, num_envs, p_gen=0.95):
+    def __init__(self, num_qubits, num_envs, p_gen=0.95, act_space="reduced"):
         """Init a vector quantum system.
 
         Args:
@@ -19,6 +19,9 @@ class VectorQuantumState:
             p_gen: float, optional
                 Probability for drawing the state from the full Hilbert space,
                 i.e. all the qubits are entangled. (prob \in (0, 1]). Default 0.95.
+            act_space: str, optional
+                Whether to use the full or the reduced action space.
+                One of ["full", "reduced"]. Default is "reduced".
         """
         assert num_qubits >= 2
         self.num_qubits = num_qubits
@@ -26,9 +29,14 @@ class VectorQuantumState:
         self.p_gen = p_gen
 
         # The action space consists of all possible pairs of qubits.
-        self.num_actions = num_qubits * (num_qubits - 1)
-        self.actions = dict(enumerate(combinations(range(num_qubits), 2)))
+        if act_space == "full":
+            self.actions = dict(enumerate(permutations(range(num_qubits), 2)))
+        elif act_space == "reduced":
+            self.actions = dict(enumerate(combinations(range(num_qubits), 2)))
+        else:
+            raise ValueError
         self.actToKey = {v:k for k, v in self.actions.items()}
+        self.num_actions = len(self.actions)
 
         # Every system in the vectorized environment is represented as a numpy
         # array of complex numbers with shape (b, 2, 2, ..., 2).

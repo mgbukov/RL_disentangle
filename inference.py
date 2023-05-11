@@ -5,14 +5,16 @@ every step of the episode, we plot the output from the attention heads, as well
 as the output probability distribution.
 
 The path to the folder containing the trained model must be provided as a
-command line argument. The number of qubits must also be provided.
+command line argument. The number of qubits must also be provided, as well as
+the observation function to be used by the environment model.
 
 Example usage:
 
 python3 inference.py \
     --seed 0 \
     --num_qubits 4 \
-    --model_fld logs/4q_pGen_0.9_attnHeads_2_tLayers_2_ppoBatch_512_entReg_0.1_embed_128_mlp_256
+    --model_fld logs/4q_pGen_0.9_attnHeads_2_tLayers_2_ppoBatch_512_entReg_0.1_embed_128_mlp_256 \
+    --obs_fn rdm_2q_mean_real
 """
 
 import argparse
@@ -30,8 +32,8 @@ from src.quantum_state import random_quantum_state
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", default=0, type=int, help="Seed for rng.")
 parser.add_argument("--num_qubits", default=5, type=int, help="Number of qubits.")
-parser.add_argument("--model_fld", default="logs",
-    type=str, help="Filepath model folder.")
+parser.add_argument("--model_fld", default="logs", type=str, help="Filepath model folder.")
+parser.add_argument("--obs_fn", default="rdm_2q_real", type=str, help="Observation function to be used")
 args = parser.parse_args()
 
 np.random.seed(args.seed)
@@ -55,6 +57,7 @@ special_states = {
     # 4-qubit special states
     4: {
         "|BB-0-0>": np.kron(bell, np.kron(zero, zero)),
+        "|0-BB-0>": np.kron(zero, np.kron(bell, zero)),
         "|0-0-BB>": np.kron(zero, np.kron(zero, bell)),
         "|BB-R-R>": np.kron(bell, np.kron(rnd_state(q=1), rnd_state(q=1))),
         "|WWW-0>" : np.kron(w, zero),
@@ -70,6 +73,7 @@ special_states = {
     5: {
         "|BB-0-0-0>": np.kron(bell, np.kron(zero, np.kron(zero, zero))),
         "|0-BB-0-0>": np.kron(zero, np.kron(bell, np.kron(zero, zero))),
+        "|0-0-BB-0>": np.kron(zero, np.kron(zero, np.kron(bell, zero))),
         "|0-0-0-BB>": np.kron(zero, np.kron(zero, np.kron(zero, bell))),
         "|BB-R-R-R>": np.kron(bell, np.kron(rnd_state(q=1), np.kron(rnd_state(q=1), rnd_state(q=1)))),
         "|BB-BB-0>" : np.kron(bell, np.kron(bell, zero)),
@@ -140,7 +144,7 @@ for enc in agent.policy_network.net:
 num_qubits = args.num_qubits
 steps_limit = 40 if num_qubits == 5 else 8
 env = QuantumEnv(num_qubits=num_qubits, num_envs=1,
-    max_episode_steps=steps_limit, obs_fn="rdm_2q_real")
+    max_episode_steps=steps_limit, obs_fn=args.obs_fn)
 
 plt.style.use("ggplot")
 for sname, state in tqdm(special_states[num_qubits].items()):

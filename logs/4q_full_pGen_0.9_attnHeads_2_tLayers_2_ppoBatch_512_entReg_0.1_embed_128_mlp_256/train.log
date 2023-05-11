@@ -272,4 +272,4 @@ Iteration (2001 / 2001):
     Episode Length: {'avg': 4.912621359223301, 'std': 0.5763426050351778, 'run': 4.874938578245935, 'test_avg': 5.0283203125, 'test_std': 0.2727513013716018}
     Ratio Terminated: {'avg': 1.0, 'test_avg': 0.99609375}
 
-Training took 351.384 seconds in total.
+Training took 363.696 seconds in total.

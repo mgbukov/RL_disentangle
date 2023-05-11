@@ -15,7 +15,7 @@ Example usage:
 python3 run.py \
     --seed 0 --num_qubits 4 --num_envs 32 --steps 16 --steps_limit 8 --num_iters 1001 \
     --p_gen 0.9 --attn_heads 2 --transformer_layers 2 --embed_dim 128 --dim_mlp 256 \
-    --batch_size 512 --pi_lr 1e-4 --entropy_reg 0.1 --obs_fn="rdm_2q_mean_real"
+    --batch_size 512 --pi_lr 1e-4 --entropy_reg 0.1 --obs_fn rdm_2q_real
 """
 
 import json
@@ -258,6 +258,7 @@ def pg_solves_quantum(args):
 
     # Run the environment loop
     log_dir = os.path.join("logs",
+        "4q_full_"+
         f"pGen_{args.p_gen}_attnHeads_{args.attn_heads}_tLayers_{args.transformer_layers}"+
         f"_ppoBatch_{args.batch_size}_entReg_{args.entropy_reg}_embed_{args.embed_dim}_mlp_{args.dim_mlp}")
     os.makedirs(log_dir, exist_ok=True)
@@ -338,7 +339,7 @@ if __name__ == "__main__":
     parser.add_argument("--reward_fn", default="relative_delta", type=str,
         help="The name of the reward function to be used. One of ['sparse', 'relative_delta'].")
     parser.add_argument("--obs_fn", default="rdm_2q_mean_real", type=str,
-        help="The name of the observation  function to be used. One of ['phase_norm', 'rdm_1q', 'rdm_2q_real', rdm_2q_mean_real']")
+        help="The name of the observation function to be used. One of ['phase_norm', 'rdm_1q', 'rdm_2q_real', rdm_2q_mean_real']")
     parser.add_argument("--p_gen", default=0.95, type=float,
         help="Probability for generating a quantum state from the full Hilbert space.")
 
