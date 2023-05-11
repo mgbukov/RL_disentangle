@@ -1,3 +1,21 @@
+"""Inference
+This script tests model inference.
+The model is tested on a set of specific quantum states. For every state, on
+every step of the episode, we plot the output from the attention heads, as well
+as the output probability distribution.
+
+The path to the folder containing the trained model must be provided as a
+command line argument. The number of qubits must also be provided.
+
+Example usage:
+
+python3 inference.py \
+    --seed 0 \
+    --num_qubits 4 \
+    --model_fld logs/4q_pGen_0.9_attnHeads_2_tLayers_2_ppoBatch_512_entReg_0.1_embed_128_mlp_256
+"""
+
+import argparse
 import os
 
 import matplotlib.pyplot as plt
@@ -9,8 +27,15 @@ from src.quantum_env import QuantumEnv
 from src.quantum_state import random_quantum_state
 
 
-np.random.seed(42)
-torch.manual_seed(42)
+parser = argparse.ArgumentParser()
+parser.add_argument("--seed", default=0, type=int, help="Seed for rng.")
+parser.add_argument("--num_qubits", default=5, type=int, help="Number of qubits.")
+parser.add_argument("--model_fld", default="logs",
+    type=str, help="Filepath model folder.")
+args = parser.parse_args()
+
+np.random.seed(args.seed)
+torch.manual_seed(args.seed)
 torch.backends.cudnn.deterministic = True
 np.set_printoptions(5, suppress=True)
 torch.set_printoptions(5, sci_mode=False)
@@ -104,16 +129,15 @@ def plot_model_output(figname, seq, attn, probs, acts):
 
 
 # Load the model for file.
-# model_path = "logs/full_pGen_0.9_attnHeads_2_tLayers_2_ppoBatch_512_entReg_0.1_embed_128_mlp_256"
-model_path = "logs/pGen_0.9_attnHeads_2_tLayers_2_ppoBatch_512_entReg_0.1_embed_128_mlp_256"
-agent = torch.load(os.path.join(model_path, "agent.pt"))
+model_fld = args.model_fld
+agent = torch.load(os.path.join(model_fld, "agent.pt"))
 agent.policy_network.to(device)
 agent.value_network.to(device)
 for enc in agent.policy_network.net:
     enc.activation_relu_or_gelu = 1
 
 # Define the quantum environment.
-num_qubits = 4
+num_qubits = args.num_qubits
 steps_limit = 40 if num_qubits == 5 else 8
 env = QuantumEnv(num_qubits=num_qubits, num_envs=1,
     max_episode_steps=steps_limit, obs_fn="rdm_2q_real")
@@ -126,7 +150,7 @@ for sname, state in tqdm(special_states[num_qubits].items()):
     env.simulator.states = psi
     o = env.obs_fn(env.simulator.states)
 
-    log_dir = os.path.join(model_path, sname)
+    log_dir = os.path.join(model_fld, sname)
     os.makedirs(log_dir, exist_ok=True)
 
     # Simulate...
@@ -156,8 +180,7 @@ for sname, state in tqdm(special_states[num_qubits].items()):
         probs = pi.probs[0].cpu().numpy()
 
         # Make the plot.
-        # seq = [f"q{i}q{j}" for i in range(num_qubits) for j in range(num_qubits) if i != j] # used with the full state and action space
-        seq = [f"q{i}q{j}" for i in range(num_qubits) for j in range(i+1, num_qubits)]
+        seq = [f"q{i}q{j}" for i, j in env.simulator.actions.values()]
         plot_model_output(os.path.join(log_dir, f"step_{s}.png"), seq, attn_weights, probs, env.simulator.actions)
 
         # Step the environment.
