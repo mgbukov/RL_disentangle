@@ -71,7 +71,11 @@ special_states = {
         "|WWW>|0>"    : np.kron(w, zero),
         "|WWW>|R>"    : np.kron(w, rnd_state(q=1)),
         "|RR>|R>|R>"  : np.kron(rnd_state(q=2), np.kron(rnd_state(q=1), rnd_state(q=1))),
-        "|RR>|RR>"    : np.kron(rnd_state(q=2), rnd_state(q=2)),
+        "|BB>|BB>"    : np.einsum('ij, kl -> ijkl' ,bell.reshape(2,2), bell.reshape(2,2)).reshape(2**4,),
+        "|RR>|RR>"    : np.einsum('ij, kl -> ijkl' ,rnd_state(q=2).reshape(2,2), rnd_state(q=2).reshape(2,2)).reshape(2**4,),
+        "|RR>|RR>_1"  : np.einsum('ij, kl -> ijkl' ,rnd_state(q=2,seed=1).reshape(2,2), rnd_state(q=2,seed=1).reshape(2,2)).reshape(2**4,),
+        # "|RR>|RR>_2" : np.kron(rnd_state(q=2,seed=0), rnd_state(q=2,seed=3)),
+        "|RR>|RR>_2"  : np.einsum('ij, kl -> ijkl' ,rnd_state(q=2,seed=0).reshape(2,2), rnd_state(q=2,seed=3).reshape(2,2)).reshape(2**4,),
         "|RRR>|0>"    : np.kron(rnd_state(q=3), zero),
         "|RRR>|R>"    : np.kron(rnd_state(q=3), rnd_state(q=1)),
         "|RRRR>"      : rnd_state(q=4),
@@ -210,7 +214,7 @@ for sname, state in tqdm(special_states[num_qubits].items()):
         acts = torch.argmax(pi.logits, dim=1)
         acts = acts.cpu().numpy()
         o, r, t, tr, i = env.step(acts)
-
+        
         # Make the plot.
         seq = [f"q{i}q{j}" for i, j in env.simulator.actions.values()]
         plot_model_output(os.path.join(log_dir, f"step_{s}.png"), seq, attn_weights, probs, env.simulator.actions, acts[0])
