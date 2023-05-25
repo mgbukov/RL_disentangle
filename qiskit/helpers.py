@@ -41,7 +41,7 @@ def policy_function(inputs, policy):
 
 def get_action_4q(
         rdms6 :Sequence[np.ndarray],
-        policy :Literal['universal', 'equivariant'] = 'universal') -> Tuple[np.ndarray, int, int]:
+        policy :Literal['universal', 'equivariant', 'transformer'] = 'universal') -> Tuple[np.ndarray, int, int]:
     """
     Returns gate and indices of qubits (starting from 0) on which to apply it.
 
@@ -73,7 +73,7 @@ def get_action_4q(
         i, j = ACTION_SET_REDUCED[a]
         rdm = rdms6[a]
     else:
-        raise ValueError("`policy` must be one of (None, 'equivariant', 'transformer').")
+        raise ValueError("`policy` must be one of ('universal', 'equivariant', 'transformer').")
 
     # QUESTIONABLE
     # Rounding the near 0 elements in `rdm` matrix solved problems with
