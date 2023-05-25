@@ -83,7 +83,6 @@ def get_action_4q(
     phase = np.exp(-1j * np.angle(np.diagonal(U)))
     np.einsum('ij,j->ij', U, phase, out=U)
     U = U.conj().T
-    print(U, i, j)
     return U, i, j
 
 
@@ -146,7 +145,7 @@ def _prepare_reduced_real_input(rdms: Sequence[np.ndarray]) -> np.ndarray:
     for k in ACTION_SET_REDUCED:
         result.append(rdms_dict[k])
     x = np.array(result).reshape(6, 16)
-    return np.vstack([x.real, x.imag]).reshape(6, 32)
+    return np.hstack([x.real, x.imag])
 
 
 def peek_next_4q(state :np.ndarray, U :np.ndarray, i :int, j :int) -> Tuple[np.ndarray, int]:
