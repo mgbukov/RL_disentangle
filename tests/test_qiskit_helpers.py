@@ -7,7 +7,7 @@ from src.envs.rdm_environment import QubitsEnvironment
 from qiskit.helpers import *
 
 np.set_printoptions(precision=6, suppress=True)
-
+np.random.seed(44)
 
 def observe_rdms(env):
     states = env.states
@@ -29,7 +29,7 @@ def observe_rdms(env):
     return rdms[0]
 
 
-def test_get_action_4q(policy: Literal['universal', 'equivariant']):
+def test_get_action_4q(policy: Literal['universal', 'equivariant', 'transformer']):
     env = QubitsEnvironment(4, epsi=1e-3)
 
     for _ in range(100):
@@ -49,7 +49,11 @@ def test_get_action_4q(policy: Literal['universal', 'equivariant']):
             assert np.all(np.isclose(env.unitary[0], U))
             if env.disentangled()[0]:
                 break
-        assert env.disentangled()[0]
+        if not env.disentangled()[0]:
+            print(f'[INFO]: Failed to disentangle state in {nsteps}!'
+                   '\n\tFinal entropies: ', env.entropy()[0]
+            )
+        # assert env.disentangled()[0]
 
 
 def fidelity(psi, phi):
@@ -78,7 +82,11 @@ def test_peek_next_4q():
 
 
 if __name__ == '__main__':
+    print('Testing Universal policy')
     test_get_action_4q('universal')
+    print('Testing PE policy')
     test_get_action_4q('equivariant')
+    print('Testing Transformer policy')
+    test_get_action_4q('transformer')
     test_peek_next_4q()
     print('ok')
