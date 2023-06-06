@@ -18,16 +18,15 @@ python3 inference.py \
 """
 
 import argparse
-import sys,os
+import os
 
-import matplotlib
-matplotlib.use('Qt5Agg') # backend
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from tqdm import tqdm
 
 from src.quantum_env import QuantumEnv
+from src.quantum_state import VectorQuantumState
 from src.quantum_state import random_quantum_state
 
 
@@ -113,9 +112,12 @@ special_states = {
 }}
 
 
-def plot_model_output(figname, seq, attn, probs, acts, act_taken):
+def plot_model_output(figname, seq, attn, probs, acts, deltas, rel_deltas, act_taken):
     assert attn.shape[-2] == attn.shape[-1], "attention matrix must be square"
     assert len(seq) == attn.shape[-1], "attention matrix must match sequence length"
+    assert len(acts) == len(probs), "probs must match num actions"
+    assert len(acts) == len(deltas), "deltas must match num actions"
+    assert len(acts) == len(rel_deltas), "rel deltas must match num actions"
 
     n_layers, n_heads = attn.shape[0], attn.shape[1]
     fig, axs = plt.subplots(nrows=n_layers+1, ncols=n_heads, facecolor="lightgrey",
@@ -138,22 +140,54 @@ def plot_model_output(figname, seq, attn, probs, acts, act_taken):
 
     pps = ax.bar(xs, probs, alpha=0.5)
     pps[act_taken].set_alpha(1.0) # modify opacity of action taken
-    for p in pps:
+    for idx, p in enumerate(pps):
         height = p.get_height()
-        ax.annotate("{:.3f}".format(height),
+        delta = deltas[idx]
+        rel_delta = rel_deltas[idx] * 100 # print percentages
+        ax.annotate(f"p = {height:.3f}\nΔ = {delta:.2f} ({rel_delta:.0f}%)",
             xy=(p.get_x() + p.get_width() / 2, height),
             xytext=(0, 3), # 3 points vertical offset
             textcoords="offset points",
-            ha='center', va='bottom')
+            ha="center",
+            va="bottom",
+        )
 
     ax.set_xticks(xs, [acts[i] for i in xs])
     ax.set_ylim(-0.05, 1.05)
     ax.tick_params(axis="both", labelsize=14)
 
-    #plt.show()
-
     fig.savefig(figname)
     plt.close(fig)
+
+
+def calc_ent_deltas(s):
+    """Calculate the entropy reduction introduced by each of the available
+    actions.
+
+    Args:
+        s: np.Array
+            Numpy array of shape (1, 2, 2, 2,..., 2).
+                                     \----- Q -----/
+    Returns:
+        deltas: np.Array
+            Numpy array of shape (Q*(Q-1)/2 ,).
+    """
+    q = len(s.shape) - 1
+    num_acts = q*(q-1) // 2
+    q_state = VectorQuantumState(num_qubits=q, num_envs=num_acts)
+    assert q_state.num_actions == num_acts
+
+    q_state.states = np.repeat(s, repeats=num_acts, axis=0)
+    prev_ent = q_state.entanglements.copy()
+    q_state.apply(list(q_state.actions.keys()))
+    curr_ent = q_state.entanglements.copy()
+
+    epsi = 1e-3
+    prev_ent = np.maximum(prev_ent, epsi).sum(axis=-1)
+    curr_ent = np.maximum(curr_ent, epsi).sum(axis=-1)
+    deltas = (prev_ent - curr_ent)
+    rel_deltas = (prev_ent - curr_ent) / np.maximum(prev_ent, curr_ent)
+    return deltas, rel_deltas
 
 
 # Load the model for file.
@@ -210,15 +244,26 @@ for sname, state in tqdm(special_states[num_qubits].items()):
         pi = agent.policy(o)
         probs = pi.probs[0].cpu().numpy()
 
+        # Get the true entanglement reduction produced by each action.
+        deltas, rel_deltas = calc_ent_deltas(env.simulator.states)
+
         # Step the environment.
         acts = torch.argmax(pi.logits, dim=1)
         acts = acts.cpu().numpy()
         o, r, t, tr, i = env.step(acts)
-        
+
         # Make the plot.
         seq = [f"q{i}q{j}" for i, j in env.simulator.actions.values()]
-        plot_model_output(os.path.join(log_dir, f"step_{s}.png"), seq, attn_weights, probs, env.simulator.actions, acts[0])
-
+        plot_model_output(
+            os.path.join(log_dir, f"step_{s}.png"),
+            seq,
+            attn_weights,
+            probs,
+            env.simulator.actions,
+            deltas,
+            rel_deltas,
+            acts[0],
+        )
 
         path.append(acts[0])
         done = (t | tr)[0]
