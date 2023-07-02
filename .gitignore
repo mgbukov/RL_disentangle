@@ -1,8 +1,11 @@
 data/
 logs/
+figures/
 # data files
 *.dat
 *.pkl
+*.png
+*.pdf
 .DS_Store
 
 # Byte-compiled / optimized / DLL files
