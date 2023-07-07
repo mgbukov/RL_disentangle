@@ -180,11 +180,13 @@ class SingleQubitRotationControls:
         self.angle_silder.unobserve(self.handlers["angle_slider"], 'value')
         self.axis_phi_slider.unobserve(self.handlers["axis_phi_slider"], 'value')
         self.axis_theta_slider.unobserve(self.handlers["axis_theta_slider"], 'value')
+        self.qubit_selector.unobserve(self.handlers["qubit_selector"], "value")
 
     def observe_all(self):
         self.angle_silder.observe(self.handlers["angle_slider"], 'value')
         self.axis_phi_slider.observe(self.handlers["axis_phi_slider"], 'value')
         self.axis_theta_slider.observe(self.handlers["axis_theta_slider"], 'value')
+        self.qubit_selector.observe(self.handlers["qubit_selector"], "value")
 
     def get_state(self):
         return {
@@ -205,8 +207,6 @@ class SingleQubitRotationControls:
         self.observe_all()
 
     def _qubit_selector_callback(self, change):
-        if change['name'] != 'value':
-            return
         val = change['new']
         axis, angle = self.statedict[val]
         # Change all sliders without triggering callback
@@ -217,8 +217,6 @@ class SingleQubitRotationControls:
         self.observe_all()
 
     def _angle_callback(self, change):
-        if change['name'] != 'value':
-            return
         val = change['new'] - change['old']
         q = self.qubit_selector.value
         axis, _ = self.statedict[q]
@@ -227,8 +225,6 @@ class SingleQubitRotationControls:
                               "axis_theta": axis[1], "angle": val})
 
     def _axis_phi_callback(self, change):
-        if change['name'] != 'value':
-            return
         q = self.qubit_selector.value
         # Change phi value without triggering callback
         self.angle_silder.unobserve(self.handlers["angle_slider"], "value")
@@ -239,8 +235,6 @@ class SingleQubitRotationControls:
         self.statedict[q] = (axis, 0.0)
 
     def _axis_theta_callback(self, change):
-        if change['name'] != 'value':
-            return
         q = self.qubit_selector.value
         # Change theta value without triggering callback
         self.angle_silder.unobserve(self.handlers["angle_slider"], "value")
