@@ -427,9 +427,10 @@ class QuantumState:
         values = []
         for i, j in itertools.product(range(2,4), range(8)):
             try:
-                x = complex(self.layout[i,j].value)
+                x = complex(self.layout[i,j].value.replace(" ", ""))
             except ValueError:
-                x = 0.0 + 0.0j
+                # Use old value
+                x = self._vector[8*(i-2) + j]
             values.append(x)
         values = np.asarray(values, dtype=np.complex64)
         values /= np.linalg.norm(values)
