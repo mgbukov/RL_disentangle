@@ -227,22 +227,33 @@ class SingleQubitRotationControls:
     def _axis_phi_callback(self, change):
         q = self.qubit_selector.value
         # Change phi value without triggering callback
-        self.angle_silder.unobserve(self.handlers["angle_slider"], "value")
-        self.angle_silder.value = 0.0
-        self.angle_silder.observe(self.handlers["angle_slider"], "value")
-        axis, _ = self.statedict[q]
+        # self.angle_silder.unobserve(self.handlers["angle_slider"], "value")
+        # self.angle_silder.value = 0.0
+        # self.angle_silder.observe(self.handlers["angle_slider"], "value")
+        # Undo the last rotation
+        axis, angle = self.statedict[q]
+        self.update_callback({"qubit_index": q, "axis_phi": axis[0],
+                              "axis_theta": axis[1], "angle": -angle})
         axis[0] = change['new']
-        self.statedict[q] = (axis, 0.0)
+        self.statedict[q] = (axis, angle)
+        # Apply the new rotation
+        self.update_callback({"qubit_index": q, "axis_phi": axis[0],
+                              "axis_theta": axis[1], "angle": angle})
 
     def _axis_theta_callback(self, change):
         q = self.qubit_selector.value
         # Change theta value without triggering callback
-        self.angle_silder.unobserve(self.handlers["angle_slider"], "value")
-        self.angle_silder.value = 0.0
-        self.angle_silder.observe(self.handlers["angle_slider"], "value")
-        axis, _ = self.statedict[q]
+        # self.angle_silder.unobserve(self.handlers["angle_slider"], "value")
+        # self.angle_silder.value = 0.0
+        # self.angle_silder.observe(self.handlers["angle_slider"], "value")
+        axis, angle = self.statedict[q]
+        self.update_callback({"qubit_index": q, "axis_phi": axis[0],
+                              "axis_theta": axis[1], "angle": -angle})
         axis[1] = change['new']
-        self.statedict[q] = (axis, 0.0)
+        self.statedict[q] = (axis, angle)
+        # Apply the new rotation
+        self.update_callback({"qubit_index": q, "axis_phi": axis[0],
+                              "axis_theta": axis[1], "angle": angle})
 
 
 class TwoQubitsRotationControls:
