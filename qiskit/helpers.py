@@ -78,7 +78,7 @@ def get_action_4q(
     # QUESTIONABLE
     # Rounding the near 0 elements in `rdm` matrix solved problems with
     # numerical precision in RL training. But should we clip them here ?
-    rdm[np.abs(rdm) < 1e-7] = 0.0
+    # rdm[np.abs(rdm) < 1e-7] = 0.0
     _, U = np.linalg.eigh(rdm)
     phase = np.exp(-1j * np.angle(np.diagonal(U)))
     np.einsum('ij,j->ij', U, phase, out=U)
