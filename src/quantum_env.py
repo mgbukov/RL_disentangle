@@ -69,7 +69,7 @@ class QuantumEnv():
     def close(self):
         pass
 
-    def step(self, acts):
+    def step(self, acts, reset=True):
         """Step the environment using the provided actions.
 
         Args:
@@ -122,7 +122,7 @@ class QuantumEnv():
 
             # Reset only the sub-environments that were done.
             for k in range(self.simulator.num_envs):
-                if not done[k]: continue
+                if not done[k] or not reset: continue
                 self.simulator.reset_sub_environment_(k)
                 self.accumulated_return[k] = 0.
                 self.episode_len[k] = 0
