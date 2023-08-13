@@ -73,7 +73,12 @@ class VectorQuantumState:
             raise ValueError(f"Expected array with shape=({self.num_envs},)")
         N, Q = self.num_envs, self.num_qubits
         batch = self._states
-        qubit_indices = np.array([self.actions[a] for a in acts], dtype=np.int32)
+        qubit_indices = [self.actions[a] for a in acts]
+        qubit_indices = [
+            (i, j) if self.entanglements[idx][i] > self.entanglements[idx][j] else (j, i)
+            for idx, (i, j) in enumerate(qubit_indices)
+        ]
+        qubit_indices = np.array(qubit_indices, dtype=np.int32)
 
         # Move qubits which are modified by `acts` at indices (0, 1)
         permute_qubits(batch, qubit_indices, Q, inverse=False)
