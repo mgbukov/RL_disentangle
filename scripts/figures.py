@@ -22,35 +22,10 @@ PATH_5Q_AGENT = os.path.join(project_dir, 'logs/5q_pGen_0.9_attnHeads_4_tLayers_
 PATH_6Q_AGENT = ''
 
 
-def peek_policy(initial_state):
-    # Initialize environment
-    num_qubits = int(np.log2(initial_state.size))
-    shape = (2,) * num_qubits
-    initial_state = initial_state.reshape(shape)
-    env = QuantumEnv(num_qubits, 1, obs_fn='rdm_2q_mean_real')
-    env.reset()
-    env.simulator.states = np.expand_dims(initial_state, 0)
-
-    # Load agent
-    if num_qubits == 6:
-        agent = torch.load(PATH_6Q_AGENT, map_location='cpu')
-    elif num_qubits == 5:
-        agent = torch.load(PATH_5Q_AGENT, map_location='cpu')
-    elif num_qubits == 4:
-        agent = torch.load(PATH_4Q_AGENT, map_location='cpu')
-    else:
-        raise ValueError(f'Cannot find agent for {num_qubits}-qubit system.')
-    for enc in agent.policy_network.net:
-        enc.activation_relu_or_gelu = 1
-    agent.policy_network.eval()
-
-    # Return policy
-    observation = torch.from_numpy(env.obs_fn(env.simulator.states))
-    policy = agent.policy(observation).probs[0].cpu().numpy()
-    return policy
-
-
-def figure3(initial_state, selected_actions=None):
+def rollout(initial_state, max_steps=30):
+    """
+    Returns action names, entanglements and policy probabilities for each step.
+    """
 
     # Initialize environment
     num_qubits = int(np.log2(initial_state.size))
@@ -68,32 +43,51 @@ def figure3(initial_state, selected_actions=None):
     elif num_qubits == 4:
         agent = torch.load(PATH_4Q_AGENT, map_location='cpu')
     else:
-        raise ValueError(f'Cannot find agent for {num_qubits}-qubit system.')
+        raise ValueError(f'Cannot find agent for {num_qubits}-qubit system')
     for enc in agent.policy_network.net:
         enc.activation_relu_or_gelu = 1
     agent.policy_network.eval()
 
     # Rollout a trajectory
     actions, entanglements, probabilities = [], [], []
-    max_steps = len(selected_actions) if selected_actions is not None else 30
     for i in range(max_steps):
         ent = env.simulator.entanglements.copy()
         observation = torch.from_numpy(env.obs_fn(env.simulator.states))
-        policy = agent.policy(observation).probs[0].cpu().numpy()
-        if selected_actions is None:
-            a, p = np.argmax(policy), np.max(policy)
-        else:
-            a, p = selected_actions[i], policy[i]
+        probs = agent.policy(observation).probs[0].cpu().numpy()
+        a = np.argmax(probs)
         actions.append(env.simulator.actions[a])
         entanglements.append(ent.ravel())
-        probabilities.append(p)
+        probabilities.append(probs)
         o, r, t, tr, i = env.step([a], reset=False)
         if np.all(t):
             break
-    steps = len(actions)
-
     # Append final entangments
     entanglements.append(env.simulator.entanglements.copy().ravel())
+
+    return np.array(actions), np.array(entanglements), np.array(probabilities)
+
+
+def peek_policy(state):
+    """Returns the agent probabilites for this state."""
+    _, _, probabilities = rollout(state, max_steps=1)
+    return probabilities[0]
+
+
+def figure3(initial_state, selected_actions=None):
+    num_qubits = int(np.log2(initial_state.size))
+    EPSI = 1e-3
+    max_steps = 30 if selected_actions is None else len(selected_actions)
+    
+    # Rollout a trajectory
+    actions, entanglements, _probabilities = rollout(initial_state, max_steps)
+    if selected_actions is not None:
+        probabilities = []
+        for i, a in enumerate(selected_actions):
+            probabilities.append(_probabilities[i, a])
+        probabilities = np.array(probabilities)
+    else:
+        probabilities = np.array([np.max(prob) for prob in _probabilities])
+    steps = len(actions)
 
     # /// USER CONSTANTS
     MSA = 10        # maximum steps per ax
@@ -149,10 +143,10 @@ def figure3(initial_state, selected_actions=None):
         # Draw single qubit entanglements
         for n in range(num_qubits):
             e = entanglements[i][n] / np.log(2)
-            if e < (env.epsi / np.log(2)):
+            if e < (EPSI / np.log(2)):
                 color = 'k'
                 t = str(np.round(e * 1e3, 2))
-            elif env.epsi < e < 1e-2:
+            elif EPSI < e < 1e-2:
                 color = 'blue'
                 t = str(np.round(e * 1e2, 2))
             elif 1e-2 < e < 1e-1:
@@ -251,72 +245,38 @@ def figure1(initial_state, state_name=''):
     #       top right: NA
     #       bottom left: (n_qubits + 1, -2.2)
     #       bottom right: (n_qubits + 1 + C*n_actions_shown, -2.2)
-    #
 
-    # Initialize environment
     num_qubits = int(np.log2(initial_state.size))
-    shape = (2,) * num_qubits
-    initial_state = initial_state.reshape(shape)
-    env = QuantumEnv(num_qubits, 1, obs_fn='rdm_2q_mean_real')
-    env.reset()
-    env.simulator.states = np.expand_dims(initial_state, 0)
-
-    # Load agent
-    if num_qubits == 6:
-        agent = torch.load(PATH_6Q_AGENT, map_location='cpu')
-    elif num_qubits == 5:
-        agent = torch.load(PATH_5Q_AGENT, map_location='cpu')
-    elif num_qubits == 4:
-        agent = torch.load(PATH_4Q_AGENT, map_location='cpu')
-    else:
-        raise ValueError(f'Cannot find agent for {num_qubits}-qubit system')
-    for enc in agent.policy_network.net:
-        enc.activation_relu_or_gelu = 1
-    agent.policy_network.eval()
-
-    # Rollout a trajectory
-    actions, entanglements, policies = [], [], []
-    for i in range(30):
-        ent = env.simulator.entanglements.copy()
-        observation = torch.from_numpy(env.obs_fn(env.simulator.states))
-        policy = agent.policy(observation).probs[0].cpu().numpy()
-        a = np.argmax(policy)
-        actions.append(env.simulator.actions[a])
-        entanglements.append(ent.ravel())
-        policies.append(policy)
-        o, r, t, tr, i = env.step([a])
-        if np.all(t):
-            break
-    steps = len(actions)
+    # Rollout
+    actions, _, probabilities = rollout(initial_state)
+    nsteps = len(actions)
 
     # Select actions that are to be shown in right subfigure
-    policies = np.array(policies)
-    masked_actions = np.max(policies, axis=0) > 0.05
+    masked_actions = np.max(probabilities, axis=0) > 0.05
     action_labels = list(itertools.combinations(range(num_qubits), 2))
     action_labels = np.array(action_labels)[masked_actions]
     # Plotted actions
-    policies_main = policies[:, masked_actions]
+    probs_main = probabilities[:, masked_actions]
     # Summarized actions (plotted in "rest" column)
-    policies_rest = policies[:, ~masked_actions].sum(axis=1)
+    probs_rest = probabilities[:, ~masked_actions].sum(axis=1)
 
     # /// USER CONSTANTS
     QCY = -2        # Y coordinate of qubits' circles               (L subfig)
     QCX = 0         # Min X coordinate of qubits' circles           (L subfig)
     QCR = 0.45      # radius of qubits' circles                     (L subfig)
     QFS = 18        # fontsize of qubits' text                      (L subfig)
-    QLW = 1.8       # linewidth of qubits' circles                  (L subfig)
-    WLW = 1.2       # linewidth of gate wires                       (L subfig)
+    QLW = 2.0       # linewidth of qubits' circles                  (L subfig)
+    WLW = 1.5       # linewidth of qubit wires                      (L subfig)
     PBW = 0.9       # width of single bar in "policy" subfigure     (R subfig)
-    GRH = 0.6       # gate rectangle's height                       (L subfig)
-    GRW = 0.2       # gate rectangle's extra width                  (L subfig)
+    GLW = 4         # gate wire linewidth                           (L subfig)
+    GSS = 180       # gate wire connection scatter size             (L subfig)
 
     # /// DERIVED LAYOUT CONSTANTS
     R_SUBFIG_XMIN = num_qubits + 1
-    R_SUBFIG_XMAX = R_SUBFIG_XMIN + policies_main.shape[1] + 1
+    R_SUBFIG_XMAX = R_SUBFIG_XMIN + probs_main.shape[1] + 1
     WIRES_BOTTOM = QCY + QCR
-    WIRES_TOP = QCY + steps + 4
-    FIGSIZE = (16, 5 + steps)
-
+    WIRES_TOP = QCY + nsteps + 4
+    FIGSIZE = (16, 5 + nsteps)
 
     # Initialize figure
     fig, ax = plt.subplots(1, figsize=FIGSIZE)
@@ -337,26 +297,23 @@ def figure1(initial_state, state_name=''):
                 zorder=0, color='k', linewidth=WLW)
 
     # Draw gates & policy
-    for n in range(steps):
+    for n in range(nsteps):
         # Draw gate
         q0, q1 = sorted(actions[n])
-        rect = patches.Rectangle((q0 - GRW, 2*n), q1 - q0 + 2*GRW, GRH,
-                                 facecolor='#85caff', edgecolor='k', linewidth=2,
-                                 zorder=5)
-        ax.add_patch(rect)
-        for q in range(q0 + 1, q1):
-            ax.plot([q, q], [2*n, 2*n + GRH], color='k', linewidth=WLW, zorder=6)
+        ax.plot([q0, q1], [2*n, 2*n], linewidth=GLW, color='k')
+        ax.scatter([q0, q1], [2*n, 2*n], s=GSS, color='k')
+        
         # Draw horizontal line connecting policy and gate
         ax.plot([-1, R_SUBFIG_XMIN - PBW], [2*n - 1, 2*n - 1],
                 linestyle='--', linewidth=0.8, color='k')
 
         # Draw main policy actions
-        pmax = np.max(policies_main[n])
+        pmax = np.max(probs_main[n])
         ax.plot([R_SUBFIG_XMIN - PBW/2, R_SUBFIG_XMAX], [2*n - 1, 2*n - 1],
                 color='k', linewidth=0.8)
         ax.text(R_SUBFIG_XMAX, 2 * n, f'$\pi^{(n)}(a|s)$',
                 fontdict=dict(fontsize=14))
-        for x, p in enumerate(policies_main[n]):
+        for x, p in enumerate(probs_main[n]):
             color = 'tab:red' if p == pmax else 'tab:blue'
             x_coord = R_SUBFIG_XMIN + x
             y_coord = 2*n - 1
@@ -371,8 +328,8 @@ def figure1(initial_state, state_name=''):
                     fontdict=dict(horizontalalignment='center', fontsize=14))
 
         # Draw summarized "rest" actions
-        p = policies_rest[n] * 0.9
-        x_coord = R_SUBFIG_XMIN + len(policies_main[n])
+        p = probs_rest[n] * 0.9
+        x_coord = R_SUBFIG_XMIN + len(probs_main[n])
         y_coord = 2*n - 1
         bar = patches.Rectangle((x_coord - PBW/2, y_coord), PBW, p, facecolor='tab:cyan')
         ax.add_patch(bar)
@@ -390,7 +347,7 @@ def figure1(initial_state, state_name=''):
 
     # Set limits & ticks
     ax.set_aspect('equal')
-    ax.set_ylim(-4, 2 * steps + 1)
+    ax.set_ylim(-4, 2 * nsteps + 1)
     ax.xaxis.set_tick_params(labelbottom=False)
     ax.set_xticks([])
     ax.set_yticks([])
@@ -449,7 +406,9 @@ if __name__ == '__main__':
 
     initial_state = random_quantum_state(5)
     print(peek_policy(initial_state))
+    fig = figure3(initial_state, [0, 1, 2, 3, 4, 5, 6])
     fig = figure3(initial_state)
     fig.savefig('test_figure3.pdf')
-    fig = figure1(initial_5q_states["|RRR-RR>"], r'$|R_{123}\rangle|R_{45}\rangle$')
+    fig = figure1(initial_5q_states["|RRR-RR>"],
+                  state_name=r'$|R_{123}\rangle|R_{45}\rangle$')
     fig.savefig('test_figure1.pdf')
