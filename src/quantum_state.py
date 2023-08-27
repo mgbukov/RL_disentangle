@@ -73,9 +73,16 @@ class VectorQuantumState:
             raise ValueError(f"Expected array with shape=({self.num_envs},)")
         N, Q = self.num_envs, self.num_qubits
         batch = self._states
-        qubit_indices = np.array([self.actions[a] for a in acts], dtype=np.int32)
 
-        # Move qubits which are modified by `acts` at indices (0, 1)
+        # Move qubits which are modified by `acts` at indices (0, 1).
+        # We will apply the action so that the leading quibt is the one that
+        # has more entanglement entropy.
+        qubit_indices = [self.actions[a] for a in acts]
+        qubit_indices = [
+            (i, j) if self.entanglements[idx][i] > self.entanglements[idx][j] else (j, i)
+            for idx, (i, j) in enumerate(qubit_indices)
+        ]
+        qubit_indices = np.array(qubit_indices, dtype=np.int32)
         permute_qubits(batch, qubit_indices, Q, inverse=False)
 
         # Compute 2x2 reduced density matrices
@@ -89,16 +96,36 @@ class VectorQuantumState:
         np.einsum('kij,kj->kij', Us, phase, out=Us)
         Us = np.swapaxes(Us.conj(), 1, 2)
 
-        # Apply unitary gates and undo qubit permutations.
+        # Apply unitary gates.
         batch = (Us @ batch)
         batch = batch.reshape(self.shape)
-        permute_qubits(batch, qubit_indices, Q, inverse=True)
 
         # Recalculate entanglements only for q0 and q1.
         Sent_q0, Sent_q1 = calculate_q0_q1_entropy_from_rhos(rhos)
         self.entanglements[np.arange(N), qubit_indices[:, 0]] = Sent_q0
         self.entanglements[np.arange(N), qubit_indices[:, 1]] = Sent_q1
+
+        # Undo qubit permutations. Return the qubits modified by acts back to
+        # their original positions. In addition, we will preserve the relation
+        # between S(q_i) and S(q_j). Note that the qubits are already arranged
+        # so that S(q_i) > S(q_j). Thus, if S'(q_i) < S'(q_j), then we will
+        # swap qubits i and j.
+        qubit_indices = [
+            (j, i) if self.entanglements[idx][i] < self.entanglements[idx][j] else (i, j)
+            for idx, (i, j) in enumerate(qubit_indices)
+        ]
+        qubit_indices = np.array(qubit_indices, dtype=np.int32)
+        permute_qubits(batch, qubit_indices, Q, inverse=True)
         self._states = phase_norm(batch)
+
+        # Finally, we will update the entanglements to reflect any swapping.
+        # If S'(q_i) < S'(q_j), then the qubits were swapped and we need to swap
+        # the entanglements as well.
+        for idx, (i, j) in enumerate(qubit_indices):
+            if self.entanglements[idx][i] < self.entanglements[idx][j]:
+                continue
+            self.entanglements[idx][i], self.entanglements[idx][j] = \
+                self.entanglements[idx][j], self.entanglements[idx][i]
 
     def reset_sub_environment_(self, k):
         psi = random_quantum_state(self.num_qubits, self.p_gen)
