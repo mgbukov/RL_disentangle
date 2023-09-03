@@ -1,11 +1,15 @@
 data/
 logs/
+jobs/
 figures/
+.vscode/
 # data files
 *.dat
 *.pkl
 *.png
 *.pdf
+*.txt
+*.pickle
 .DS_Store
 
 # Byte-compiled / optimized / DLL files
