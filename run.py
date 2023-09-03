@@ -14,8 +14,10 @@ Example usage:
 
 python3 run.py \
     --seed 0 --num_qubits 4 --num_envs 32 --steps 16 --steps_limit 8 --num_iters 1001 \
-    --p_gen 0.9 --attn_heads 2 --transformer_layers 2 --embed_dim 128 --dim_mlp 256 \
+    --attn_heads 2 --transformer_layers 2 --embed_dim 128 --dim_mlp 256 \
     --batch_size 512 --pi_lr 1e-4 --entropy_reg 0.1 --obs_fn rdm_2q_real
+    --state_generator haar_geom --p_gen 0.9
+    --checkpoint_every 100
 """
 
 import json
@@ -41,9 +43,13 @@ def demo(args):
             return
 
         num_envs = 1024
-        env = QuantumEnv(num_qubits=args.num_qubits, num_envs=num_envs,
-            epsi=args.epsi, p_gen=args.p_gen, max_episode_steps=args.steps_limit,
+        env = QuantumEnv(
+            num_qubits=args.num_qubits, num_envs=num_envs,
+            epsi=args.epsi, max_episode_steps=args.steps_limit,
             reward_fn=args.reward_fn, obs_fn=args.obs_fn,
+            state_generator=args.state_generator,
+            generator_kwargs=dict(p_gen=args.p_gen,
+                                  min_entangled=args.min_entangled)
         )
         _ = env.reset() # prepare the environment
 
@@ -91,76 +97,27 @@ def demo(args):
     return thunk
 
 
+def str2state(string_descr):
+    psi = np.array([1.0], dtype=np.complex64)
+    nqubits = 0
+    for pair in string_descr.split('-'):
+        q = pair.count('R')
+        nqubits += q
+        psi = np.kron(psi, random_quantum_state(q=q, prob=1.))
+    return psi.reshape((2,) * nqubits)
+
+
 def test(agent, args):
     """Test the agent on a set of specifically generated quantum states.
     Note that this function will reset the numpy rng seed.
     """
-    # Define a function wrapper for executing a function with a set rng seed.
-    def fixed_rng(fn): np.random.seed(0); return fn
-
     # Define the initial states on which we want to test the agent. For each
     # of the special configurations provide a generating function.
-    initial_5q_states = {
-        "|RR-R-R-R>": fixed_rng(lambda: np.kron(
-            random_quantum_state(q=2, prob=1.),
-            np.kron(
-                np.kron(
-                    random_quantum_state(q=1, prob=1.),
-                    random_quantum_state(q=1, prob=1.),
-                ),
-                random_quantum_state(q=1, prob=1.),
-            ),
-        ).reshape((2,) * 5).astype(np.complex64)),
-
-        "|RR-RR-R>": fixed_rng(lambda: np.kron(
-            random_quantum_state(q=2, prob=1.),
-            np.kron(
-                random_quantum_state(q=2, prob=1.),
-                random_quantum_state(q=1, prob=1.),
-            ),
-        ).reshape((2,) * 5).astype(np.complex64)),
-
-        "|RRR-R-R>": fixed_rng(lambda: np.kron(
-            random_quantum_state(q=3, prob=1.),
-            np.kron(
-                random_quantum_state(q=1, prob=1.),
-                random_quantum_state(q=1, prob=1.),
-            ),
-        ).reshape((2,) * 5).astype(np.complex64)),
-
-        "|RRR-RR>": fixed_rng(lambda: np.kron(
-            random_quantum_state(q=3, prob=1.),
-            random_quantum_state(q=2, prob=1.),
-        ).reshape((2,) * 5).astype(np.complex64)),
-
-        "|RRRR-R>": fixed_rng(lambda: np.kron(
-            random_quantum_state(q=4, prob=1.),
-            random_quantum_state(q=1, prob=1.),
-        ).reshape((2,) * 5).astype(np.complex64)),
-
-        "|RRRRR>": fixed_rng(lambda: random_quantum_state(q=5, prob=1.)),
-    }
-
-    initial_4q_states = {
-        "|RR-R-R>": fixed_rng(lambda: np.kron(
-            random_quantum_state(q=2, prob=1.),
-            np.kron(
-                random_quantum_state(q=1, prob=1.),
-                random_quantum_state(q=1, prob=1.),
-            ),
-        ).reshape((2,) * 4).astype(np.complex64)),
-
-        "|RR-RR>": fixed_rng(lambda: np.kron(
-            random_quantum_state(q=2, prob=1.),
-            random_quantum_state(q=2, prob=1.),
-        ).reshape((2,) * 4).astype(np.complex64)),
-
-        "|RRR-R>": fixed_rng(lambda: np.kron(
-            random_quantum_state(q=3, prob=1.),
-            random_quantum_state(q=1, prob=1.),
-        ).reshape((2,) * 4).astype(np.complex64)),
-
-        "|RRRR>": fixed_rng(lambda: random_quantum_state(q=4, prob=1.)),
+    initial_states = {
+        4: ["RR-R-R", "RR-RR", "RRR-R", "RRRR"],
+        5: ["RR-R-R-R", "RR-RR-R", "RRR-R-R", "RRR-RR", "RRRR-R", "RRRRR"],
+        6: ["RR-R-R-R-R", "RR-RR-R-R", "RR-RR-RR", "RRR-R-R-R", "RRR-RR-R",
+            "RRRR-R-R", "RRRR-RR", "RRRRR-R", "RRRRRR"]
     }
 
     # Define the environment.
@@ -168,12 +125,12 @@ def test(agent, args):
     env = QuantumEnv(num_qubits=args.num_qubits, num_envs=num_envs,
         epsi=args.epsi, max_episode_steps=args.steps_limit, obs_fn=args.obs_fn,
     )
-    initial_states = initial_5q_states if args.num_qubits == 5 else initial_4q_states
 
     # Try to solve each of the special configurations.
     results = {}
-    for name, fn in initial_states.items():
-        states = np.array([fn() for _ in range(num_envs)])
+    for name in initial_states[args.num_qubits]:
+        np.random.seed(args.seed)
+        states = np.array([str2state(name) for _ in range(num_envs)])
         _ = env.reset() # prepare the environment.
         env.simulator.states = states
         o = env.obs_fn(env.simulator.states)
@@ -195,7 +152,7 @@ def test(agent, args):
                         if t[k]: solved += 1
 
         # Bookkeeping.
-        results[name] = {
+        results["|" + name + ">"] = {
             "avg_len": np.mean(lengths),
             "95_percentile": np.percentile(lengths, 95.),
             "max_len": np.max(lengths),
@@ -221,48 +178,62 @@ def pg_solves_quantum(args):
         num_qubits=args.num_qubits,
         num_envs=args.num_envs,
         epsi=args.epsi,
-        p_gen=args.p_gen,
         max_episode_steps=args.steps_limit,
         reward_fn=args.reward_fn,
         obs_fn=args.obs_fn,
+        state_generator=args.state_generator,
+        generator_kwargs=dict(p_gen=args.p_gen, min_entangled=args.min_entangled)
     )
 
-    # Create the RL agent.
-    in_shape = env.single_observation_space.shape
-    in_dim = in_shape[1]
-    out_dim = env.single_action_space.n
-    policy_network = TransformerPE_2qRDM(
-        in_dim,
-        embed_dim=args.embed_dim,
-        dim_mlp=args.dim_mlp,
-        n_heads=args.attn_heads,
-        n_layers=args.transformer_layers,
-    ).to(device)
-    value_network = MLP(in_shape, [256, 256], 1).to(device)
-    # agent = VPGAgent(policy_network, value_network, config={
-    agent = PPOAgent(policy_network, value_network, config={
-        "pi_lr"     : args.pi_lr,
-        "vf_lr"     : args.vf_lr,
-        "discount"  : args.discount,
-        "batch_size": args.batch_size,
-        "clip_grad" : args.clip_grad,
-        "entropy_reg": args.entropy_reg,
+    # Try loading the RL agent from checkpoint or ...
+    if args.agent_checkpoint:
+        try:
+            agent = torch.load(args.agent_checkpoint, map_location=device)
+        except:
+            print("Cannot load agent from checkpoint")
+            exit(1)
+    # ... create the RL agent.
+    else:
+        in_shape = env.single_observation_space.shape
+        in_dim = in_shape[1]
+        out_dim = env.single_action_space.n
+        policy_network = TransformerPE_2qRDM(
+            in_dim,
+            embed_dim=args.embed_dim,
+            dim_mlp=args.dim_mlp,
+            n_heads=args.attn_heads,
+            n_layers=args.transformer_layers,
+        ).to(device)
+        value_network = MLP(in_shape, [256, 256], 1).to(device)
+        # agent = VPGAgent(policy_network, value_network, config={
+        agent = PPOAgent(policy_network, value_network, config={
+            "pi_lr"     : args.pi_lr,
+            "vf_lr"     : args.vf_lr,
+            "discount"  : args.discount,
+            "batch_size": args.batch_size,
+            "clip_grad" : args.clip_grad,
+            "entropy_reg": args.entropy_reg,
 
-        # PPO-specific
-        "pi_clip" : 0.2,
-        "vf_clip" : 10.,
-        "tgt_KL"  : 0.01,
-        "n_epochs": 3,
-        "lamb"    : 0.95,
-    })
+            # PPO-specific
+            "pi_clip" : 0.2,
+            "vf_clip" : 10.,
+            "tgt_KL"  : 0.01,
+            "n_epochs": 3,
+            "lamb"    : 0.95,
+        })
+
+    # Create log directory
+    log_dirname = f"{args.num_qubits}q_{args.num_iters}iters_" + args.suffix
+    log_dir = os.path.join("logs", log_dirname)
+    os.makedirs(log_dir, exist_ok=True)
+
+    # Save the cmd arguments to text file in log directory
+    with open(os.path.join(log_dir, "args.txt"), mode='wt') as f:
+        f.write(" ".join(sys.argv) + "\n")
 
     # Run the environment loop
-    log_dir = os.path.join("logs",
-        "4q_full_"+
-        f"pGen_{args.p_gen}_attnHeads_{args.attn_heads}_tLayers_{args.transformer_layers}"+
-        f"_ppoBatch_{args.batch_size}_entReg_{args.entropy_reg}_embed_{args.embed_dim}_mlp_{args.dim_mlp}")
-    os.makedirs(log_dir, exist_ok=True)
-    environment_loop(seed, agent, env, args.num_iters, args.steps, log_dir, args.log_every, demo=demo(args))
+    environment_loop(seed, agent, env, args.num_iters, args.steps, log_dir,
+                     args.log_every, args.checkpoint_every, demo=demo(args))
 
     # Test the final agent and store the results.
     results = test(agent, args)
@@ -337,16 +308,28 @@ if __name__ == "__main__":
     parser.add_argument("--epsi", default=1e-3, type=float,
         help="Threshold for disentanglement.")
     parser.add_argument("--reward_fn", default="relative_delta", type=str,
-        help="The name of the reward function to be used. One of ['sparse', 'relative_delta'].")
+        help="The name of the reward function to be used. One of " \
+             "['sparse', 'relative_delta'].")
     parser.add_argument("--obs_fn", default="rdm_2q_mean_real", type=str,
-        help="The name of the observation function to be used. One of ['phase_norm', 'rdm_1q', 'rdm_2q_real', rdm_2q_mean_real']")
+        help="The name of the observation function to be used. One of " \
+             "['phase_norm', 'rdm_1q', 'rdm_2q_real', rdm_2q_mean_real']")
+    parser.add_argument("--state_generator", default="haar_geom", type=str,
+        help="Name of quantum state generator used in reset() function.")
     parser.add_argument("--p_gen", default=0.95, type=float,
-        help="Probability for generating a quantum state from the full Hilbert space.")
+        help="Parameter of `haar_geom` state generator.")
+    parser.add_argument("--min_entangled", default=1, type=int,
+        help="Parameter of `haar_unif` state generator.")
 
     parser.add_argument("--log_every", default=100, type=int,
         help="Log training data ${log_every} iterations.")
+    parser.add_argument("--checkpoint_every", default=500, type=int,
+        help="Checkpoint model every ${save_every} iterations.")
     parser.add_argument("--demo_every", default=100, type=int,
         help="Demo the agent every ${demo_every} iterations.")
+    parser.add_argument("--agent_checkpoint", default='', type=str,
+        help="Path to checkpointed agent")
+    parser.add_argument("--suffix", type=str, default='',
+        help="Suffix appended to log directory name")
 
     args = parser.parse_args()
     pg_solves_quantum(args)

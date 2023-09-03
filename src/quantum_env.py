@@ -15,8 +15,9 @@ class QuantumEnv():
     OpenAI Gym API.
     """
 
-    def __init__(self, num_qubits, num_envs, epsi=1e-3, p_gen=0.95, max_episode_steps=1000,
-        reward_fn="sparse", obs_fn="phase_norm"
+    def __init__(self, num_qubits, num_envs, epsi=1e-3, max_episode_steps=1000,
+                 reward_fn="sparse", obs_fn="phase_norm",
+                 state_generator="haar_geom", **generator_kwargs
     ):
         """Init a Quantum environment.
 
@@ -27,23 +28,28 @@ class QuantumEnv():
                 Number of quantum states for the vectorized environment.
             epsi: float, optional
                 Threshold for disentangling a quantum state. Default: 1e-3.
-            p_gen: float, optional
-                Probability for drawing the state from the full Hilbert space,
-                i.e. all the qubits are entangled. (prob \in (0, 1]). Default 0.95.
             max_episode_steps: int, optional
-                Maximum number of steps before truncating the environment. Default: 1000.
+                Maximum number of steps before truncating the environment.
+                Default: 1000.
             reward_fn: string, optional
                 The name of the reward function to be used. One of
                 ["sparse", "relative_delta"]. Default: "sparse".
             obs_fn: string, optional
                 The name of the observation function to be used. One of
-                ["phase_norm", "rdm_1q", "rdm_2q_complex", "rdm_2q_real"]. Default: "phase_norm".
+                ["phase_norm", "rdm_1q", "rdm_2q_complex", "rdm_2q_real"].
+                Default: "phase_norm".
+            state_generator: string
+                Controls how new states are generated in reset(). See
+                `VectorQuantumState`
+            generator_kwargs:
+                Arguments to state generator in `VectorQuantumState`.
         """
         # Private.
         self.epsi = epsi
         self.max_episode_steps = max_episode_steps
         act_space = "reduced" if obs_fn == "rdm_2q_mean_real" else "full"
-        self.simulator = VectorQuantumState(num_qubits, num_envs, p_gen, act_space)
+        self.simulator = VectorQuantumState(
+            num_qubits, num_envs, act_space, state_generator, **generator_kwargs)
         self.reward_fn = getattr(sys.modules[__name__], reward_fn)  # get from this module
         self.obs_fn = getattr(sys.modules[__name__], obs_fn)        # get from this module
         self.obs_dtype = self.obs_fn(self.simulator.states).dtype

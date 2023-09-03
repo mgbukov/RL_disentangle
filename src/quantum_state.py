@@ -8,7 +8,8 @@ class VectorQuantumState:
     All quantum states in the Vector system have the same number of qubits.
     """
 
-    def __init__(self, num_qubits, num_envs, p_gen=0.95, act_space="reduced"):
+    def __init__(self, num_qubits, num_envs, act_space="reduced",
+                 state_generator="haar_full", **generator_kwargs):
         """Init a vector quantum system.
 
         Args:
@@ -16,17 +17,26 @@ class VectorQuantumState:
                 Number of qubits in each of the quantum states.
             num_envs: int
                 Number of quantum states in the vectorized environment.
-            p_gen: float, optional
-                Probability for drawing the state from the full Hilbert space,
-                i.e. all the qubits are entangled. (prob \in (0, 1]). Default 0.95.
             act_space: str, optional
                 Whether to use the full or the reduced action space.
                 One of ["full", "reduced"]. Default is "reduced".
+            state_generator: str, optional
+                Choice of state distribution from which states are drawn on
+                reset() call. Currently supported:
+                    haar_full:  States are drawn from `num_qubits` dimensional
+                                Hilbert space.
+                    haar_geom:  States are drawn from 2 to `num_qubits`
+                                dimensional Hilbert space. The dimension is
+                                chosen from geometric distribution.
+                    haar_unif:  States are drawn from 2 to `num_qubits`
+                                dimensional Hilbert space and each dimension
+                                has equal probability of being sampled.
+            generator_kwargs:
+                Keyword arguments passed to state generator function.
         """
         assert num_qubits >= 2
         self.num_qubits = num_qubits
         self.num_envs = num_envs
-        self.p_gen = p_gen
 
         # The action space consists of all possible pairs of qubits.
         if act_space == "full":
@@ -43,6 +53,22 @@ class VectorQuantumState:
         self.shape = (num_envs,) + (2,) * num_qubits
         self._states = np.zeros(self.shape, dtype=np.complex64)
 
+        # Every time `self.reset()` is called a new state must be generatod.
+        # The generation of new states is handled by a function,
+        # which is selected using `state_generator` and `generator_kwargs`
+        # paratemers.
+        self.state_generator_name = state_generator
+        if state_generator == "haar_full":
+            self.state_generator = sample_haar_full
+        elif state_generator == "haar_geom":
+            self.state_generator = sample_haar_geom
+        elif state_generator == "haar_unif":
+            self.state_generator = sample_haar_unif
+        else:
+            raise ValueError("`state_generator` must be one of ('haar_full', " \
+                             "'haar_geom', 'haar_unif')")
+        self.state_generator_kwargs = generator_kwargs
+    
         # Store the entanglement of every system for faster retrieval.
         self.entanglements = np.zeros((num_envs, num_qubits), dtype=np.float32)
 
@@ -59,7 +85,8 @@ class VectorQuantumState:
         self.entanglements = entropy(self._states)
 
     def set_random_states_(self):
-        """Set all states of the vectorized environment to Haar random states."""
+        """Set all states of the vectorized environment to full dimensional =
+           Haar random states."""
         N, Q = self.num_envs, self.num_qubits
         states = np.random.randn(N, 2 ** Q) + 1j * np.random.randn(N, 2 ** Q)
         states /= np.linalg.norm(states, axis=1, keepdims=True)
@@ -128,9 +155,51 @@ class VectorQuantumState:
                 self.entanglements[idx][j], self.entanglements[idx][i]
 
     def reset_sub_environment_(self, k):
-        psi = random_quantum_state(self.num_qubits, self.p_gen)
-        self._states[k] = phase_norm(psi)
+        if self.state_generator_name == "haar_full":
+            x = sample_haar_full(self.num_qubits, **self.state_generator_kwargs)
+        elif self.state_generator_name == "haar_geom":
+            x = sample_haar_geom(self.num_qubits, **self.state_generator_kwargs)
+        elif self.state_generator_name == "haar_unif":
+            x = sample_haar_unif(self.num_qubits, **self.state_generator_kwargs)
+        self._states[k] = phase_norm(x)
         self.entanglements[k] = entropy(np.expand_dims(self._states[k], axis=0))
+
+
+#----------------------------   State Generators   ----------------------------#
+
+def sample_haar_full(num_qubits, **kwargs):
+    """Draw sample Haar state from `num_qubits` dimensional Hilbert space."""
+    if num_qubits < 1:
+        raise ValueError("`num_qubits` must be > 1.")
+    x = np.random.randn(2 ** num_qubits) + 1j * np.random.randn(2 ** num_qubits)
+    x /= np.linalg.norm(x)
+    return x.reshape((2,) * num_qubits)
+
+
+def sample_haar_geom(num_qubits, p_gen=0.95, **kwargs):
+    """Draw sample Haar state. The dimension of the Hilbert space is chosen
+        using geometric distribution with parameter `p_gen`."""
+    psi = random_quantum_state(num_qubits, p_gen)
+    return np.transpose(psi, np.random.permutation(num_qubits))
+
+
+def sample_haar_unif(num_qubits, min_entangled=1, **kwargs):
+    """Draw sample Haar state. The dimension of the Hilbert space is chosen
+       using uniform distribuiton in range [`min_entangled`, `num_qubits`]."""
+    if num_qubits == 0:
+        return np.array([1.])
+    m = np.random.randint(min_entangled, num_qubits+1)
+    psi = sample_haar_full(m).ravel()
+    r = num_qubits - m
+    while r > min_entangled:
+        q = np.random.randint(min_entangled, m + 1)
+        psi = np.kron(psi, sample_haar_full(q).ravel())
+        r -= q
+    # Draw the last one
+    if r > 0:
+        psi = np.kron(psi, sample_haar_full(r).ravel())
+    psi /= np.linalg.norm(psi.ravel())
+    return psi.reshape((2,) * num_qubits)
 
 
 #------------------------------ Utility functions -----------------------------#
