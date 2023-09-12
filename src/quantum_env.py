@@ -36,7 +36,8 @@ class QuantumEnv():
                 ["sparse", "relative_delta"]. Default: "sparse".
             obs_fn: string, optional
                 The name of the observation function to be used. One of
-                ["phase_norm", "rdm_1q", "rdm_2q_complex", "rdm_2q_real"].
+                ["phase_norm", "rdm_1q", "rdm_2q_complex", "rdm_2q_real",
+                 "rdm_2q_half", "rdm_2q_mean_real"].
                 Default: "phase_norm".
             state_generator: string
                 Controls how new states are generated in reset(). See
@@ -47,7 +48,7 @@ class QuantumEnv():
         # Private.
         self.epsi = epsi
         self.max_episode_steps = max_episode_steps
-        act_space = "reduced" if obs_fn == "rdm_2q_mean_real" else "full"
+        act_space = "reduced"
         self.simulator = VectorQuantumState(
             num_qubits, num_envs, act_space, state_generator, **generator_kwargs)
         self.reward_fn = getattr(sys.modules[__name__], reward_fn)  # get from this module
@@ -187,7 +188,7 @@ def rdm_1q(states):
     # flattened and the real and imaginary parts of each number are stacked.
     rdms = rdms.transpose((1, 0, 2, 3)).reshape(N, -1, 4)
     obs = np.dstack([rdms.real, rdms.imag])
-    return obs
+    return rdms
 
 def rdm_2q_complex(states):
     """
@@ -227,6 +228,21 @@ def rdm_2q_real(states):
     rdms = rdm_2q_complex(states)           # rdms.shape = (N, Q*(Q-1), 16)
     return np.dstack([rdms.real, rdms.imag])
 
+def rdm_2q_half(states):
+    """
+    Returns 2-qubit RDM observations with complex64 dtype.
+    Only RDMs for qubit indices i < j are returned.
+
+    Returns:
+        obs: np.ndarray, dtype=np.complex64
+            Numpy tensor with shape (N, Q*(Q-1)/2, 16), where N = number of episodes,
+            Q = number of qubits
+    """
+    full = rdm_2q_complex(states)
+    Q = len(states.shape[1:])
+    idx = np.array([i < j for i,j in permutations(range(Q), 2)])
+    return full[:, idx, :]
+
 def rdm_2q_mean_complex(states):
     """Returns 2-qubit RDM observations with complex64 dtype.
     The rdms resulting from the two different combinations of qubits (i,j) and
@@ -234,8 +250,8 @@ def rdm_2q_mean_complex(states):
 
     Returns:
         obs: np.ndarray, dtype=np.complex64
-            Numpy tensor with shape (N, Q*(Q-1), 16), where N = number of episodes,
-            Q = number of qubits
+            Numpy tensor with shape (N, Q*(Q-1)/2, 16),
+            where N = number of episodes, Q = number of qubits
     """
     N = states.shape[0]
     Q = len(states.shape[1:])
@@ -262,12 +278,21 @@ def rdm_2q_mean_complex(states):
         rdm_avg = 0.5 * (rdm + rdm_rev) # rdm_avg.shape = (N, 16)
 
         rdms.append(rdm_avg)
-    obs = np.array(rdms).transpose((1, 0, 2)) # rdms.shape == (Q*(Q-1)//2, N, 16)
-    return obs                                # obs.shape  == (N, Q*(Q-1)//2, 16)
+    obs = np.array(rdms).transpose((1, 0, 2)) # rdms.shape == (Q*(Q-1)/2, N, 16)
+    return obs                                # obs.shape  == (N, Q*(Q-1)/2, 16)
 
 def rdm_2q_mean_real(states):
-    rdms = rdm_2q_mean_complex(states) # rdms.shape = (N, Q*(Q-1), 16)
-    return np.dstack([rdms.real, rdms.imag])
+    """Returns 2-qubit RDM observations with float32 dtype.
+    The rdms resulting from the two different combinations of qubits (i,j) and
+    (j, i) are averaged.
+
+    Returns:
+        obs: np.ndarray, dtype=np.complex64
+            Numpy tensor with shape (N, Q*(Q-1)/2, 32),
+            where N = number of episodes, Q = number of qubits
+    """
+    rdms = rdm_2q_mean_complex(states)        # rdms.shape = (N, Q*(Q-1)/2, 16)
+    return np.dstack([rdms.real, rdms.imag])  # rdms.shape = (N, Q*(Q-1)/2, 32)
 
 
 #------------------------------ Reward functions ------------------------------#
