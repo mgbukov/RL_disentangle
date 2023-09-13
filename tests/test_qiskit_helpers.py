@@ -5,6 +5,7 @@ from typing import Literal
 
 sys.path.append('..')
 from src.quantum_env import QuantumEnv, rdm_2q_half
+from src.quantum_state import phase_norm
 from qiskit.helpers import *
 
 np.random.seed(44)
@@ -182,7 +183,8 @@ def test_rdms_noise(
 
 
 def do_qiskit_rollout(state, policy):
-    I = np.eye(4,4, dtype=np.complex64)
+    P = np.eye(4,4, dtype=np.complex64)
+    P[[1,2]] = P[[2,1]]
     s = state.ravel()
     actions, states, Us, RDMs = [], [], [], []
     entanglements = []
@@ -196,12 +198,13 @@ def do_qiskit_rollout(state, policy):
         entanglements.append(get_entanglements(s))
 
         U, i, j = get_action_4q(rdms, policy)
-        preswaps.append(np.any(get_preswap_gate(rdms, i, j) != I))
-        postswaps.append(np.any(get_postswap_gate(rdms, i, j) != I))
+        preswaps.append(np.all(get_preswap_gate(rdms, i, j) == P))
+        postswaps.append(np.all(get_postswap_gate(rdms, i, j) == P))
         a = ACTION_SET_REDUCED.index((i,j))
         s_next, ent, _ = peek_next_4q(s, U, i, j)
         done = np.all(ent < 1e-3)
-        s = s_next
+        # states in RL environemnt are phase normed
+        s = phase_norm(s_next.reshape(1,2,2,2,2)).ravel()
         actions.append(a)
         Us.append(get_U(rdms, i, j,apply_preswap=True, apply_postswap=False))
 
@@ -272,11 +275,12 @@ def test_rollout_equivalence(policy, n_tests=200):
     env = QuantumEnv(4, 1, obs_fn="phase_norm")
     result = True
     failed = 0
+    # diverging_states = []
 
     for _ in range(n_tests):
         env.reset()
         env.simulator.set_random_states_()
-        psi = env.simulator.states.ravel()
+        psi = env.simulator.states.ravel().copy()
         qiskit_rollout = do_qiskit_rollout(psi.copy(), policy)
         rl_env_rollout = do_rlenv_rollout(psi.copy(), policy)
         res = True
@@ -292,14 +296,20 @@ def test_rollout_equivalence(policy, n_tests=200):
         overlaps = np.array(overlaps)
         res &= np.all(np.isclose(np.abs(overlaps - 1.0), 0.0, atol=1e-2))
         # if not res:
-        #     print(overlaps, qiskit_rollout['actions'], rl_env_rollout['actions'])
-        #     i = np.argmax(overlaps < 0.9)
-        #     print(qiskit_rollout['states'][i].ravel())
-        #     print(rl_env_rollout['states'][i].ravel())
+        #     diverging_states.append(psi)
+        #     print()
+        #     print(qiskit_rollout['entanglements'])
+        #     print(rl_env_rollout['entanglements'])
+        #     print(qiskit_rollout['actions'], rl_env_rollout['actions'])
+        #     print(qiskit_rollout['preswaps'], rl_env_rollout['preswaps'])
+        #     print(qiskit_rollout['postswaps'], rl_env_rollout['postswaps'])
+        #     print(overlaps)
+        #     print()
         print('.' if res else 'F', end='', flush=True)
         failed += int(not res)
         result &= res
     print('\ntest_rollout_equivalence():', f'{failed}/{n_tests} failed')
+    # np.save('diverging-states.npy', np.array(diverging_states))
     return result
 
 
