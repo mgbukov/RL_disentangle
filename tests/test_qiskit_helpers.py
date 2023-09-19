@@ -49,7 +49,7 @@ def test_get_preswap_gate(n_tests=100):
             print('.' if res else 'F', end='', flush=True)
             result &= res
             failed += int(not res)
-    print('\ntest_get_preswap_gate():', f'{failed}/{n_tests} failed')
+    print('\ntest_get_preswap_gate():', f'{failed}/{6*n_tests} failed')
     return result
 
 
@@ -83,7 +83,7 @@ def test_get_postswap_gate(n_tests=100):
             result &= res
             failed += int(not res)
             print('.' if res else 'F', end='', flush=True)
-    print('\ntest_get_postwap_gate():', f'{failed}/{n_tests} failed')
+    print('\ntest_get_postwap_gate():', f'{failed}/{6*n_tests} failed')
     return result
 
 
@@ -120,7 +120,7 @@ def test_get_U(n_tests=100):
             failed += int(not res)
             print('.' if res else 'F', end='', flush=True)
         result &= res
-    print('\ntest_get_U():', f'{failed}/{n_tests} failed')
+    print('\ntest_get_U():', f'{failed}/{6*n_tests} failed')
     return result
 
 
@@ -149,7 +149,7 @@ def test_peek_next_4q(n_tests=100):
             failed += int(not res)
             print('.' if res else 'F', end='', flush=True)
         result &= res
-    print('\ntest_peek_next_4q():', f'{failed}/{n_tests} failed')
+    print('\ntest_peek_next_4q():', f'{failed}/{6*n_tests} failed')
     return result
 
 
@@ -190,8 +190,9 @@ def do_qiskit_rollout(state, policy):
     entanglements = []
     preswaps, postswaps = [], []
 
+    n = 0
     done = False
-    while not done:
+    while not done and n < 10:
         states.append(s.copy())
         rdms = observe_rdms(s)
         RDMs.append(rdms)
@@ -207,6 +208,7 @@ def do_qiskit_rollout(state, policy):
         s = phase_norm(s_next.reshape(1,2,2,2,2)).ravel()
         actions.append(a)
         Us.append(get_U(rdms, i, j,apply_preswap=True, apply_postswap=False))
+        n += 1
 
     states.append(s)
     RDMs.append(observe_rdms(s))
@@ -243,7 +245,8 @@ def do_rlenv_rollout(state, policy):
                          "policies.")
 
     done = False
-    while not done:
+    n = 0
+    while not done and n < 10:
         s = env.simulator.states.copy()
         states.append(s.ravel())
         entanglements.append(get_entanglements(s.ravel()))
@@ -254,6 +257,7 @@ def do_rlenv_rollout(state, policy):
         Us.append(env.simulator.Us_.copy())
         preswaps.append(env.simulator.preswaps_[0])
         postswaps.append(env.simulator.postswaps_[0])
+        n += 1
 
     s = env.simulator.states.copy().ravel()
     states.append(s)

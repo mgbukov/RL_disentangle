@@ -68,7 +68,7 @@ class VectorQuantumState:
             raise ValueError("`state_generator` must be one of ('haar_full', " \
                              "'haar_geom', 'haar_unif')")
         self.state_generator_kwargs = generator_kwargs
-    
+
         # Store the entanglement of every system for faster retrieval.
         self.entanglements = np.zeros((num_envs, num_qubits), dtype=np.float32)
 
@@ -124,12 +124,16 @@ class VectorQuantumState:
         # Compute 4x4 reduced density matrices
         batch = batch.reshape(N, 4, 2 ** (Q - 2))
         rdms = batch @ np.transpose(batch.conj(), [0, 2, 1])
+        rdms += np.finfo(rdms.dtype).eps * np.diag([0.0, 1.0, 2.0, 4.0])
 
         # Compute single qubit entanglements.
-        rdms[np.abs(rdms) < 1e-7] = 0.0
+        # rdms[np.abs(rdms) < 1e-7] = 0.0
         rhos, Us = np.linalg.eigh(rdms)
-        phase = np.exp(-1j * np.angle(np.diagonal(Us, axis1=1, axis2=2)))
-        np.einsum('kij,kj->kij', Us, phase, out=Us)
+        for j in range(N):
+            max_col = np.abs(Us[j]).argmax(axis=0)
+            for k in range(4):
+                Us[j, k] *= np.exp(-1j * np.angle(Us[j,k, max_col[k]]))
+
         Us = np.swapaxes(Us.conj(), 1, 2)
         self.Us_ = Us
 
