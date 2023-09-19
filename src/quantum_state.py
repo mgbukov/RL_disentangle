@@ -164,10 +164,10 @@ class VectorQuantumState:
         # the entanglements as well.
         for idx, (i, j) in enumerate(qubit_indices):
             self.entanglements[idx] = entropy(np.expand_dims(self._states[idx], 0))
-            # if self.entanglements[idx][i] < self.entanglements[idx][j]:
-            #     continue
-            # self.entanglements[idx][i], self.entanglements[idx][j] = \
-            #     self.entanglements[idx][j], self.entanglements[idx][i]
+            if self.entanglements[idx][i] < self.entanglements[idx][j]:
+                continue
+            self.entanglements[idx][i], self.entanglements[idx][j] = \
+                self.entanglements[idx][j], self.entanglements[idx][i]
 
     def reset_sub_environment_(self, k):
         if self.state_generator_name == "haar_full":
