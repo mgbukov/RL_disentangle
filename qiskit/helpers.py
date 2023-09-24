@@ -119,16 +119,19 @@ def get_U(rdms6, i, j, apply_preswap=False, apply_postswap=False):
     rdm = rdms6[a].copy()
     # Rounding the near 0 elements in `rdm` matrix solved problems with
     # numerical precision in RL training. But should we clip them here?
-    rdm[np.abs(rdm) < 1e-7] = 0.0
     if apply_preswap:
         S = get_preswap_gate(rdms6, i, j)
         rdm = S @ rdm @ S.conj().T
+    rdm += np.finfo(rdm.dtype).eps * np.diag([0, 1, 2, 4]).astype(rdm.dtype)
     _, U = np.linalg.eigh(rdm)
-    phase = np.exp(-1j * np.angle(np.diagonal(U)))
-    np.einsum('ij,j->ij', U, phase, out=U)
+    max_col = np.abs(U).argmax(axis=0)
+    for k in range(4):
+        U[:, k] *= np.exp(-1j * np.angle(U[max_col[k], k]))
+
     U = U.conj().T
     if apply_preswap:
-        U = U @ S
+        # Swap qubits, apply gate and then swap back again
+        U = S @ U @ S
     if apply_postswap:
         P = get_postswap_gate(rdms6, i, j)
         U = P @ U
@@ -154,38 +157,44 @@ def get_preswap_gate(rdms6 :Sequence[np.ndarray], i :int, j :int):
     rdm_ij = rdms6[ACTION_SET_REDUCED.index((i,j))]
     S_i, S_j = _get_sqe_rdm(rdm_ij)
     # Make an Identity or Swap gate, depending on `S_i`, `S_j`
-    P = np.eye(4, 4, dtype=np.complex64)
-    if S_i <= S_j:
-        P[[1, 2]] = P[[2, 1]]
+    I = np.eye(4, 4, dtype=np.complex64)
+    P = I.copy()
+    P[[1,2]] = P[[2,1]]
+    if S_i > S_j + np.finfo(S_i.dtype).eps:
+        return I
     return P
 
 
 def get_postswap_gate(rdms6 :Sequence[np.ndarray], i :int, j :int):
     assert rdms6.shape == (6, 4, 4)
+    _dtype = rdms6.dtype
+    _eps = np.finfo(rdms6.dtype).eps
     I = np.eye(4, 4, dtype=np.complex64)
     P = I.copy()
     P[[1, 2]] = P[[2, 1]]
 
+    # Calculate current entanglements
     rdm_ij = rdms6[ACTION_SET_REDUCED.index((i,j))]
-    preswap = np.all(get_preswap_gate(rdms6, i, j) == P)
-    U = get_U(rdms6, i, j, apply_preswap=True, apply_postswap=False)
-    rdm_ij_next = U @ rdm_ij @ U.conj().T
-    # Calculate single qubit entanglements after action
-    S_i_new, S_j_new = _get_sqe_rdm(rdm_ij_next)
+    S_i, S_j = _get_sqe_rdm(rdm_ij)
 
-    if (S_i_new > S_j_new) and preswap:
-        return P
-    if (S_i_new < S_j_new) and preswap:
-        return I
-    if (S_i_new == S_j_new) and preswap:
-        return P
-    if (S_i_new > S_j_new) and not preswap:
-        return I
-    if (S_i_new < S_j_new) and not preswap:
-        return P
-    if (S_i_new == S_j_new) and not preswap:
-        return I
-    raise ValueError('return is None')
+    # Calculate U
+    preswap_gate = I if S_i > S_j + _eps else P
+    rdm_temp = preswap_gate @ rdm_ij @ preswap_gate.conj().T
+    rdm_temp += np.finfo(rdm_temp.dtype).eps * np.diag([0, 1, 2, 4])
+    _, U = np.linalg.eigh(rdm_temp)
+    max_col = np.abs(U).argmax(axis=0)
+    for k in range(4):
+        U[:, k] *= np.exp(-1j * np.angle(U[max_col[k], k]))
+
+    U = U.conj().T
+    # Swap qubits, apply gate and then swap back again
+    U =  preswap_gate @ U @ preswap_gate
+
+    # Calculate single qubit entanglements after action
+    rdm_ij_next = U @ rdm_ij @ U.conj().T
+    S_i_new, S_j_new = _get_sqe_rdm(rdm_ij_next)
+    flag = (S_i >= S_j + _eps) ^ (S_i_new >= S_j_new + _eps)
+    return P if flag else I
 
 
 def peek_next_4q(state :np.ndarray, U :np.ndarray, i :int, j :int) -> Tuple[np.ndarray, int]:
@@ -342,7 +351,7 @@ def _get_sqe_rdm(rdm):
     rdm_j = np.trace(rdm.reshape(2,2,2,2), axis1=0, axis2=2)
     # Calculate single qubit entanglements
     lambdas = np.linalg.svd(rdm_i, compute_uv=False, full_matrices=False)
-    S_i = -np.sum(lambdas * np.log(lambdas), axis=-1)
+    S_i = -np.sum(lambdas * np.log(lambdas + np.finfo(lambdas.dtype).eps), axis=-1)
     lambdas = np.linalg.svd(rdm_j, full_matrices=False, compute_uv=False)
-    S_j = -np.sum(lambdas * np.log(lambdas), axis=-1)
+    S_j = -np.sum(lambdas * np.log(lambdas + np.finfo(lambdas.dtype).eps), axis=-1)
     return S_i, S_j

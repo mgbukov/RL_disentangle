@@ -22,11 +22,12 @@ def fidelity(psi, phi):
     return np.abs(np.dot(psi.conj(), phi)) ** 2
 
 
-def test_get_preswap_gate(n_tests=100):
+def test_get_preswap_gate(n_tests=100, verbose=False):
     """
     Test if the returned pre-swap gate in qiskit code agrees with the
     `_preswap` flag in the RL environment.
     """
+    N_STEPS = 6
     env = QuantumEnv(4, 1, obs_fn="phase_norm")
     P = np.eye(4,4,dtype=np.complex64)
     P[[2,1]] = P[[1,2]]
@@ -36,28 +37,37 @@ def test_get_preswap_gate(n_tests=100):
         env.reset()
         env.simulator.set_random_states_()
         # Rollout a trajectory
-        for _ in range(6):
+        for _ in range(N_STEPS):
             psi = env.simulator.states[0].copy()
             rdms6 = observe_rdms(psi)
             a = int(np.random.randint(0, env.simulator.num_actions))
             i, j = env.simulator.actions[a]
-            # ent = get_entanglements(psi)
+            ent = env.simulator.entanglements[0]
             env.step([a], reset=False)
             qiskit_swap = np.all(get_preswap_gate(rdms6, i, j) == P)
             env_swap = env.simulator.preswaps_[0]
-            res = (qiskit_swap == env_swap) # or (np.abs(ent[i] - ent[j]) < 1e-7)
+            res = (qiskit_swap == env_swap)
             print('.' if res else 'F', end='', flush=True)
+            if not res and verbose:
+                print(f'\nAction: ({i}, {j})\n')
+                print('\nEntanglements before action (qiskit):\n',
+                      get_entanglements(psi))
+                print('\nEntanglements before action (RL env):\n', ent)
+                print('\nqiskit swap:', qiskit_swap)
+                print('\nRL env swap:', env_swap)
+                print('\n\n')
             result &= res
             failed += int(not res)
-    print('\ntest_get_preswap_gate():', f'{failed}/{6*n_tests} failed')
+    print('\ntest_get_preswap_gate():', f'{failed}/{N_STEPS*n_tests} failed')
     return result
 
 
-def test_get_postswap_gate(n_tests=100):
+def test_get_postswap_gate(n_tests=100, verbose=False):
     """
     Test if the returned post-swap gate in qiskit code agrees with the
     `_postswap` flag in the RL environment.
     """
+    N_STEPS = 6
     env = QuantumEnv(4, 1, obs_fn="phase_norm")
     P = np.eye(4,4,dtype=np.complex64)
     P[[1, 2]] = P[[2, 1]]
@@ -68,42 +78,45 @@ def test_get_postswap_gate(n_tests=100):
         env.reset()
         env.simulator.set_random_states_()
         # Rollout a trajectory
-        for _ in range(6):
+        for _ in range(N_STEPS):
             psi = env.simulator.states[0].copy()
             rdms6 = observe_rdms(psi)
             a = int(np.random.randint(0, env.simulator.num_actions))
             i, j = env.simulator.actions[a]
-            # ent = get_entanglements(psi)
             env.step([a], reset=False)
             qiskit_swap = np.all(get_postswap_gate(rdms6, i, j) == P)
             env_swap = env.simulator.postswaps_[0]
-            # This testline may fail if the entanglements are equal
-            # That's why they are tested for equality
-            res = (qiskit_swap == env_swap) #or (np.abs(ent[i] - ent[j]) < 1e-7)
+            res = (qiskit_swap == env_swap)
             result &= res
             failed += int(not res)
             print('.' if res else 'F', end='', flush=True)
-    print('\ntest_get_postwap_gate():', f'{failed}/{6*n_tests} failed')
+            if not res and verbose:
+                print('\nAction:\n', (i, j))
+                print('\nEntanglements before U:\n', get_entanglements(psi))
+                U = get_U(rdms6, i, j, apply_preswap=True, apply_postswap=True)
+                _, ent, _ = peek_next_4q(psi, U, i, j)
+                print('\nEntanglements after U (qiskit):\n', ent)
+                print('\nEntanglements after U (RL env):\n',
+                      get_entanglements(env.simulator.states[0]))
+    print('\ntest_get_postwap_gate():', f'{failed}/{N_STEPS*n_tests} failed')
     return result
 
 
-def test_get_U(n_tests=100):
+def test_get_U(n_tests=100, verbose=False):
     """
     Test if the returned action gate U in qiskit code equals the  `_Us`
     attribute in the RL environment.
     """
+    N_STEPS = 6
     env = QuantumEnv(4, 1, obs_fn="phase_norm")
     result = True
     failed = 0
-    P = np.eye(4,4,dtype=np.complex64)
-    P[[1,2]] = P[[2,1]]
 
     for _ in range(n_tests):
-        env = QuantumEnv(4, 1, obs_fn="phase_norm")
         env.reset()
         env.simulator.set_random_states_()
         # Rollout a trajectory
-        for _ in range(6):
+        for _ in range(N_STEPS):
             psi = env.simulator.states[0].copy()
             rdms6 = observe_rdms(psi)
             a = int(np.random.randint(0, env.simulator.num_actions))
@@ -113,19 +126,24 @@ def test_get_U(n_tests=100):
             # on the right with swap gate (because qubits i,j needs to be swapped).
             # The effect of this matrix multiplication is that columns 2,3
             # in U are swapped.
-            if np.all(get_preswap_gate(rdms6, i, j) == P):
-                U = U[:, [0,2,1,3]]
+            P = get_preswap_gate(rdms6, i, j)
+            U = P @ U @ P
             env.step([a], reset=False)
             res = np.all(np.isclose(U, env.simulator.Us_[0], atol=1e-7))
             failed += int(not res)
             print('.' if res else 'F', end='', flush=True)
+            if not res and verbose:
+                print('\nRL env U:\n', env.simulator.Us_[0])
+                print('\nqiskit U:\n', U)
+                print('\n')
         result &= res
-    print('\ntest_get_U():', f'{failed}/{6*n_tests} failed')
+    print('\ntest_get_U():', f'{failed}/{N_STEPS*n_tests} failed')
     return result
 
 
-def test_peek_next_4q(n_tests=100):
+def test_peek_next_4q(n_tests=100, verbose=False):
     """Test if peek_next_4q() returns the same states as the environment's apply()."""
+    N_STEPS = 6
     env = QuantumEnv(4, 1, obs_fn="phase_norm")
     result = True
     failed = 0
@@ -135,7 +153,7 @@ def test_peek_next_4q(n_tests=100):
         env.simulator.set_random_states_()
         res = True
         # Rollout a trajectory
-        for _ in range(6):
+        for _ in range(N_STEPS):
             psi = env.simulator.states[0].copy()
             a = int(np.random.randint(0, env.simulator.num_actions))
             i, j = env.simulator.actions[a]
@@ -149,7 +167,7 @@ def test_peek_next_4q(n_tests=100):
             failed += int(not res)
             print('.' if res else 'F', end='', flush=True)
         result &= res
-    print('\ntest_peek_next_4q():', f'{failed}/{6*n_tests} failed')
+    print('\ntest_peek_next_4q():', f'{failed}/{N_STEPS*n_tests} failed')
     return result
 
 
@@ -157,25 +175,22 @@ def test_rdms_noise(
         policy: Literal['universal', 'equivariant', 'transformer', 'ordered'],
         state
     ):
-    I = np.eye(4, dtype=np.complex64)
-    env = QuantumEnv(4, 1, obs_fn="rdm_2q_half")
-    env.reset()
+    nsteps = 5 if policy == 'universal' else 8
 
     result = True
-    for noise in [1e-10, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2]:
-        env.states = np.expand_dims(state, 0)
-        nsteps = 5 if policy == 'universal' else 8
+    for noise in [0.0, 1e-10, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2]:
+        s = state.copy()
         for _ in range(nsteps):
-            rdms = observe_rdms(env.simulator.states[0])
+            rdms = observe_rdms(s)
             noisy_rdms = rdms + \
                 np.random.normal(scale=noise, size=rdms.shape) + \
                 1j * np.random.normal(scale=noise, size=rdms.shape)
+            noisy_rdms = noisy_rdms.astype(np.complex64)
             U, i, j = get_action_4q(noisy_rdms, policy)
-            a = env.simulator.actToKey[(i,j)]
-            _, _, done, _, _ = env.step([a], reset=False)
-            assert np.all(np.isclose(I, U @ U.T.conj(), atol=1e-6))
+            s, ent, _ = peek_next_4q(s, U, i, j)
+            done = np.all(ent < 1e-3)
             # Break loop early if policy != 'universal'
-            if policy != 'universal' and done[0]:
+            if policy != 'universal' and done:
                 break
         print('.' if done else 'F', end='')
         result &= done
@@ -183,6 +198,7 @@ def test_rdms_noise(
 
 
 def do_qiskit_rollout(state, policy):
+    MAX_STEPS = 10
     P = np.eye(4,4, dtype=np.complex64)
     P[[1,2]] = P[[2,1]]
     s = state.ravel()
@@ -192,7 +208,7 @@ def do_qiskit_rollout(state, policy):
 
     n = 0
     done = False
-    while not done and n < 10:
+    while not done and n < MAX_STEPS:
         states.append(s.copy())
         rdms = observe_rdms(s)
         RDMs.append(rdms)
@@ -226,6 +242,7 @@ def do_qiskit_rollout(state, policy):
 
 
 def do_rlenv_rollout(state, policy):
+    MAX_STEPS = 10
     env = QuantumEnv(4, 1, obs_fn="rdm_2q_mean_real")
     env.reset()
     env.simulator.states = state.reshape(1,2,2,2,2)
@@ -246,7 +263,7 @@ def do_rlenv_rollout(state, policy):
 
     done = False
     n = 0
-    while not done and n < 10:
+    while not done and n < MAX_STEPS:
         s = env.simulator.states.copy()
         states.append(s.ravel())
         entanglements.append(get_entanglements(s.ravel()))
@@ -320,13 +337,13 @@ def test_rollout_equivalence(policy, n_tests=200):
 if __name__ == '__main__':
     np.set_printoptions(precision=2, suppress=True)
 
-    test_get_preswap_gate(100)
-    test_get_postswap_gate(100)
-    test_get_U(100)
+    test_get_preswap_gate(100, verbose=True)
+    test_get_postswap_gate(100, verbose=True)
+    test_get_U(100, verbose=True)
     test_peek_next_4q(100)
     test_rollout_equivalence("ordered", 100)
 
-    # # Test |BB>|BB> and all it's permutations state wih noise added to RDMs
+    # Test |BB>|BB> and all it's permutations state wih noise added to RDMs
     print('Testing |BB>|BB> state with universal circuit:')
     bell = np.sqrt(1/2) * np.array([1.0, 0.0, 0.0, 1.0])
     psi = np.kron(bell, bell).reshape(2, 2, 2, 2)   # 01-23 entangled
@@ -334,7 +351,7 @@ if __name__ == '__main__':
         print(f'\n\tPermutation {P}: ', end='')
         test_rdms_noise('universal', np.transpose(psi, P))
 
-    # # Test |BB>|BB> and all it's permutations state wih noise added to RDMs
+    # Test |BB>|BB> and all it's permutations state wih noise added to RDMs
     print('\n\nTesting |BB>|BB> state with ordered policy:')
     bell = np.sqrt(1/2) * np.array([1.0, 0.0, 0.0, 1.0])
     psi = np.kron(bell, bell).reshape(2, 2, 2, 2)   # 01-23 entangled
