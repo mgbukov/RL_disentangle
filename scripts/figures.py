@@ -10,6 +10,8 @@ import sys
 file_path = os.path.split(os.path.abspath(__file__))[0]
 project_dir = os.path.abspath(os.path.join(file_path, os.pardir))
 sys.path.append(project_dir)
+from src.agent import RandomAgent
+from src.environment_loop import test_agent
 from src.quantum_env import QuantumEnv
 from src.quantum_state import random_quantum_state
 
@@ -17,10 +19,30 @@ mpl.rcParams['text.usetex'] = True
 mpl.rcParams['font.family'] = 'serif'
 
 
-PATH_4Q_AGENT = ''
-PATH_5Q_AGENT = os.path.join(project_dir, 'logs/5q_pGen_0.9_attnHeads_4_tLayers_4_ppoBatch_512_entReg_0.1_embed_256_mlp_512/agent.pt')
-PATH_6Q_AGENT = ''
+PATH_4Q_AGENT = os.path.join(project_dir, "logs/4q_10000_iters_haar_unif2_1024envs/agent.pt")
+PATH_5Q_AGENT = os.path.join(project_dir, "logs/5q_20000_iters_haar_unif2_128envs/agent.pt")
+PATH_6Q_AGENT = os.path.join(project_dir, "logs/6q_4000iters_haar_unif3_512/agent.pt")
 
+
+def str2state(string_descr):
+    psi = np.array([1.0], dtype=np.complex64)
+    nqubits = 0
+    for pair in string_descr.split('-'):
+        q = pair.count('R')
+        nqubits += q
+        psi = np.kron(psi, random_quantum_state(q=q, prob=1.))
+    return psi.reshape((2,) * nqubits)
+
+
+def str2latex(string_descr):
+    numbers = "123456789"
+    Rs = string_descr.split("-")
+    name = []
+    i = 0
+    for r in Rs:
+        name.append('|R_{' + f'{numbers[i:i+len(r)]}' + '}\\rangle')
+        i += len(r)
+    return "$" + ''.join(name) + "$"
 
 def rollout(initial_state, max_steps=30):
     """
@@ -222,6 +244,94 @@ def figure3(initial_state, selected_actions=None):
     return fig
 
 
+def figure2(num_qubits, num_tests=10_000):
+
+    TEST_STATES = {
+        4: ["RR-R-R", "RR-RR", "RRR-R", "RRRR"],
+        5: ["RR-R-R-R", "RR-RR-R", "RRR-R-R", "RRR-RR", "RRRR-R", "RRRRR"],
+        6: ["RR-R-R-R-R", "RR-RR-R-R", "RR-RR-RR", "RRR-R-R-R", "RRR-RR-R",
+            "RRRR-R-R", "RRRR-RR", "RRRRR-R", "RRRRRR"]
+    }
+    test_state_names = TEST_STATES[num_qubits]
+    NUM_ENVS = 256
+
+    # Load agent
+    if num_qubits == 6:
+        agent = torch.load(PATH_6Q_AGENT, map_location='cpu')
+    elif num_qubits == 5:
+        agent = torch.load(PATH_5Q_AGENT, map_location='cpu')
+    elif num_qubits == 4:
+        agent = torch.load(PATH_4Q_AGENT, map_location='cpu')
+    else:
+        raise ValueError(f'Cannot find agent for {num_qubits}-qubit system')
+    for enc in agent.policy_network.net:
+        enc.activation_relu_or_gelu = 1
+    agent.policy_network.eval()
+
+    fig, ax = plt.subplots(figsize=(2 + 2.2*len(test_state_names), 4))
+    ax.set_axis_off()
+    row_labels = ["num steps",
+                  "final $S_{ent}$",
+                  "\% solved",
+                  "num steps",
+                  "final $S_{ent}$",
+                  "\% solved"]
+    row_colors = ["#a2dce8", "#a2dce8", "#a2dce8",
+                  "#e8bca2", "#e8bca2", "#e8bca2"]
+
+    np.random.seed(4)
+    num_actions = num_qubits * (num_qubits - 1) // 2
+    col_labels = []
+    cell_text = []
+
+    # Do the tests
+    for state_str in test_state_names:
+        # Generate test states
+        initial_states = np.array(
+            [str2state(state_str) for _ in range(num_tests)])
+
+        # Test RL agent
+        RL_res = test_agent(agent, initial_states, num_envs=NUM_ENVS,
+                            obs_fn="rdm_2q_mean_real", max_episode_steps=250)
+        RL_avg_len = np.mean(RL_res["lengths"][RL_res["done"]])
+        RL_std_len = np.std(RL_res["lengths"][RL_res["done"]])
+        RL_avg_ent = np.mean(RL_res["entanglements"][RL_res["done"]])
+        RL_std_ent = np.std(RL_res["entanglements"][RL_res["done"]])
+        RL_solves  = np.mean(RL_res["done"])
+
+        # Test random agent
+        rand_res = test_agent(RandomAgent(num_actions), initial_states,
+                                num_envs=NUM_ENVS, obs_fn="rdm_2q_mean_real",
+                                max_episode_steps=250)
+        rand_avg_len = np.mean(rand_res["lengths"][rand_res["done"]])
+        rand_std_len = np.std(rand_res["lengths"][rand_res["done"]])
+        rand_avg_ent = np.mean(rand_res["entanglements"][rand_res["done"]])
+        rand_std_ent = np.std(rand_res["entanglements"][rand_res["done"]])
+        rand_solves  = np.mean(rand_res["done"])
+
+        # Create a table column for this kind of initial states
+        col_labels.append(str2latex(state_str))
+        col_cell_text = [
+            f"{RL_avg_len:.2f} ± {RL_std_len:.2f}",
+            f"{RL_avg_ent:.2E}",
+            f"{100 * RL_solves:.2f}%",
+            f"{rand_avg_len:.2f ± {rand_std_len:.2f}}",
+            f"{rand_avg_ent:.2E}",
+            f"{100 * rand_solves:.2f}%"
+        ]
+        cell_text.append(col_cell_text)
+
+    cell_text = np.array(cell_text).T
+    table = ax.table(
+        cellText=cell_text, rowLabels=row_labels, colLabels=col_labels,
+        loc="upper center", #colWidths=[0.9/n_cols] * n_cols,
+        rowColours=row_colors, bbox=[0.05, 0.1, 1.0, 0.75])
+    table.auto_set_font_size(False)
+    table.set_fontsize(12)
+    ax.set_title(f"{num_qubits} Qubits")
+    return fig
+
+
 def figure1(initial_state, state_name=''):
     #
     # Figure contains only 1 ax and almost everything drawn with
@@ -411,4 +521,11 @@ if __name__ == '__main__':
     fig.savefig('test_figure3.pdf')
     fig = figure1(initial_5q_states["|RRR-RR>"],
                   state_name=r'$|R_{123}\rangle|R_{45}\rangle$')
-    fig.savefig('test_figure1.pdf')
+    
+    # Figure 2
+    fig4 = figure2(num_qubits=4, num_tests=1000)
+    fig4.savefig('test_figure2_4.pdf')
+    fig5 = figure2(num_qubits=5, num_tests=1000)
+    fig5.savefig('test_figure2_5.pdf')
+    fig6 = figure2(num_qubits=6, num_tests=1000)
+    fig6.savefig('test_figure2_6.pdf')

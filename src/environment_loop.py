@@ -2,10 +2,16 @@ import logging
 import os
 import time
 import warnings
-
 import numpy as np
 import torch
+from collections import defaultdict
 from tqdm import tqdm
+import sys
+
+file_path = os.path.split(os.path.abspath(__file__))[0]
+project_dir = os.path.abspath(os.path.join(file_path, os.pardir))
+sys.path.append(project_dir)
+from src.quantum_env import QuantumEnv
 
 
 def environment_loop(seed, agent, env, num_iters, steps, log_dir,
@@ -131,4 +137,67 @@ def environment_loop(seed, agent, env, num_iters, steps, log_dir,
     env.close()
     agent.save(log_dir)
 
-#
+
+def test_agent(agent, initial_states, **environment_kwargs):
+    """
+    Test the agent on batch of initial states.
+
+    Parameters:
+        agent: BaseAgent
+            The agent to test
+        initial_states: numpy.ndarray
+            Batch of initial states.
+        environment_kwargs: dict
+            Arguments passed to environment at initialization
+
+    Returns: dict
+        Dictionary with test results
+    """
+
+    # Initialize the environment.
+    num_qubits = initial_states.ndim - 1
+    environment_kwargs["num_qubits"] = num_qubits
+    n_states = len(initial_states)
+    num_envs = environment_kwargs.get('num_envs', -1)
+    if num_envs < 0:
+        num_envs = 128
+    if num_envs > n_states:
+        warnings.warn("`num_envs` is greater than the number of initial states."
+                      " `num_envs` will be changed to `len(initial_states)`.")
+        num_envs = n_states
+    environment_kwargs.pop("num_qubits", None)
+    environment_kwargs.pop("num_envs", None)
+
+    results = defaultdict(list)
+    for n in range(0, n_states, num_envs):
+        batch = initial_states[n:n+num_envs]
+        env = QuantumEnv(num_qubits=num_qubits, num_envs=len(batch),
+                         **environment_kwargs)
+        env.reset()
+        env.simulator.states = batch
+        o = env.obs_fn(env.simulator.states)
+
+        lengths = [None] * env.num_envs
+        done = [False for _ in range(env.num_envs)]
+
+        for _ in range(env.max_episode_steps - 1):
+            o = torch.from_numpy(o)
+            pi = agent.policy(o)    # uses torch.no_grad
+            acts = torch.argmax(pi.probs, dim=1).cpu().numpy() # greedy selection
+
+            o, r, t, tr, infos = env.step(acts, reset=False)
+            if (t | tr).any():
+                for k in range(env.num_envs):
+                    if (t[k] | tr[k]) and (lengths[k] is None):
+                        lengths[k] = infos["episode"]["l"][k]
+                        done[k] = True
+            if np.all(done):
+                break
+        results["lengths"].extend(lengths)
+        results["done"].extend(done)
+        results["entanglements"].extend(env.simulator.entanglements)
+
+    results["lengths"] = np.array(results["lengths"])
+    results["done"] = np.array(results["done"])
+    results["entanglements"] = np.array(results["entanglements"])
+    return results

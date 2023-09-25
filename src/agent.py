@@ -78,4 +78,14 @@ class PGAgent:
         with open(os.path.join(dir, "train_history.pickle"), "wb") as f:
             pickle.dump(self.train_history, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-#
+class RandomAgent:
+
+    def __init__(self, num_actions):
+        self.num_actions = int(num_actions)
+
+    def policy(self, obs):
+        batch_size = len(obs)
+        probs = torch.zeros((batch_size, self.num_actions), dtype=torch.float32)
+        a = torch.randint(0, self.num_actions, (batch_size,))
+        probs[torch.arange(batch_size), a] = 1.0
+        return Categorical(probs=probs)
