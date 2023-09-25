@@ -60,10 +60,10 @@ TRANSFORMER_POLICY = load_policy(
 #   Policy with transformer network + constrain that preserves the order
 #   of entanglements, i.e if S_i < S_j then S_i' < S_j' and vice versa, where
 #   S are the entanglements before applying action, S' after action.
-QS_POLICY = load_policy(
+ORDERED_POLICY = load_policy(
     os.path.join(
         project_root,
-        "logs/4q_MOD2_pGen_0.9_attnHeads_2_tLayers_2_ppoBatch_512_entReg_0.1_embed_128_mlp_256/agent.pt"
+        "logs/4q_10000_iters_haar_unif2_1024envs/agent.pt"
 ))
 
 
@@ -103,7 +103,7 @@ def get_action_4q(
         i, j = ACTION_SET_REDUCED[a]
     elif policy == 'ordered':
         x = _prepare_reduced_real_input(rdms6)
-        a = eval_policy(x, QS_POLICY)
+        a = eval_policy(x, ORDERED_POLICY)
         i, j = ACTION_SET_REDUCED[a]
     else:
         raise ValueError("`policy` must be one of ('universal', " \

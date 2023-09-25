@@ -256,7 +256,7 @@ def do_rlenv_rollout(state, policy):
     if policy == "transformer":
         policy_net = TRANSFORMER_POLICY
     elif policy == "ordered":
-        policy_net = QS_POLICY
+        policy_net = ORDERED_POLICY
     else:
         raise ValueError("Test is valid only with 'ordered' or 'transformer' "
                          "policies.")
