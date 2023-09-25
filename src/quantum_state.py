@@ -115,11 +115,10 @@ class VectorQuantumState:
         # We will apply the action so that the leading quibt is the one that
         # has more entanglement entropy.
         _qubit_indices = np.array([self.actions[a] for a in acts])
-        _ent_relation = np.array([
-            self.entanglements[ax0, _qubit_indices[:, 0]] >= \
-            self.entanglements[ax0, _qubit_indices[:, 1]] + EPS
-        ])
-        qubit_indices = np.where(_ent_relation, _qubit_indices, _qubit_indices[:,::-1])
+        _ent_relation = (self.entanglements[ax0, _qubit_indices[:, 0]] >= \
+                         self.entanglements[ax0, _qubit_indices[:, 1]] + EPS)
+        qubit_indices = np.where(
+            _ent_relation[:, None], _qubit_indices, _qubit_indices[:,::-1])
         self.preswaps_ = ~_ent_relation
         permute_qubits(batch, qubit_indices, Q, inverse=False)
 
@@ -145,51 +144,28 @@ class VectorQuantumState:
         self._states = phase_norm(batch)
 
         # Recalculate entanglements only for q0 and q1.
-        # Sent_q0, Sent_q1 = calculate_q0_q1_entropy_from_rhos(rhos)
-        # self.entanglements[np.arange(N), qubit_indices[:, 0]] = Sent_q0
-        # self.entanglements[np.arange(N), qubit_indices[:, 1]] = Sent_q1
+        Sent_q0, Sent_q1 = calculate_q0_q1_entropy_from_rhos(rhos)
+        q0_entanglement = np.where(self.preswaps_, Sent_q1, Sent_q0)
+        q1_entanglement = np.where(self.preswaps_, Sent_q0, Sent_q1)
+        self.entanglements[ax0, qubit_indices[:, 0]] = q0_entanglement
+        self.entanglements[ax0, qubit_indices[:, 1]] = q1_entanglement
         self.entanglements = entropy(self._states)
 
         # Do postswaps
-        _post_ent_relation = np.array([
-            self.entanglements[ax0, _qubit_indices[:, 0]] >= \
-            self.entanglements[ax0, _qubit_indices[:, 1]] + EPS
-        ])
+        _post_ent_relation = (self.entanglements[ax0, _qubit_indices[:, 0]] >= \
+                              self.entanglements[ax0, _qubit_indices[:, 1]] + EPS)
         postswaps_ = []
         for n in range(N):
             if _post_ent_relation[n] ^ _ent_relation[n]:
                 i, j = _qubit_indices[n]
                 self._states[n] = np.swapaxes(self._states[n], i, j)
+                self.entanglements[n,i], self.entanglements[n,j] = \
+                self.entanglements[n,j], self.entanglements[n,i]
                 postswaps_.append(True)
             else:
                 postswaps_.append(False)
         self.postswaps_ = np.array(postswaps_)
 
-        # Undo qubit permutations. Return the qubits modified by acts back to
-        # their original positions. In addition, we will preserve the relation
-        # between S(q_i) and S(q_j). Note that the qubits were already arranged
-        # so that S(q_i) > S(q_j). Thus, if S'(q_i) < S'(q_j), then we will
-        # swap qubits i and j.
-        # qubit_indices = [
-        #     (j, i) if self.entanglements[idx][i] < self.entanglements[idx][j] else (i, j)
-        #     for idx, (i, j) in enumerate(_qubit_indices)
-        # ]
-        # qubit_indices = np.array(qubit_indices, dtype=np.int32)
-        # cond_ent = np.array([self.entanglements[n][i] < self.entanglements[n][j]
-        #                         for n, (i,j) in enumerate(_qubit_indices)])
-        # self.postswaps_ = cond_ent
-        # permute_qubits(batch, qubit_indices, Q, inverse=True)
-
-        # Finally, we will update the entanglements to reflect any swapping.
-        # If S'(q_i) < S'(q_j), then the qubits were swapped and we need to swap
-        # the entanglements as well.
-        # for idx, (i, j) in enumerate(qubit_indices):
-        #     self.entanglements[idx] = entropy(np.expand_dims(self._states[idx], 0))
-        #     if self.entanglements[idx][i] < self.entanglements[idx][j]:
-        #         continue
-        #     self.entanglements[idx][i], self.entanglements[idx][j] = \
-        #         self.entanglements[idx][j], self.entanglements[idx][i]
-        self.entanglements = entropy(self._states)
 
     def reset_sub_environment_(self, k):
         if self.state_generator_name == "haar_full":
@@ -229,7 +205,7 @@ def sample_haar_unif(num_qubits, min_entangled=1, **kwargs):
     psi = sample_haar_full(m).ravel()
     r = num_qubits - m
     while r > min_entangled:
-        q = np.random.randint(min_entangled, m + 1)
+        q = np.random.randint(min_entangled, min(m + 1, r + 1))
         psi = np.kron(psi, sample_haar_full(q).ravel())
         r -= q
     # Draw the last one
