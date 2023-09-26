@@ -315,7 +315,7 @@ def figure2(num_qubits, num_tests=10_000):
             f"{RL_avg_len:.2f} ± {RL_std_len:.2f}",
             f"{RL_avg_ent:.2E}",
             f"{100 * RL_solves:.2f}%",
-            f"{rand_avg_len:.2f ± {rand_std_len:.2f}}",
+            f"{rand_avg_len:.2f} ± {rand_std_len:.2f}",
             f"{rand_avg_ent:.2E}",
             f"{100 * rand_solves:.2f}%"
         ]
