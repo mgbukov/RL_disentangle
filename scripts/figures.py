@@ -244,7 +244,14 @@ def figure3(initial_state, selected_actions=None):
     return fig
 
 
-def figure2(num_qubits, num_tests=10_000):
+def figure2(num_qubits, num_tests=10_000, max_steps=250):
+
+    def _format_entanglement(ent):
+        if ent <= np.finfo(ent.dtype).eps:
+            return "0.00"
+        magnitude = int(np.ceil(-np.log10(ent)))
+        a = ent * (10 ** magnitude)
+        return f"${a:.2f} \\times 10^{{{-magnitude}}}$"
 
     TEST_STATES = {
         4: ["RR-R-R", "RR-RR", "RRR-R", "RRRR"],
@@ -271,13 +278,14 @@ def figure2(num_qubits, num_tests=10_000):
     fig, ax = plt.subplots(figsize=(2 + 2.2*len(test_state_names), 4))
     ax.set_axis_off()
     row_labels = ["num steps",
+                  "",
                   "final $S_{ent}$",
+                  "",
                   "\% solved",
-                  "num steps",
-                  "final $S_{ent}$",
-                  "\% solved"]
-    row_colors = ["#a2dce8", "#a2dce8", "#a2dce8",
-                  "#e8bca2", "#e8bca2", "#e8bca2"]
+                  ""]
+    # row_colors = ["#a2dce8", "#a2dce8", "#a2dce8",
+    #               "#e8bca2", "#e8bca2", "#e8bca2"]
+    row_colors = ["#a2dce8", "#fcecd4"] * 4
 
     np.random.seed(4)
     num_actions = num_qubits * (num_qubits - 1) // 2
@@ -292,39 +300,38 @@ def figure2(num_qubits, num_tests=10_000):
 
         # Test RL agent
         RL_res = test_agent(agent, initial_states, num_envs=NUM_ENVS,
-                            obs_fn="rdm_2q_mean_real", max_episode_steps=250)
-        RL_avg_len = np.mean(RL_res["lengths"][RL_res["done"]])
-        RL_std_len = np.std(RL_res["lengths"][RL_res["done"]])
-        RL_avg_ent = np.mean(RL_res["entanglements"][RL_res["done"]])
-        RL_std_ent = np.std(RL_res["entanglements"][RL_res["done"]])
-        RL_solves  = np.mean(RL_res["done"])
+                            obs_fn="rdm_2q_mean_real", max_episode_steps=max_steps)
+
+        RL_avg_len = np.nanmean(RL_res["lengths"][RL_res["done"]])
+        RL_std_len = np.nanstd(RL_res["lengths"][RL_res["done"]])
+        RL_avg_ent = np.nanmean(RL_res["entanglements"][RL_res["done"]])
+        RL_solves  = np.nanmean(RL_res["done"])
 
         # Test random agent
         rand_res = test_agent(RandomAgent(num_actions), initial_states,
                                 num_envs=NUM_ENVS, obs_fn="rdm_2q_mean_real",
-                                max_episode_steps=250)
-        rand_avg_len = np.mean(rand_res["lengths"][rand_res["done"]])
-        rand_std_len = np.std(rand_res["lengths"][rand_res["done"]])
-        rand_avg_ent = np.mean(rand_res["entanglements"][rand_res["done"]])
-        rand_std_ent = np.std(rand_res["entanglements"][rand_res["done"]])
-        rand_solves  = np.mean(rand_res["done"])
+                                max_episode_steps=max_steps)
+        rand_avg_len = np.nanmean(rand_res["lengths"][rand_res["done"]])
+        rand_std_len = np.nanstd(rand_res["lengths"][rand_res["done"]])
+        rand_avg_ent = np.nanmean(rand_res["entanglements"][rand_res["done"]])
+        rand_solves  = np.nanmean(rand_res["done"])
 
         # Create a table column for this kind of initial states
         col_labels.append(str2latex(state_str))
         col_cell_text = [
             f"{RL_avg_len:.2f} ± {RL_std_len:.2f}",
-            f"{RL_avg_ent:.2E}",
-            f"{100 * RL_solves:.2f}%",
             f"{rand_avg_len:.2f} ± {rand_std_len:.2f}",
-            f"{rand_avg_ent:.2E}",
-            f"{100 * rand_solves:.2f}%"
+            _format_entanglement(RL_avg_ent),
+            _format_entanglement(rand_avg_ent),
+            f"{RL_solves:.2%}",
+            f"{rand_solves:.2%}"
         ]
         cell_text.append(col_cell_text)
 
     cell_text = np.array(cell_text).T
     table = ax.table(
         cellText=cell_text, rowLabels=row_labels, colLabels=col_labels,
-        loc="upper center", #colWidths=[0.9/n_cols] * n_cols,
+        loc="upper center", cellLoc="center", #colWidths=[0.9/n_cols] * n_cols,
         rowColours=row_colors, bbox=[0.05, 0.1, 1.0, 0.75])
     table.auto_set_font_size(False)
     table.set_fontsize(12)
