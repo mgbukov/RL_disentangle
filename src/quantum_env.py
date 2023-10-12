@@ -37,7 +37,8 @@ class QuantumEnv():
             obs_fn: string, optional
                 The name of the observation function to be used. One of
                 ["phase_norm", "rdm_1q", "rdm_2q_complex", "rdm_2q_real",
-                 "rdm_2q_half", "rdm_2q_mean_real"].
+                 "rdm_2q_half", "rdm_2q_mean_real", "rdm_2q_nisq_mean",
+                 "rdm_2q_nisq_mean_real"].
                 Default: "phase_norm".
             state_generator: string
                 Controls how new states are generated in reset(). See
@@ -293,6 +294,96 @@ def rdm_2q_mean_real(states):
     """
     rdms = rdm_2q_mean_complex(states)        # rdms.shape = (N, Q*(Q-1)/2, 16)
     return np.dstack([rdms.real, rdms.imag])  # rdms.shape = (N, Q*(Q-1)/2, 32)
+
+
+def rdm_2q_nisq_mean(states, bitflip_noise=0.02, ampdeph=True):
+    """
+    Returns 2-qubit RDM observations with simulated NISQ noise added.
+    Only RDMs for qubit indices i < j are returned. The RDMS resulting
+    from the qubits (i,j) and (j,i) are averaged.
+
+    Returns:
+        obs: np.ndarray, dtype=np.complex64
+            Numpy tensor with shape (N, Q*(Q-1)/2, 16), where N = number of
+            episodes, Q = number of qubits
+    """
+    rdms = rdm_2q_half(states)
+    N, Q, _ = rdms.shape
+    _rdms = rdms.reshape(-1, 4, 4)
+
+    # Bit-flip errors constants
+    X = np.array([[0,1], [1,0]], dtype=np.complex64)
+    I = np.eye(2,2, dtype=np.complex64)
+    X1  = np.kron(X, I)                             # Flip qubit 1
+    X2  = np.kron(I, X)                             # Flip qubit 2
+    X12 = np.kron(X, X)                             # Flip qbuit 1 & 2
+    p00 = (1 - bitflip_noise) ** 2                  # P(no flips)
+    p01 = (1 - bitflip_noise) * bitflip_noise       # P(flip 1 qubit)
+    p11 = bitflip_noise ** 2                        # P(flip 2 qubits)
+
+    # Amplitude dampening constants
+    num_qubits = int(np.ceil(Q ** 0.5))
+    timesteps = np.random.randint(0, 2 ** num_qubits)
+    tau = 3 * timesteps * 0.4205      # 3 * nsteps * tau_2(us)
+    T1 = 108.966
+    T2 = 80.004
+    E0a = np.array([[1, 0], [0, np.sqrt(np.exp(-tau / T1))]], dtype=np.complex64)
+    E1a = np.array([[0, np.sqrt(1 - np.exp(-tau/T1))], [0, 0]], dtype=np.complex64)
+    E00a = np.kron(E0a, E0a)
+    E01a = np.kron(E0a, E1a)
+    E10a = np.kron(E1a, E0a)
+    E11a = np.kron(E1a, E1a)
+
+    # Dephasing constants
+    Tphi = (2 * T1 * T2) / (2 * T1 - T2)
+    E0d = np.array([[1, 0], [0, np.exp(-tau/Tphi)]], dtype=np.complex64)
+    E1d = np.array([[0, 0], [0, np.sqrt(1 - np.exp(-2*tau/Tphi))]], dtype=np.complex64)
+    E00d = np.kron(E0d, E0d)
+    E01d = np.kron(E0d, E1d)
+    E10d = np.kron(E1d, E0d)
+    E11d = np.kron(E1d, E1d)
+
+    result = []
+    for rdm in _rdms:
+        if ampdeph:
+            # Amplitude damping
+            ad_rdm = E00a @ rdm @ E00a.conj().T + \
+                     E01a @ rdm @ E01a.conj().T + \
+                     E10a @ rdm @ E10a.conj().T + \
+                     E11a @ rdm @ E11a.conj().T
+            # Dephasing
+            df_rdm = E00d @ ad_rdm @ E00d.conj().T + \
+                     E01d @ ad_rdm @ E01d.conj().T + \
+                     E10d @ ad_rdm @ E10d.conj().T + \
+                     E11d @ ad_rdm @ E11d.conj().T
+        else:
+            df_rdm = rdm
+        # Bit flip errors
+        bf_rdm = p00 * df_rdm + \
+                 2*p01*(X1 @ df_rdm @ X1.conj().T + X2 @ df_rdm @ X2.conj().T) + \
+                 p11 * (X12 @ df_rdm @ X12.conj().T)
+        # -----
+        noisy_rdm_ij = bf_rdm                                     # rho(i,j) i<j
+        noisy_rdm_ji = noisy_rdm_ij[[0,2,1,3], :][:, [0,2,1,3]]   # rho(j,i)
+        # Average
+        result.append(0.5 * (noisy_rdm_ij + noisy_rdm_ji))
+
+    return np.array(result).reshape(N, Q, 16)
+
+
+def rdm_2q_nisq_mean_real(states, bitflip_noise=0.02, ampdeph=True):
+    """
+    Returns 2-qubit RDM observations with simulated NISQ noise added.
+    Only RDMs for qubit indices i < j are returned. The real and imaginary
+    parts are stacked in the last dimension.
+
+    Returns:
+        obs: np.ndarray, dtype=np.float32
+            Numpy tensor with shape (N, Q*(Q-1)/2, 32), where N = number of
+            episodes, Q = number of qubits
+    """
+    rdms = rdm_2q_nisq_mean(states, bitflip_noise, ampdeph)
+    return np.dstack([rdms.real, rdms.imag])
 
 
 #------------------------------ Reward functions ------------------------------#
