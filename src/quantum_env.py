@@ -324,9 +324,9 @@ def rdm_2q_nisq_mean(states, bitflip_noise=0.02, ampdeph=True):
     # Amplitude dampening constants
     num_qubits = int(np.ceil(Q ** 0.5))
     timesteps = np.random.randint(0, 2 ** num_qubits)
-    tau = 3 * timesteps * 0.4205      # 3 * nsteps * tau_2(us)
-    T1 = 108.966
-    T2 = 80.004
+    tau = 3 * timesteps * 0.640      # 3 * nsteps * tau_2(us)
+    T1 = 81.80
+    T2 = 29.64
     E0a = np.array([[1, 0], [0, np.sqrt(np.exp(-tau / T1))]], dtype=np.complex64)
     E1a = np.array([[0, np.sqrt(1 - np.exp(-tau/T1))], [0, 0]], dtype=np.complex64)
     E00a = np.kron(E0a, E0a)
