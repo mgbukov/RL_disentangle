@@ -296,7 +296,7 @@ def rdm_2q_mean_real(states):
     return np.dstack([rdms.real, rdms.imag])  # rdms.shape = (N, Q*(Q-1)/2, 32)
 
 
-def rdm_2q_nisq_mean(states, bitflip_noise=0.02, ampdeph=True):
+def rdm_2q_nisq_mean(states, max_bitflip_noise=0.15, ampdeph=True):
     """
     Returns 2-qubit RDM observations with simulated NISQ noise added.
     Only RDMs for qubit indices i < j are returned. The RDMS resulting
@@ -317,6 +317,7 @@ def rdm_2q_nisq_mean(states, bitflip_noise=0.02, ampdeph=True):
     X1  = np.kron(X, I)                             # Flip qubit 1
     X2  = np.kron(I, X)                             # Flip qubit 2
     X12 = np.kron(X, X)                             # Flip qbuit 1 & 2
+    bitflip_noise = np.random.uniform(0.0, max_bitflip_noise)
     p00 = (1 - bitflip_noise) ** 2                  # P(no flips)
     p01 = (1 - bitflip_noise) * bitflip_noise       # P(flip 1 qubit)
     p11 = bitflip_noise ** 2                        # P(flip 2 qubits)
@@ -371,7 +372,7 @@ def rdm_2q_nisq_mean(states, bitflip_noise=0.02, ampdeph=True):
     return np.array(result).reshape(N, Q, 16)
 
 
-def rdm_2q_nisq_mean_real(states, bitflip_noise=0.02, ampdeph=True):
+def rdm_2q_nisq_mean_real(states, max_bitflip_noise=0.15, ampdeph=True):
     """
     Returns 2-qubit RDM observations with simulated NISQ noise added.
     Only RDMs for qubit indices i < j are returned. The real and imaginary
@@ -382,7 +383,7 @@ def rdm_2q_nisq_mean_real(states, bitflip_noise=0.02, ampdeph=True):
             Numpy tensor with shape (N, Q*(Q-1)/2, 32), where N = number of
             episodes, Q = number of qubits
     """
-    rdms = rdm_2q_nisq_mean(states, bitflip_noise, ampdeph)
+    rdms = rdm_2q_nisq_mean(states, max_bitflip_noise, ampdeph)
     return np.dstack([rdms.real, rdms.imag])
 
 
