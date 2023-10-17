@@ -9,6 +9,10 @@ from src.quantum_state import VectorQuantumState
 observation_space = namedtuple("observation_space", ["shape"])
 action_space = namedtuple("action_space", ["n"])
 
+SIGMA_X = np.array([[0, 1], [1, 0]], dtype=np.complex64)
+SIGMA_Y = np.array([[0, -1j], [1j, 0]], dtype=np.complex64)
+SIGMA_Z = np.array([[1, 0], [0, -1]], dtype=np.complex64)
+
 
 class QuantumEnv():
     """QuantumEnv is a wrapper around VectorQuantumState conforming to the
@@ -385,6 +389,108 @@ def rdm_2q_nisq_mean_real(states, max_bitflip_noise=0.15, ampdeph=True):
     """
     rdms = rdm_2q_nisq_mean(states, max_bitflip_noise, ampdeph)
     return np.dstack([rdms.real, rdms.imag])
+
+
+def rsqr(states, max_angle=np.pi/6, max_rotated_qubits=1):
+    """
+    Returns vector states with random single qubit rotations applied
+    over at most `max_rotated_qubits`. The axis of rotation is arbitrary,
+    the angle is at most ±`max_angle`.
+
+    Returns:
+        obs: np.ndarray, dtype=np.complex64
+            Numpy tensor with shape (N, 2**Q), where N = number of
+            episodes, Q = number of qubits
+    """
+    from scipy.linalg import expm
+
+    N = states.shape[0]
+    Q = states.ndim - 1
+    choices = np.arange(Q, dtype=np.int32)
+    shape = states.shape[1:]
+
+    # Apply random rotations
+    rotated_states = states.copy()
+    for n in range(N):
+        s = rotated_states[n]
+        num_rotated_qubits = np.random.randint(1, max_rotated_qubits+1)
+        indices = np.random.choice(choices, num_rotated_qubits, replace=False)
+        for i in indices:
+            phi = np.random.uniform(0.0, 2*np.pi)
+            theta = np.random.uniform(0.0, np.pi)
+            angle = np.random.uniform(-max_angle, max_angle)
+            h = (np.sin(theta) * np.cos(phi),
+                np.sin(theta) * np.sin(phi),
+                np.cos(theta))
+            M = h[0] * SIGMA_X + h[1] * SIGMA_Y + h[2] * SIGMA_Z
+            U = expm(-1.0j * (angle / 2) * M)
+            P = (i,) + tuple(j for j in range(Q) if i != j)
+            s_rotated = U @ np.transpose(s, P).reshape(2, -1)
+            s_rotated = np.transpose(s_rotated.reshape(shape), np.argsort(P))
+            s = s_rotated
+        rotated_states[n] = s
+    return np.array(rotated_states)
+
+
+def rdm_2q_rsqr_mean(states, max_angle=np.pi/6, max_rotated_qubits=1):
+    """
+    Returns 2-qubit RDM observations with random single qubit rotations applied
+    over at most `max_rotated_qubits`. The axis of rotation is arbitrary,
+    the angle is at most ±`max_angle`. RDMs for (i,j) and (j,i) are averaged.
+
+    Returns:
+        obs: np.ndarray, dtype=np.complex64
+            Numpy tensor with shape (N, Q*(Q-1)/2, 16), where N = number of
+            episodes, Q = number of qubits
+    """
+    rotated_states = rsqr(states, max_angle, max_rotated_qubits)
+    return rdm_2q_mean_complex(rotated_states)
+
+
+def rdm_2q_rsqr_mean_real(states, max_angle=np.pi/6, max_rotated_qubits=1):
+    """
+    Returns 2-qubit RDM observations with random single qubit rotations applied
+    over at most `max_rotated_qubits`. The axis of rotation is arbitrary,
+    the angle is at most ±`max_angle`. RDMs for (i,j) and (j,i) pairs are
+    averaged. Real and imaginary parts are stacked in the last dimension.
+
+    Returns:
+        obs: np.ndarray, dtype=np.float32
+            Numpy tensor with shape (N, Q*(Q-1)/2, 32), where N = number of
+            episodes, Q = number of qubits
+    """
+    rdms = rdm_2q_rsqr_mean(states, max_angle, max_rotated_qubits)
+    return np.dstack([rdms.real, rdms.imag])
+
+
+def rdm_2q_rsqr_nisq_mean(states, max_angle=np.pi/6, max_rotated_qubits=1,
+                          max_bitflip_noise=0.15, ampdeph=True):
+    """
+    Returns 2-qubit RDM observations with random single qubit rotations applied
+    and simulated NISQ noise. RDMs for (i,j) and (j,i) pairs are averaged.
+
+    Returns:
+        obs: np.ndarray, dtype=np.complex64
+            Numpy tensor with shape (N, Q*(Q-1)/2, 16), where N = number of
+            episodes, Q = number of qubits
+    """
+    rotated_states = rsqr(states, max_angle, max_rotated_qubits)
+    return rdm_2q_nisq_mean(rotated_states, max_bitflip_noise, ampdeph)
+
+
+def rdm_2q_rsqr_nisq_mean_real(states, max_angle=np.pi/6, max_rotated_qubits=1,
+                               max_bitflip_noise=0.15, ampdeph=True):
+    """
+    Returns 2-qubit RDM observations with random single qubit rotations applied
+    and simulated NISQ noise. RDMs for (i,j) and (j,i) pairs are averaged.
+
+    Returns:
+        obs: np.ndarray, dtype=np.float32
+            Numpy tensor with shape (N, Q*(Q-1)/2, 32), where N = number of
+            episodes, Q = number of qubits
+    """
+    rotated_states = rsqr(states, max_angle, max_rotated_qubits)
+    return rdm_2q_nisq_mean_real(rotated_states, max_bitflip_noise, ampdeph)
 
 
 #------------------------------ Reward functions ------------------------------#
