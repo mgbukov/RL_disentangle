@@ -229,16 +229,18 @@ class RandomAgent():
 
     def start(self, psi, env, num_iter=10_000, verbose=False):
         path = []
+        entanglements = []
         env.states = np.array([psi])
 
         for _ in range(num_iter):
             act = np.random.randint(low=0, high=env.num_actions)
             _ = env.apply([act])
             path.append(act)
+            entanglements.append(env.entanglements.copy())
             # if (env.entanglements < self.epsi).all():
             if env.entanglements.mean() < self.epsi:
-                return path
-        return None
+                return path, entanglements
+        return None, None
 
 
 class GreedyAgent():
@@ -248,6 +250,7 @@ class GreedyAgent():
 
     def start(self, psi, env, qubit=None, num_iter=10_000, verbose=False):
         path = []
+        entanglements = []
         env.states = np.array([psi])
 
         for _ in range(num_iter):
@@ -265,16 +268,16 @@ class GreedyAgent():
             imincost = np.argmin(costs)
             mincost = costs[imincost]
             path.append(acts[imincost])
+            entanglements.append(env.entanglements.copy())
             env.states = np.array([env.states[imincost]])
 
             # Check if a goal state is reached.
             # if (qubit is not None and mincost < self.epsi) or (qubit is None and (env.entanglements < self.epsi).all()):
             if (qubit is not None and mincost < self.epsi) or (qubit is None and (env.entanglements.mean() < self.epsi)):
-                return path
+                return path, entanglements
 
-        return None
+        return None, None
 
-#
 
 if __name__ == "__main__":
     import json
@@ -286,8 +289,8 @@ if __name__ == "__main__":
     from src.quantum_state import VectorQuantumState
 
     # Test how fast is the search procedure running, and how many steps it takes.
-    num_test = 5
-    num_qubits = [5, 6, 8]
+    num_test = 1000
+    num_qubits = [4, 5, 6, 7, 8]
     results = {q : {} for q in num_qubits}
 
     for q in num_qubits:
@@ -295,48 +298,59 @@ if __name__ == "__main__":
 
         env = VectorQuantumState(num_qubits=q, num_envs=1)
 
-        epsi = 1e-3 if q < 8 else 1e-2
-        beam = BeamSearch(beam_size=100, epsi=epsi)
+        epsi = 1e-3 if q <= 8 else 1e-2
+        # beam = BeamSearch(beam_size=100, epsi=epsi)
         # greedy = BeamSearch(beam_size=1, epsi=epsi)
         greedy = GreedyAgent(epsi=epsi)
-        beam_qbyq = SearchExpert(beam_size=100, epsi=epsi)
-        greedy_qbyq = SearchExpert(beam_size=1, epsi=epsi)
+        # beam_qbyq = SearchExpert(beam_size=100, epsi=epsi)
+        # greedy_qbyq = SearchExpert(beam_size=1, epsi=epsi)
         rnd = RandomAgent(epsi=epsi)
 
         agents = {
-            "beam": beam, "greedy": greedy, "beam_qbyq": beam_qbyq, "greedy_qbyq": greedy_qbyq, "random": rnd,
+            # "beam": beam,
+            "greedy": greedy,
+            # "beam_qbyq": beam_qbyq,
+            # "greedy_qbyq": greedy_qbyq,
+            "random": rnd,
         }
 
         for name, a in agents.items():
             print(f"  running {name} agent")
 
             path_len, solution_time = [], []
+            entanglements = []
             for i in tqdm(range(num_test)):
                 env.set_random_states_()
                 psi = env.states[0]
 
                 tic = time.time()
-                path = a.start(psi, env, verbose=False)
+                path, ents = a.start(psi, env, verbose=False)
                 toc = time.time()
 
                 if path is None: continue # skip non-solved
 
                 path_len.append(len(path))
+                entanglements.append(ents)
                 solution_time.append(toc-tic)
 
             if len(path_len) == 0: continue # skip systems for which no solution was found
 
             results[q].update({
                 name: {
+                    "nsteps": np.array(path_len),
+                    "elapsed": np.array(solution_time),
+                    "entanglements": entanglements,
                     "average_length": float(f"{np.array(path_len).mean():.1f}"),
                     "average_time": float(f"{np.array(solution_time).mean():.3f}"),
                 },
             })
 
-    with open("search_stats.json", "w") as f:
-        json.dump(results, f, indent="  ")
-    with open("search_stats.pkl", "wb") as f:
+    # with open("search_stats.json", "w") as f:
+    #     json.dump(results, f, indent="  ")
+    with open("search_stats_1000.pickle", "wb") as f:
         pickle.dump(results, f)
+    
+    exit()
 
     plt.style.use("ggplot")
 
