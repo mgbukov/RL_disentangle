@@ -13,7 +13,9 @@ np.set_printoptions(precision=6, suppress=True)
 
 
 def observe_rdms(state):
-    return rdm_2q_half(state.reshape(1,2,2,2,2)).reshape(6, 4, 4)
+    L = int(np.log2(state.size))
+    shape = (1,) + (2,) * L
+    return rdm_2q_half(state.reshape(shape)).reshape(-1, 4, 4)
 
 
 def fidelity(psi, phi):
@@ -197,18 +199,19 @@ def test_rdms_noise(
     return result
 
 
-def do_qiskit_rollout(state, policy):
-    MAX_STEPS = 10
+def do_qiskit_rollout(state, policy, max_steps=10):
     P = np.eye(4,4, dtype=np.complex64)
     P[[1,2]] = P[[2,1]]
     s = state.ravel()
     actions, states, Us, RDMs = [], [], [], []
     entanglements = []
     preswaps, postswaps = [], []
+    L = int(np.log2(state.size))
+    tshape = (1,) + (2,) * L
 
     n = 0
     done = False
-    while not done and n < MAX_STEPS:
+    while not done and n < max_steps:
         states.append(s.copy())
         rdms = observe_rdms(s)
         RDMs.append(rdms)
@@ -217,11 +220,11 @@ def do_qiskit_rollout(state, policy):
         U, i, j = get_action_4q(rdms, policy)
         preswaps.append(np.all(get_preswap_gate(rdms, i, j) == P))
         postswaps.append(np.all(get_postswap_gate(rdms, i, j) == P))
-        a = ACTION_SET_REDUCED.index((i,j))
+        a = get_action_index_from_ij(rdms, i, j)
         s_next, ent, _ = peek_next_4q(s, U, i, j)
         done = np.all(ent < 1e-3)
         # states in RL environemnt are phase normed
-        s = phase_norm(s_next.reshape(1,2,2,2,2)).ravel()
+        s = phase_norm(s_next.reshape(tshape)).ravel()
         actions.append(a)
         Us.append(get_U(rdms, i, j,apply_preswap=True, apply_postswap=False))
         n += 1
@@ -241,11 +244,11 @@ def do_qiskit_rollout(state, policy):
     }
 
 
-def do_rlenv_rollout(state, policy):
-    MAX_STEPS = 10
-    env = QuantumEnv(4, 1, obs_fn="rdm_2q_mean_real")
+def do_rlenv_rollout(state, policy, max_steps=10):
+    L = int(np.log2(state.size))
+    env = QuantumEnv(L, 1, obs_fn="rdm_2q_mean_real")
     env.reset()
-    env.simulator.states = state.reshape(1,2,2,2,2)
+    env.simulator.states = state.reshape((1,) + (2,) * L)
 
     actions, states, Us = [], [], []
     entanglements = []
@@ -256,14 +259,19 @@ def do_rlenv_rollout(state, policy):
     if policy == "transformer":
         policy_net = TRANSFORMER_POLICY
     elif policy == "ordered":
-        policy_net = ORDERED_POLICY
+        if L == 4:
+            policy_net = ORDERED_POLICY_4Q
+        elif L == 5:
+            policy_net = ORDERED_POLICY_5Q
+        elif L == 6:
+            policy_net = ORDERED_POLICY_6Q
     else:
         raise ValueError("Test is valid only with 'ordered' or 'transformer' "
                          "policies.")
 
     done = False
     n = 0
-    while not done and n < MAX_STEPS:
+    while not done and n < max_steps:
         s = env.simulator.states.copy()
         states.append(s.ravel())
         entanglements.append(get_entanglements(s.ravel()))
@@ -292,18 +300,19 @@ def do_rlenv_rollout(state, policy):
     }
 
 
-def test_rollout_equivalence(policy, n_tests=200):
-    env = QuantumEnv(4, 1, obs_fn="phase_norm")
+def test_rollout_equivalence(policy, n_qubits=4, n_tests=200):
+    env = QuantumEnv(n_qubits, 1, obs_fn="phase_norm")
     result = True
     failed = 0
+    max_steps = {4: 10, 5: 30, 6: 70}[n_qubits]
     # diverging_states = []
 
     for _ in range(n_tests):
         env.reset()
         env.simulator.set_random_states_()
         psi = env.simulator.states.ravel().copy()
-        qiskit_rollout = do_qiskit_rollout(psi.copy(), policy)
-        rl_env_rollout = do_rlenv_rollout(psi.copy(), policy)
+        qiskit_rollout = do_qiskit_rollout(psi.copy(), policy, max_steps)
+        rl_env_rollout = do_rlenv_rollout(psi.copy(), policy, max_steps)
         res = True
         # Test action selection
         if len(qiskit_rollout['actions']) != len(rl_env_rollout['actions']):
@@ -329,7 +338,8 @@ def test_rollout_equivalence(policy, n_tests=200):
         print('.' if res else 'F', end='', flush=True)
         failed += int(not res)
         result &= res
-    print('\ntest_rollout_equivalence():', f'{failed}/{n_tests} failed')
+    print(f'\ntest_rollout_equivalence(policy={policy}, n_qubits={n_qubits}):',
+          f'{failed}/{n_tests} failed')
     # np.save('diverging-states.npy', np.array(diverging_states))
     return result
 
@@ -341,7 +351,9 @@ if __name__ == '__main__':
     test_get_postswap_gate(100, verbose=True)
     test_get_U(100, verbose=True)
     test_peek_next_4q(100)
-    test_rollout_equivalence("ordered", 100)
+    test_rollout_equivalence("ordered", 4, 100)
+    test_rollout_equivalence("ordered", 5, 25)
+    test_rollout_equivalence("ordered", 6, 10)
 
     # Test |BB>|BB> and all it's permutations state wih noise added to RDMs
     print('Testing |BB>|BB> state with universal circuit:')
