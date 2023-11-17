@@ -23,7 +23,7 @@ mpl.rcParams['font.family'] = 'serif'
 
 
 PATH_4Q_AGENT = os.path.join(project_dir, "logs/4q_10000_iters_haar_unif2_1024envs/agent.pt")
-PATH_5Q_AGENT = os.path.join(project_dir, "logs/5q_20000iters_haar_unif2_128envs_seed0/agent.pt")
+PATH_5Q_AGENT = os.path.join(project_dir, "logs/5q_20000_iters_haar_unif2_128envs/agent.pt")
 PATH_6Q_AGENT = os.path.join(project_dir, "logs/6q_4000iters_haar_unif3_512envs_seed7_3rd/agent.pt")
 
 
@@ -43,7 +43,8 @@ def str2latex(string_descr):
     name = []
     i = 0
     for r in Rs:
-        name.append('|R_{' + f'{numbers[i:i+len(r)]}' + '}\\rangle')
+        s = r'|R_{' + f'{numbers[i:i+len(r)]}' + r'}\rangle'
+        name.append(r'\mathrm{' + s + '}')
         i += len(r)
     return "$" + ''.join(name) + "$"
 
@@ -77,6 +78,8 @@ def rollout(initial_state, max_steps=30):
     actions, entanglements, probabilities = [], [], []
     for i in range(max_steps):
         ent = env.simulator.entanglements.copy()
+        np.set_printoptions(precision=3, suppress=True)
+        print(ent[0])
         observation = torch.from_numpy(env.obs_fn(env.simulator.states))
         probs = agent.policy(observation).probs[0].cpu().numpy()
         a = np.argmax(probs)
@@ -87,6 +90,7 @@ def rollout(initial_state, max_steps=30):
         if np.all(t):
             break
     # Append final entangments
+    print(env.simulator.entanglements[0])
     assert np.all(env.simulator.entanglements <= env.epsi)
     entanglements.append(env.simulator.entanglements.copy().ravel())
 
@@ -107,19 +111,20 @@ def figure1a():
     QCY = -1        # Y coordinate of qubits' circles
     QCX = 0         # Min X coordinate of qubits' circles
     QCR = 0.35      # radius of qubits' circles
-    QFS = 20        # fontsize of qubits' text
-    QLW = 2.0       # linewidth of qubits' circles
-    WLW = 1.5       # linewidth of qubit wires
-    GLW = 4         # gate wire linewidth
-    GSS = 180       # gate wire connection scatter size
+    QFS = 13        # fontsize of qubits' text
+    QLW = 1.5       # linewidth of qubits' circles
+    WLW = 0.6       # linewidth of qubit wires
+    GLW = 2         # gate wire linewidth
+    GSS = 100       # gate wire connection scatter size
 
     # /// DERIVED LAYOUT CONSTANTS
     WIRES_BOTTOM = QCY + QCR
     WIRES_TOP = QCY + nsteps + 0.5
-    FIGSIZE = (7, 7)
+    FIGSIZE = (6, 2)
 
     # Initialize figure
-    fig, ax = plt.subplots(1, figsize=FIGSIZE)
+    fig = plt.figure(figsize=FIGSIZE)
+    ax = fig.add_axes((0.30, -0.05, 0.5, 1.2))
     # Initialize fontdict
     textdict = dict(fontsize=QFS, ha='center',
                     va='center', zorder=11)
@@ -135,7 +140,7 @@ def figure1a():
     # Draw base wires for gates (starting from qubit circles)
     for i in range(num_qubits):
         ax.plot([QCX + i, QCX + i], [WIRES_BOTTOM, WIRES_TOP],
-                zorder=0, color='k', linewidth=WLW)
+                zorder=0, color='k', alpha=0.5, linewidth=WLW)
 
     # Draw gate wires for gates
     ax.scatter([0, 1], [0, 0], s=GSS, color='k')
@@ -158,7 +163,7 @@ def figure1a():
     # Config axes
     ax.set_aspect(1.0)
     ax.set_ylim(-2, WIRES_TOP + 1)
-    ax.set_xlim(QCX - 1, QCX + num_qubits + 1)
+    ax.set_xlim(QCX - 0.5, QCX + num_qubits + 1)
     ax.set_xticks([])
     ax.set_yticks([])
     ax.spines['top'].set_visible(False)
@@ -175,29 +180,32 @@ def figure1bd():
     nsteps = 4
     QCY = -1        # Y coordinate of qubits' circles
     QCX = 0         # Min X coordinate of qubits' circles
-    QCR = 0.35      # radius of qubits' circles
-    QFS = 20        # fontsize of qubits' text
-    QLW = 2.0       # linewidth of qubits' circles
-    WLW = 1.5       # linewidth of qubit wires
-    GLW = 4         # gate wire linewidth
-    GSS = 180       # gate wire connection scatter size
+    QCR = 0.40      # radius of qubits' circles
+    QFS = 15        # fontsize of qubits' text
+    QLW = 1.5       # linewidth of qubits' circles
+    WLW = 0.6       # linewidth of qubit wires
+    GLW = 2         # gate wire linewidth
+    GSS = 100       # gate wire connection scatter size
 
     # /// DERIVED LAYOUT CONSTANTS
     WIRES_BOTTOM = QCY + QCR
     WIRES_TOP = QCY + nsteps + 0.5
-    FIGSIZE = (16, 7)
+    FIGSIZE = (6, 3.2)
 
     # Initialize figure
-    fig, axs = plt.subplots(1, 2, figsize=FIGSIZE)
+    fig = plt.figure(figsize=FIGSIZE, layout=None)
+    axl = fig.add_axes((-0.06, 0.0, 0.65, 1.))
+    axr = fig.add_axes((0.55, 0.0, 0.65, 1.))
+    axs = (axl, axr)
     # Initialize fontdict
-    textdict = dict(fontsize=QFS, ha='center',
+    textdict = dict(fontsize=QFS - 2, ha='center',
                     va='center', zorder=11)
 
     # Draw qubit circles with Y=`QCY`, X=[`QCX`, `QCX` + `num_qubits`]
     qubits_xs = np.arange(QCX, QCX + num_qubits)
     qubits_ys = np.full(num_qubits, QCY)
     for x, y in zip(qubits_xs, qubits_ys):
-        for ax in axs.flat:
+        for ax in axs:
             ax.add_patch(
                 patches.Circle((x, y), QCR, edgecolor='k', linewidth=QLW,
                                 fill=True, facecolor='white', zorder=10)
@@ -206,9 +214,9 @@ def figure1bd():
 
     # Draw base wires for gates (starting from qubit circles)
     for i in range(num_qubits):
-        for ax in axs.flat:
+        for ax in axs:
             ax.plot([QCX + i, QCX + i], [WIRES_BOTTOM, WIRES_TOP],
-                    zorder=0, color='k', linewidth=WLW)
+                    zorder=0, color='k', alpha=0.5, linewidth=WLW)
 
     # Draw gate wires for gates
     axs[0].scatter([0, 1, 2, 3], [0, 0, 0, 0], s=GSS, color='k')
@@ -238,31 +246,30 @@ def figure1bd():
     axs[1].scatter([2], [1], s=GSS, color='k',)
     axs[1].scatter([0], [1], s=GSS, color='w', edgecolors='k', linewidths=QLW)
     axs[1].scatter([0], [1], s=GSS, color='k', marker='+', linewidths=QLW)
-    axs[1].plot([0.125 ,2], [1,1], linewidth=GLW, color='k')
-    axs[1].text(0.55, 1.2, r"$CNOT^{(1,3)}$", fontdict=dict(
-        fontsize=16, ha='left', va='center'))
+    axs[1].plot([0.14, 2], [1,1], linewidth=GLW, color='k')
+    axs[1].text(0.2, 1.2, r"$\mathrm{CNOT^{(1,3)}}$", fontdict=dict(
+        fontsize=QFS-2, ha='left', va='center'))
     # CNOT Gate
     axs[1].scatter([3], [2], s=GSS, color='k',)
     axs[1].scatter([1], [2], s=GSS, color='w', edgecolor='k', linewidths=QLW)
     axs[1].scatter([1], [2], s=GSS, color='k', marker='+', linewidths=QLW)
-    axs[1].plot([1.125, 3], [2,2], linewidth=GLW, color='k')
-    axs[1].text(1.55, 2.2, r"$CNOT^{(2,4)}$", fontdict=dict(
-        fontsize=16, ha='left', va='center'))
+    axs[1].plot([1.14, 3], [2,2], linewidth=GLW, color='k')
+    axs[1].text(1.2, 2.2, r"$\mathrm{CNOT^{(2,4)}}$", fontdict=dict(
+        fontsize=QFS-2, ha='left', va='center'))
     #
     axs[1].scatter([2, 3], [3, 3], s=GSS, color='k')
     axs[1].plot([2, 3], [3, 3], linewidth=GLW, color='k')
     axs[1].text(2.5, 3.2, r"$U^{(3,4)}$", fontdict=textdict)
 
     # Draw text
-    textdict.update(ha='left')
-    axs[0].text(QCX + num_qubits, -0.5,
+    axs[0].text(QCX + num_qubits + 1.4, -0.5,
             r"$|\psi_{1,2,3,4}\rangle$", fontdict=textdict)
-    axs[0].text(QCX + num_qubits, 1.5,
+    axs[0].text(QCX + num_qubits + 1.4, 1.5,
             r"$|\psi_1\rangle|\psi_{2,3,4}\rangle$", fontdict=textdict)
-    axs[0].text(QCX + num_qubits, 2.5,
+    axs[0].text(QCX + num_qubits + 1.4, 2.5,
             r"$|\psi_1\rangle|\psi_2\rangle|\psi_{3,4}\rangle$",
             fontdict=textdict)
-    axs[0].text(QCX + num_qubits, 3.5,
+    axs[0].text(QCX + num_qubits + 1.4, 3.5,
             r"$|\psi_1\rangle|\psi_2\rangle|\psi_3\rangle|\psi_4\rangle$",
             fontdict=textdict)
 
@@ -270,7 +277,7 @@ def figure1bd():
     for ax in axs:
         ax.set_aspect(1.0)
         ax.set_ylim(-2, WIRES_TOP + 1)
-        ax.set_xlim(QCX - 1, QCX + num_qubits + 1)
+        ax.set_xlim(QCX - 0.5, QCX + num_qubits + 1)
         ax.set_xticks([])
         ax.set_yticks([])
         ax.spines['top'].set_visible(False)
@@ -283,27 +290,33 @@ def figure1bd():
 
 def figure2(path_to_search_stats):
 
+    # Old font size
+    old_fontsize = mpl.rcParams['font.size']
+    mpl.rcParams['font.size'] = 14
+
     # /// User Constants
-    ALX = 0.15
-    ALY = 0.15
-    AWI = 0.8
-    AHE = 0.8
-    BLX = 0.62
-    BLY = 0.7
-    BWI = 0.3
-    BHE = 0.2
+    AREC = (0.15, 0.10 + 0.48, 0.8, 0.37)      # top subplot (random agent)
+    BREC = (0.62, 0.345 + 0.48, 0.3, 0.1)      # top inset (random agent)
+    CREC = (0.15, 0.10, 0.8, 0.37)             # bottom subplot (greedy agent)
+    DREC = (0.62, 0.345, 0.3, 0.1)             # bottom inset (gredy agent)
 
     with open(path_to_search_stats, mode="rb") as f:
         stats = pickle.load(f)
-    
-    fig = plt.figure(figsize=(6,5))
-    axA = fig.add_axes((ALX, ALY, AWI, AHE))
+
+    fig = plt.figure(figsize=(6, 9))
+    axA = fig.add_axes(AREC)
+    axB = fig.add_axes(BREC)
+    axC = fig.add_axes(CREC)
+    axD = fig.add_axes(DREC)
     axA.set_yscale('log')
-    axB = fig.add_axes((BLX, BLY, BWI, BHE))
     axB.set_yscale('log')
+    axC.set_yscale('log')
+    axD.set_yscale('log')
     colors = ["black", "tab:red", "tab:orange", "tab:green", "tab:blue"]
     colors = list(reversed(colors))
 
+    # Plot random agent
+    step_index_disentangled = []
     for n, k in enumerate([4,5,6,7,8]):
         # Dimensions are (sample, state, single qubit entanglement)
         random_ent = stats[k]["random"]["entanglements"]
@@ -322,7 +335,7 @@ def figure2(path_to_search_stats):
         avg_entanglements_per_step = np.array(avg_entanglements_per_step)
         std_entanglements_per_step = np.array(std_entanglements_per_step)
         axA.plot(avg_entanglements_per_step, color=colors[n],
-                 linewidth=1.5, label=f"{k} qubits")
+                 linewidth=1.5, label=f"L={k}")
         axA.fill_between(
             np.arange(avg_entanglements_per_step.shape[0]),
             avg_entanglements_per_step - std_entanglements_per_step,
@@ -331,16 +344,24 @@ def figure2(path_to_search_stats):
             color=colors[n],
             alpha=0.1
         )
+        step_index_disentangled.append(
+            np.argmax(avg_entanglements_per_step < 1e-3)
+        )
 
+    axB.plot([4,5,6,7,8], step_index_disentangled, color='k', linestyle='--',
+             marker='o', linewidth=0.5)
+
+    # Plot greedy agent
+    step_index_disentangled = []
     for n, k in enumerate([4,5,6,7,8]):
         # Dimensions are (sample, state, single qubit entanglement)
-        greedy_ent = stats[k]["greedy"]["entanglements"]
-        greedy_maxsteps = max(len(x) for x in greedy_ent)
+        random_ent = stats[k]["greedy"]["entanglements"]
+        random_maxsteps = max(len(x) for x in random_ent)
         avg_entanglements_per_step = []
         std_entanglements_per_step = []
-        for i in range(greedy_maxsteps):
+        for i in range(random_maxsteps):
             ent_step_i = []
-            for arr in greedy_ent:
+            for arr in random_ent:
                 if len(arr) <= i:
                     ent_step_i.append(1e-4)
                 else:
@@ -349,8 +370,9 @@ def figure2(path_to_search_stats):
             std_entanglements_per_step.append(np.std(ent_step_i))
         avg_entanglements_per_step = np.array(avg_entanglements_per_step)
         std_entanglements_per_step = np.array(std_entanglements_per_step)
-        axB.plot(avg_entanglements_per_step, color=colors[n], linewidth=0.5)
-        axB.fill_between(
+        axC.plot(avg_entanglements_per_step, color=colors[n],
+                 linewidth=1.5, label=f"L={k}")
+        axC.fill_between(
             np.arange(avg_entanglements_per_step.shape[0]),
             avg_entanglements_per_step - std_entanglements_per_step,
             avg_entanglements_per_step + std_entanglements_per_step,
@@ -358,18 +380,35 @@ def figure2(path_to_search_stats):
             color=colors[n],
             alpha=0.1
         )
+        step_index_disentangled.append(
+            np.argmax(avg_entanglements_per_step < 1e-3)
+        )
 
-    axA.set_ylabel("$S_{avg}$")
-    axA.set_xlabel("step")
-    axA.set_xlim(0, 800)
-    axA.set_ylim(1e-4, 1)
-    axA.legend(loc='center right', ncols=2)
-    axB.set_xlim(0, 400)
-    axB.set_ylim(1e-4, 1)
+    axD.plot([4,5,6,7,8], step_index_disentangled, color='k', linestyle='--',
+             marker='o', linewidth=0.5)
+
+    for ax in (axA, axC):
+        ax.set_ylabel("$\mathrm{S_{avg}}$")
+        ax.set_xlabel("step")
+        ax.set_xlim(0, 800)
+        ax.set_ylim(1e-4, 1)
+    # axA.legend(loc='center right', ncols=2, fontsize=14)
+    axC.legend(loc='lower right', ncols=2, fontsize=14)
+    for ax in (axB, axD):
+        ax.set_xticks([4,5,6,7,8])
+        ax.set_yticks([10, 10**2, 10**3])
+
+    # Restore old fontsize
+    mpl.rcParams['font.size'] = old_fontsize
     return fig
 
 
 def figure5(initial_state, selected_actions=None):
+
+    # Save old fontsize
+    old_fontsize = mpl.rcParams['font.size']
+    mpl.rcParams['font.size'] = 18
+
     num_qubits = int(np.log2(initial_state.size))
     EPSI = 1e-3
     max_steps = 30 if selected_actions is None else len(selected_actions)
@@ -386,30 +425,32 @@ def figure5(initial_state, selected_actions=None):
     steps = len(actions)
 
     # /// USER CONSTANTS
-    MSA = 22        # maximum steps per ax
+    MSA = 20        # maximum steps per ax
     QCR = 0.4       # qubits' circles radius
     QCX = -1        # qubits' circles X coordinate
-    QFS = 20        # qubits' circles font size
+    QFS = 28        # qubits' circles font size
     QLW = 3         # qubits' circles linewidth
     WLW = 1         # qubit wires linewidth
-    AFS = 18        # $S_{avg}$ text fontsize
+    AFS = 22        # $S_{avg}$ text fontsize
     AEY = -0.8      # $S_{avg}$ + per step avg. entropies Y coordinate
-    EFS = 18        # single qubit entropies fontsize
+    EFS = 20        # single qubit entropies fontsize
     ERS = 0.6       # single qubit entropies background rectangle size
     ECR = 0.3       # single qubit entropies circle radius
     ECA = 0.1       # single qubit entropies circle alpha
     GOX = 0.5       # gate's X axis offset from single qubit entanglement circle
     GSS = 150       # gate's wire circle scatter size
     GLW = 4         # gate's wire linewidth
-    PFS = 16        # gate's probability fontsize
+    PFS = 20        # gate's probability fontsize
     TLX = -1.5      # step timeline starting X coordinate
     TLW = 1.2       # step timeline linewidth
+    LFS = 26        # other labels font size
 
     # /// DERIVED LAYOUT CONSTANTS
     NAX = divmod(steps + 1, MSA)[0] + int(((steps+1) % MSA) > 0)    # number of axs
     FIGSIZE = (22, 9 * NAX)                                         # figsize
 
     # Initialize figure
+    fig = plt.figure(figsize=FIGSIZE)
     fig, axs = plt.subplots(NAX, 1, figsize=FIGSIZE, squeeze=False)
     fig.tight_layout()
 
@@ -491,9 +532,9 @@ def figure5(initial_state, selected_actions=None):
         ax.set_xticks([], [])
         ax.set_yticks([], [])
         # Set limits
-        ax.set_xlim(-2, MSA)
+        ax.set_xlim(-1.5, MSA)
         ax.set_ylim(-2, num_qubits)
-        ax.set_xlabel('episode step', fontsize=18)
+        ax.set_xlabel('episode step', fontsize=LFS)
         # Remove spines
         ax.spines['top'].set_visible(False)
         ax.spines['left'].set_visible(False)
@@ -514,8 +555,9 @@ def figure5(initial_state, selected_actions=None):
         ax.arrow(0.5, TLX, (xend - xbegin), 0, width=0.0005, head_width=0.1, color='k')
         # Add text labels per step
         for x, lab in zip(xticks, xticklabels):
-            ax.text(x, AEY - 1, str(lab), fontsize=18, ha='center')
+            ax.text(x, AEY - 1.1, str(lab), fontsize=LFS, ha='center')
 
+    mpl.rcParams['font.size'] = old_fontsize
     return fig
 
 
@@ -629,12 +671,16 @@ def benchmark_agents(ntests=1000):
 
 def figure6(benchmark_results):
 
+    # Save old fontsize
+    old_fontsize = mpl.rcParams['font.size']
+    mpl.rcParams['font.size'] = 14
+
     # /// User Constants
     BWI = 0.5              # Bar width
     BOF = 0.8              # Bar offset
 
     # Initialize figure and create axes
-    fig = plt.figure(figsize=(12, 8), layout='constrained')
+    fig = plt.figure(figsize=(12, 9), layout='constrained')
     gridspec = GridSpec(2, 5, fig)
     ax4 = fig.add_subplot(gridspec[0, :2])
     ax5 = fig.add_subplot(gridspec[0, 2:])
@@ -664,7 +710,8 @@ def figure6(benchmark_results):
         labels = [int(h) for h in heights]
         ax4.bar_label(rects, labels, rotation=45)
         offset += 3 * BWI + BOF
-    ax4.set_xticks(xticks, xticklabels)
+    ax4.set_xticks(xticks, xticklabels, rotation=45)
+    ax4.set_yticks([1, 10, 20, 30])
 
     # Plot 5q results
     keys5q = (k for k in benchmark_results if len(k.replace('-', '')) == 5)
@@ -683,7 +730,8 @@ def figure6(benchmark_results):
         labels = [int(h) for h in heights]
         ax5.bar_label(rects, labels, rotation=45)
         offset += 3 * BWI + BOF
-    ax5.set_xticks(xticks, xticklabels)
+    ax5.set_xticks(xticks, xticklabels, rotation=45)
+    ax5.set_yticks([1, 20, 40, 60, 80])
 
     # Plot 6q results
     keys6q = (k for k in benchmark_results if len(k.replace('-', '')) == 6)
@@ -704,17 +752,19 @@ def figure6(benchmark_results):
         labels = [int(h) for h in heights]
         ax6.bar_label(rects, labels, rotation=45)
         offset += 3 * BWI + BOF
-    ax6.set_xticks(xticks, xticklabels)
+    ax6.set_xticks(xticks, xticklabels, rotation=45)
     handles, labels = ax6.get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
-    ax6.legend(by_label.values(), by_label.keys(), loc='upper left')
+    ax6.legend(by_label.values(), by_label.keys(), loc=(0.15, 1.0))
+    ax6.set_yticks([1, 60, 120, 180])
 
     # Configure axes
     for ax in axes:
-        ax.set_yticks([])
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
-        ax.spines['left'].set_visible(False)
+
+    # Restore old font size
+    mpl.rcParams['font.size'] = old_fontsize
     return fig
 
 
@@ -864,47 +914,48 @@ if __name__ == '__main__':
 
     # Figure 1
     fig1a = figure1a()
-    fig1a.savefig('../figures/Figure_1a.pdf')
+    fig1a.savefig('../figures/circuit-3q.pdf')
     fig1bd = figure1bd()
-    fig1bd.savefig('../figures/Figure_1bd.pdf')
+    fig1bd.savefig('../figures/circuit-4q.pdf')
 
     # Figure 2
-    fig2 = figure2('../data/random-greedy-stats.pickle')
-    fig2.savefig('../figures/Figure_2.pdf')
+    # fig2 = figure2('../data/random-greedy-stats.pickle')
+    # fig2.savefig('../figures/exponential-difficulty-both.pdf')
 
-    # Figure 4a
-    bell =  np.array([1.0, 0.0, 0.0, 1.0], dtype=np.complex64) / np.sqrt(2)
-    bell_bell = np.kron(bell, bell)
-    fig4a = figure4(bell_bell, r"$|Bell_{1,2}\rangle|Bell_{3,4}\rangle$")
-    fig4a.savefig('../figures/Figure_4a.pdf')
+    # # Figure 4a
+    # bell =  np.array([1.0, 0.0, 0.0, 1.0], dtype=np.complex64) / np.sqrt(2)
+    # bell_bell = np.kron(bell, bell)
+    # fig4a = figure4(bell_bell, r"$|Bell_{1,2}\rangle|Bell_{3,4}\rangle$")
+    # fig4a.savefig('../figures/Figure_4a.pdf')
 
-    # Figure 4b
-    w = np.array([0, 1, 1, 0, 1, 0, 0, 0], dtype=np.complex64) / np.sqrt(3)
-    zero = np.array([1, 0], dtype=np.complex64)
-    zero_ghz = np.kron(zero, w)
-    fig4b = figure4(zero_ghz, r"$|0\rangle|GHZ_{2,3,4}\rangle$")
-    fig4b.savefig('../figures/Figure_4b.pdf')
+    # # Figure 4b
+    # w = np.array([0, 1, 1, 0, 1, 0, 0, 0], dtype=np.complex64) / np.sqrt(3)
+    # zero = np.array([1, 0], dtype=np.complex64)
+    # zero_ghz = np.kron(zero, w)
+    # fig4b = figure4(zero_ghz, r"$|0\rangle|GHZ_{2,3,4}\rangle$")
+    # fig4b.savefig('../figures/Figure_4b.pdf')
 
     # Figure 4c
-    np.random.seed(45)
-    s = np.kron(random_quantum_state(3, 1.0), random_quantum_state(1, 1.0))
+    np.random.seed(23)
+    # s = np.kron(random_quantum_state(3, 1.0), random_quantum_state(1, 1.0))
+    # s = np.einsum("ijk,l -> ijkl", random_quantum_state(3, 1.0), random_quantum_state(1, 1.0))
     # s = np.kron(random_quantum_state(1, 1.0), random_quantum_state(3, 1.0))
-    fig4c = figure4(s, r"$|R_{1,2,3}\rangle|R_4\rangle$")
+    # fig4c = figure4(s, r"$|R_{1,2,3}\rangle|R_4\rangle$")
     # fig4c = figure4(s, r"$|R_1\rangle|R_{2,3,4}\rangle$")
-    fig4c.savefig('../figures/Figure_4c.pdf')
+    # fig4c.savefig('../figures/Figure_4c.pdf')
 
-    # Figure 4d
-    np.random.seed(45)
-    fig4d = figure4(random_quantum_state(4, 1.0), r"$|R_{1,2,3,4}\rangle$")
-    fig4d.savefig('../figures/Figure_4d.pdf')
+    # # Figure 4d
+    # np.random.seed(45)
+    # fig4d = figure4(random_quantum_state(4, 1.0), r"$|R_{1,2,3,4}\rangle$")
+    # fig4d.savefig('../figures/Figure_4d.pdf')
 
-    # Figure 5
-    np.random.seed(45)
-    fig5 = figure5(random_quantum_state(5, 1.0))
-    fig5.savefig('../figures/Figure_5.pdf')
+    # # Figure 5
+    # np.random.seed(45)
+    # fig5 = figure5(random_quantum_state(5, 1.0))
+    # fig5.savefig('../figures/5q-trajectory.pdf')
 
-    # Figure 6
-    with open('../data/agents-benchmark.json') as f:
-        results = json.load(f)
-        fig6 = figure6(results)
-        fig6.savefig('../figures/Figure_6.pdf')
+    # # Figure 6
+    # with open('../data/agents-benchmark.json') as f:
+    #     results = json.load(f)
+    #     fig6 = figure6(results)
+    #     fig6.savefig('../figures/456q-agents.pdf')
