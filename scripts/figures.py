@@ -38,6 +38,7 @@ def str2state(string_descr):
 
 
 def str2latex(string_descr):
+    """Transforms state name like "R-RR" to "|R>|RR>" in Latex."""
     numbers = "123456789"
     Rs = string_descr.split("-")
     name = []
@@ -302,7 +303,7 @@ def figure2(path_to_search_stats):
     with open(path_to_search_stats, mode="rb") as f:
         stats = pickle.load(f)
 
-    fig = plt.figure(figsize=(6, 9))
+    fig = plt.figure(figsize=(6, 7.5))
     axA = fig.add_axes(AREC)
     axB = fig.add_axes(BREC)
     axC = fig.add_axes(CREC)
@@ -334,7 +335,7 @@ def figure2(path_to_search_stats):
         avg_entanglements_per_step = np.array(avg_entanglements_per_step)
         std_entanglements_per_step = np.array(std_entanglements_per_step)
         axA.plot(avg_entanglements_per_step, color=colors[n],
-                 linewidth=1.5, label=f"L={k}")
+                 linewidth=1.5, label=f"$L={k}$")
         axA.fill_between(
             np.arange(avg_entanglements_per_step.shape[0]),
             avg_entanglements_per_step - std_entanglements_per_step,
@@ -349,8 +350,8 @@ def figure2(path_to_search_stats):
 
     axB.plot([4,5,6,7,8], step_index_disentangled, color='k', linestyle='--',
              marker='o', linewidth=0.5)
-    axB.set_xlabel('\# qubits', fontdict=dict(fontsize=12))
-    axB.set_ylabel('\# gates', fontdict=dict(fontsize=12))
+    axB.set_xlabel('$L$', fontdict=dict(fontsize=12))
+    axB.set_ylabel('$M$', fontdict=dict(fontsize=12))
 
     # Plot greedy agent
     step_index_disentangled = []
@@ -372,7 +373,7 @@ def figure2(path_to_search_stats):
         avg_entanglements_per_step = np.array(avg_entanglements_per_step)
         std_entanglements_per_step = np.array(std_entanglements_per_step)
         axC.plot(avg_entanglements_per_step, color=colors[n],
-                 linewidth=1.5, label=f"L={k}")
+                 linewidth=1.5, label=f"$L={k}$")
         axC.fill_between(
             np.arange(avg_entanglements_per_step.shape[0]),
             avg_entanglements_per_step - std_entanglements_per_step,
@@ -387,19 +388,19 @@ def figure2(path_to_search_stats):
 
     axD.plot([4,5,6,7,8], step_index_disentangled, color='k', linestyle='--',
              marker='o', linewidth=0.5)
-    axD.set_xlabel('\# qubits', fontdict=dict(fontsize=12))
-    axD.set_ylabel('\# gates', fontdict=dict(fontsize=12))
+    axD.set_xlabel('$L$', fontdict=dict(fontsize=12))
+    axD.set_ylabel('$M$', fontdict=dict(fontsize=12))
 
     for ax in (axA, axC):
         ax.set_ylabel("$\mathrm{S_{avg}}$", fontdict=dict(fontsize=14))
-        ax.set_xlabel("\# gates")
+        ax.set_xlabel("$M$")
         ax.set_xlim(0, 800)
-        ax.set_ylim(1e-4, 1)
+        ax.set_ylim(1e-3, 1)
     # axA.legend(loc='center right', ncols=2, fontsize=14)
     axC.legend(loc='lower right', ncols=2, fontsize=14)
     for ax in (axB, axD):
         ax.set_xticks([4,5,6,7,8])
-        ax.set_yticks([10, 10**2, 10**3])
+        ax.set_yticks([10**0, 10**1, 10**2, 10**3])
 
     # Restore old fontsize
     mpl.rcParams['font.size'] = old_fontsize
@@ -693,17 +694,17 @@ def figure6(benchmark_results):
     BOF = 0.8              # Bar offset
 
     # Initialize figure and create axes
-    fig = plt.figure(figsize=(12, 8), layout='tight')
-    gridspec = GridSpec(2, 5, fig)
-    ax4 = fig.add_subplot(gridspec[0, :2])
-    ax5 = fig.add_subplot(gridspec[0, 2:])
-    ax6 = fig.add_subplot(gridspec[1, :])
+    fig = plt.figure(figsize=(12, 6), layout='tight')
+    ax4 = fig.add_axes((0.1, 0.75, 0.3, 0.2))
+    ax5 = fig.add_axes((0.55, 0.75, 0.4, 0.2))
+    ax6 = fig.add_axes((0.1, 0.3, 0.85, 0.2))
+    # gridspec = GridSpec(2, 5, fig)
+    # ax4 = fig.add_subplot(gridspec[0, :2])
+    # ax5 = fig.add_subplot(gridspec[0, 2:])
+    # ax6 = fig.add_subplot(gridspec[1, :])
     axes = (ax4, ax5, ax6)
 
-    # Scarlet #B85042, Light Olive #E7E8D1, Light Teal #A7BEAE
     # deep slate blue #3D405B medium blue #0077B6 light blue #90E0EF, pale blue #CAF0F8
-    colors = ['#3D405B', '#A7BEAE', '#B85042']
-    colors = ['tab:orange', 'tab:green', 'tab:blue']
     colors = ['#7abacc', '#0077B6', '#3D405B']
     
     # Plot 4q results
@@ -720,11 +721,12 @@ def figure6(benchmark_results):
         xticklabels.append(str2latex(k))
         rects = ax4.bar(xs, heights, BWI, color=colors, yerr=stds, ecolor='red', capsize=5)
         # labels = [f'{int(h)} ±{int(s)}' for h, s in zip(heights, stds)]
-        labels = [int(h) for h in heights]
+        labels = [int(np.round(h,0)) for h in heights]
         ax4.bar_label(rects, labels, rotation=45)
         offset += 3 * BWI + BOF
     ax4.set_xticks(xticks, xticklabels, rotation=45)
     ax4.set_yticks([1, 5, 10, 15, 20])
+    ax4.text(s="$L = 4$", x=0.1, y=0.95, transform=ax4.transAxes)
 
     # Plot 5q results
     keys5q = (k for k in benchmark_results if len(k.replace('-', '')) == 5)
@@ -741,11 +743,12 @@ def figure6(benchmark_results):
         rects = ax5.bar(xs, heights, BWI, color=colors, yerr=stds,
                         ecolor='red', capsize=5, label=['Random', 'Greedy', 'RL'])
         # labels = [f'{int(h)} ±{int(s)}' for h, s in zip(heights, stds)]
-        labels = [int(h) for h in heights]
+        labels = [int(np.round(h,0)) for h in heights]
         ax5.bar_label(rects, labels, rotation=45)
         offset += 3 * BWI + BOF
     ax5.set_xticks(xticks, xticklabels, rotation=45)
     ax5.set_yticks([1, 15, 30, 45, 60])
+    ax5.text(s="$L = 5$", x=0.1, y=0.95, transform=ax5.transAxes)
     # handles, labels = ax5.get_legend_handles_labels()
     # by_label = dict(zip(labels, handles))
     # ax5.legend(by_label.values(), by_label.keys(), loc=(0.55, 0.8), ncols=3)
@@ -765,17 +768,20 @@ def figure6(benchmark_results):
         rects = ax6.bar(xs, heights, BWI, color=colors, yerr=stds,
                         ecolor='red', capsize=5, label=['Random', 'Greedy', 'RL'])
         # labels = [f'{int(h)} ±{int(s)}' for h, s in zip(heights, stds)]
-        labels = [int(h) for h in heights]
+        labels = [int(np.round(h,0)) for h in heights]
         ax6.bar_label(rects, labels, rotation=45)
         offset += 3 * BWI + BOF
     ax6.set_xticks(xticks, xticklabels, rotation=45)
     ax6.set_yticks([1, 50, 100, 150])
     handles, labels = ax6.get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
-    ax6.legend(by_label.values(), by_label.keys(), loc=(0.6, -1.0), ncols=3, frameon=False)
+    ax6.text(s="$L = 6$", x=0.035, y=0.95, transform=ax6.transAxes)
+
+    ax6.legend(by_label.values(), by_label.keys(), loc=(0.6, -1.4), ncols=3, frameon=False)
 
     # Configure axes
     for ax in axes:
+        ax.set_ylabel('$M$')
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
 
@@ -839,8 +845,9 @@ def figure4(initial_state, state_name=''):
     R_SUBFIG_XMIN = num_qubits
     R_SUBFIG_XMAX = R_SUBFIG_XMIN + 1 + probs_main.shape[1]
     WIRES_BOTTOM = QCY + QCR
-    WIRES_TOP = 2*nsteps - 1
-    FIGSIZE = (5, max(5, nsteps + 2))
+    WIRES_TOP = 2*nsteps - 1.5
+    FIGSIZE = (4, max(4, nsteps + 2))
+    # FIGSIZE = (5, max(5, nsteps + 2))   # for |RRRR> state, 5 actions
 
     # Initialize figure
     fig = plt.figure(figsize=FIGSIZE)
@@ -924,6 +931,210 @@ def figure4(initial_state, state_name=''):
     return fig
 
 
+def figure_cnot_counts(datadir):
+
+    # Save old fontsize
+    old_fontsize = mpl.rcParams['font.size']
+    mpl.rcParams['font.size'] = 14
+
+    # /// User Constants
+    BWI = 0.5              # Bar width
+    BOF = 0.8              # Bar offset
+
+    # Load results
+    counts_qiskit_all = np.load(
+        os.path.join(datadir, "counts_qiskit_all.npy"), allow_pickle=True)
+    counts_qiskit_all_std = np.load(
+        os.path.join(datadir, "counts_qiskit_all_std.npy"), allow_pickle=True)
+    counts_agent_all = np.load(
+        os.path.join(datadir, "counts_agent_all.npy"), allow_pickle=True)
+    counts_agent_all_std = np.load(
+        os.path.join(datadir, "counts_agent_all_std.npy"), allow_pickle=True)
+    counts_ionq_all = np.load(
+        os.path.join(datadir, "counts_ionq_all.npy"), allow_pickle=True)
+    counts_ionq_all_std = np.load(
+        os.path.join(datadir, "counts_ionq_all_std.npy"), allow_pickle=True)
+    counts_agent_ionq_all = np.load(
+        os.path.join(datadir, "counts_agent_ionq_all.npy"), allow_pickle=True)
+    counts_agent_ionq_all_std = np.load(
+        os.path.join(datadir, "counts_agent_ionq_all_std.npy"), allow_pickle=True)
+
+    # State names
+    states_4q = ["RR-R-R", "RR-RR", "RRR-R", "RRRR"]
+    states_5q = ["RR-R-R-R", "RR-RR-R", "RRR-R-R", "RRR-RR", "RRRR-R", "RRRRR"]
+    states_6q = ["RR-R-R-R-R", "RR-RR-R-R", "RR-RR-RR", "RRR-R-R-R", "RRR-RR-R",
+                 "RRRR-R-R", "RRRR-RR", "RRRRR-R", "RRRRRR"]
+    states = (states_4q, states_5q, states_6q)
+
+    # Initialize figure and create axes
+    fig = plt.figure(figsize=(12, 6), layout='tight')
+    ax4 = fig.add_axes((0.1, 0.75, 0.3, 0.2))
+    ax5 = fig.add_axes((0.55, 0.75, 0.4, 0.2))
+    ax6 = fig.add_axes((0.1, 0.3, 0.85, 0.2))
+    axes = (ax4, ax5, ax6)
+
+    # Plot CNOT counts
+    for i, ax in enumerate(axes):
+        names = list(map(str2latex, states[i]))
+        xs = 6.0 * BWI * np.arange(len(names)).astype(np.float32)
+
+        # Linear, qiskit
+        heights, stds = counts_qiskit_all[i], counts_qiskit_all_std[i]
+        rects = ax.bar(xs, heights, yerr=stds, width=BWI, color='peru',
+                       ecolor='red', capsize=5, label="linear, qiskit")
+        ax.bar_label(rects, [int(np.round(h, 0)) for h in heights], rotation=45,
+                     fontsize=10)
+
+        # All-to-all, qiskit
+        heights, stds = counts_ionq_all[i], counts_ionq_all_std[i]
+        rects = ax.bar(xs + BWI, heights, yerr=stds, width=BWI, color='gold',
+                       ecolor='red', capsize=5, label="all-to-all, qiskit")
+        ax.bar_label(rects, [int(np.round(h, 0)) for h in heights], rotation=45,
+                     fontsize=10)
+
+        # Linear, agent
+        heights, stds = counts_agent_all[i], counts_agent_all_std[i]
+        rects = ax.bar(xs + 2*BWI, heights, yerr=stds, width=BWI, color='cadetblue',
+                       ecolor='red', capsize=5, label="linear, agent")
+        ax.bar_label(rects, [int(np.round(h, 0)) for h in heights], rotation=45,
+                     fontsize=10)
+
+        # All-to-all, agent
+        heights, stds = counts_agent_ionq_all[i], counts_agent_ionq_all_std[i]
+        rects = ax.bar(xs + 3*BWI, heights, yerr=stds, width=BWI, color='powderblue',
+                       ecolor='red', capsize=5, label="all-to-all, agent")
+        ax.bar_label(rects, [int(np.round(h, 0)) for h in heights], rotation=45,
+                     fontsize=10)
+        ax.set_xticks(xs + 1.5*BWI, names, rotation=45)
+
+    # Add text
+    ax4.text(s="$L = 4$", x=0.1, y=0.95, transform=ax4.transAxes)
+    ax5.text(s="$L = 5$", x=0.1, y=0.95, transform=ax5.transAxes)
+    ax6.text(s="$L = 6$", x=0.035, y=0.95, transform=ax6.transAxes)
+
+    # Add legend
+    handles, labels = ax6.get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    ax6.legend(by_label.values(), by_label.keys(), loc=(0.1, -1.5), ncols=4, frameon=False)
+
+    for ax in axes:
+        ax.set_ylabel("CNOT count")
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+    ax4.set_yticks([1, 15, 30, 45])
+    ax5.set_yticks([1, 50, 100, 150])
+    ax6.set_yticks([1, 100, 200, 300, 400])
+
+    # Restore old font size
+    mpl.rcParams['font.size'] = old_fontsize
+    return fig
+
+
+def figure_accuracy():
+    # Old font size
+    old_fontsize = mpl.rcParams['font.size']
+    mpl.rcParams['font.size'] = 14
+
+    # /// User Constants
+    AREC = (0.15, 0.20, 0.7, 0.7)      # subplot (random agent)
+    BREC = (0.5, 0.65, 0.3, 0.2)     # inset (random agent)
+
+    fig = plt.figure(figsize=(6, 6))
+    axA = fig.add_axes(AREC)
+    axB = fig.add_axes(BREC)
+
+    train_hist_4q = os.path.join(
+        os.path.dirname(PATH_4Q_AGENT), 'train_history.pickle')
+    train_hist_5q = os.path.join(
+        os.path.join(os.path.dirname(PATH_5Q_AGENT), 'train_history.pickle')
+    )
+    train_hist_6q = os.path.join(
+        os.path.join(os.path.dirname(PATH_6Q_AGENT), 'train_history.pickle')
+    )
+    train_hist_6q = "../logs/6q_4000iters_haar_unif3_512/train_history.pickle"
+
+    with open(train_hist_4q, mode='rb') as f:
+        stats = pickle.load(f)
+        acc_4q = np.array([x["Ratio Terminated"]["avg"] for x in stats])
+        len_4q_x = []
+        len_4q_y = []
+        for i, x in enumerate(stats):
+            if "test_avg" in x['Episode Length']:
+                len_4q_y.append(x["Episode Length"]["test_avg"])
+                len_4q_x.append(i)
+
+    with open(train_hist_5q, mode='rb') as f:
+        stats = pickle.load(f)
+        acc_5q = np.array([x["Ratio Terminated"]["avg"] for x in stats])
+        len_5q_x = []
+        len_5q_y = []
+        for i, x in enumerate(stats):
+            if "test_avg" in x['Episode Length']:
+                len_5q_y.append(x["Episode Length"]["test_avg"])
+                len_5q_x.append(i)
+
+    with open(train_hist_6q, mode='rb') as f:
+        stats = pickle.load(f)
+        acc_6q = []
+        len_6q_x = []
+        len_6q_y = []
+        for i, x in enumerate(stats):
+            if "Episode Length" in x and "test_avg" in x['Episode Length']:
+                len_6q_y.append(x["Episode Length"]["test_avg"])
+                len_6q_x.append(i)
+            if "Ratio Terminated" in x:
+                acc_6q.append(x["Ratio Terminated"]["avg"])
+
+    acc_4q = acc_4q[1:500]
+    acc_5q = acc_5q[1:500]
+    acc_6q = acc_6q[1:500]
+
+    # axA.plot(len_4q_x, len_4q_y, label='$L = 4$', color='tab:blue')
+    # axA.plot(len_5q_x, len_5q_y, label='$L = 5$', color='tab:orange')
+    axA.plot(len_6q_x, len_6q_y, label='$L = 6$', color='tab:green')
+
+    # axB.plot(acc_4q, color='tab:blue')
+    # axB.plot(acc_5q, color='tab:orange')
+    axB.plot(acc_6q, color='tab:green')
+
+    axA.set_xlabel('iteration')
+    axA.set_ylabel('episode length')
+    axB.set_xlabel('iteration')
+    axB.set_ylabel('accuracy')
+
+    search_stats_dir = "/Users/stefan/code/RL_disentangle/stefan/results.pickle"
+    with open(search_stats_dir, mode='rb') as f:
+        search_stats = pickle.load(f)
+
+    y = search_stats["Episode_Len_4q"]
+    x = 100 * np.arange(len(y))
+    axA.plot(x, y, label='$L = 4$', color='tab:blue')
+    y = search_stats["Episode_Len_5q"]
+    x = 100 * np.arange(len(y))
+    axA.plot(x, y, label='$L = 5$', color='tab:orange')
+
+    axA.axhline(search_stats["Episode_Len_4q_Search"], linestyle='--', color='k')
+    axA.axhline(search_stats["Episode_Len_5q_Search"], linestyle='--', color='k')
+    axA.axhline(search_stats["Episode_Len_6q_Search"], linestyle='--', color='k')
+
+    y = search_stats["Accuracy_4q"]
+    x = 250 * np.arange(len(y))
+    axB.plot(x, y, color='tab:blue')
+
+    y = search_stats["Accuracy_5q"]
+    x = 250 * np.arange(len(y))
+    axB.plot(x, y, color='tab:orange')
+
+    # axB.plot(acc_4q, color='tab:blue')
+    # axB.plot(acc_5q, color='tab:orange')
+    # axB.plot(acc_6q, color='tab:green')
+
+    axA.legend(loc=(0.2, -0.2), ncol=3)
+    axA.set_ylim(0, 90)
+
+    return fig
+
+
 if __name__ == '__main__':
 
     # Benchmark agents
@@ -958,7 +1169,6 @@ if __name__ == '__main__':
     # np.random.seed(23)
     # s = np.einsum("ijk,l -> ijkl", random_quantum_state(3, 1.0), random_quantum_state(1, 1.0))
     # fig4c = figure4(s, r"$\mathrm{|R_{1,2,3}\rangle|R_4\rangle}$")
-    # fig4c = figure4(s, r"$\mathrm{|R_1\rangle|R_{2,3,4}\rangle}$")
     # fig4c.savefig('../figures/circuit-RRR-R.pdf')
 
     # # Figure 4d
@@ -967,12 +1177,20 @@ if __name__ == '__main__':
     # fig4d.savefig('../figures/circuit-RRRR.pdf')
 
     # Figure 5
-    np.random.seed(45)
-    fig5 = figure5(random_quantum_state(5, 1.0))
-    fig5.savefig('../figures/5q-trajectory.pdf')
+    # np.random.seed(45)
+    # fig5 = figure5(random_quantum_state(5, 1.0))
+    # fig5.savefig('../figures/5q-trajectory.pdf')
 
     # # Figure 6
     # with open('../data/agents-benchmark.json') as f:
     #     results = json.load(f)
     #     fig6 = figure6(results)
     #     fig6.savefig('../figures/456q-agents.pdf')
+
+    # Figure CNOT counts
+    fig11 = figure_cnot_counts('../data/cnot-counts/')
+    fig11.savefig('../figures/cnot-counts.pdf')
+
+    # # Figure Accuracy & Episode Length
+    # fig12 = figure_accuracy()
+    # fig12.savefig('../figures/accuracy-episode-length.pdf')
