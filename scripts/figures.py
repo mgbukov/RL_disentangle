@@ -36,7 +36,6 @@ def str2state(string_descr):
         psi = np.kron(psi, random_quantum_state(q=q, prob=1.))
     return psi.reshape((2,) * nqubits)
 
-
 def str2latex(string_descr):
     """Transforms state name like "R-RR" to "|R>|RR>" in Latex."""
     numbers = "123456789"
@@ -429,7 +428,7 @@ def figure5(initial_state, selected_actions=None):
     steps = len(actions)
 
     # /// USER CONSTANTS
-    MSA = 20        # maximum steps per ax
+    MSA = 23        # maximum steps per ax
     QCR = 0.4       # qubits' circles radius
     QCX = -1        # qubits' circles X coordinate
     QFS = 28        # qubits' circles font size
@@ -473,7 +472,7 @@ def figure5(initial_state, selected_actions=None):
             ax.add_patch(circle)
             ax.text(x, y, f'$q_{y+1}$', fontdict=qubits_fontdict)
         # Draw average entanglement text
-        ax.text(QCX, AEY, '$\mathrm{S_{avg}}$', fontdict=avg_ent_fontdict)
+        ax.text(QCX, AEY, r'$\mathrm{\frac{S_{avg}}{log(2)}}$', fontdict=avg_ent_fontdict)
 
     # Draw actions & entanglements
     entanglement_fontdict = dict(fontsize=EFS, ha='center',
@@ -489,13 +488,13 @@ def figure5(initial_state, selected_actions=None):
                 color = 'darkgray'
                 t = str(np.round(e * 1e3, 2))
             elif EPSI < e < 1e-2:
-                color = 'orangered'
+                color = 'forestgreen'
                 t = str(np.round(e * 1e2, 2))
             elif 1e-2 < e < 1e-1:
-                color = 'forestgreen'
+                color = 'cornflowerblue'
                 t = str(np.round(e * 1e1, 2))
             else:
-                color = 'cornflowerblue'
+                color = 'orangered'
                 t = str(np.round(e, 2))
             bg = patches.Rectangle((j - ERS/2, n - ERS/2),
                                    ERS, ERS, facecolor='white', zorder=1)
@@ -1181,16 +1180,31 @@ if __name__ == '__main__':
     # fig5 = figure5(random_quantum_state(5, 1.0))
     # fig5.savefig('../figures/5q-trajectory.pdf')
 
+    # Figure 5 with 4q protocol at the end
+    for s in (2, 18, 56, 89, 183, 245, 285, 352, 380, 396):
+        np.random.seed(s)
+        try:
+            fig = figure5(random_quantum_state(5, 1.0))
+            fig.savefig(f'../figures/5q/5q-trajectory-seed={s}.pdf')
+        except AssertionError:
+            pass
+        if s % 10 == 0:
+            print(s)
+
     # # Figure 6
     # with open('../data/agents-benchmark.json') as f:
     #     results = json.load(f)
     #     fig6 = figure6(results)
     #     fig6.savefig('../figures/456q-agents.pdf')
 
-    # Figure CNOT counts
-    fig11 = figure_cnot_counts('../data/cnot-counts/')
-    fig11.savefig('../figures/cnot-counts.pdf')
+    # # Figure CNOT counts
+    # fig11 = figure_cnot_counts('../data/cnot-counts/')
+    # fig11.savefig('../figures/cnot-counts.pdf')
 
     # # Figure Accuracy & Episode Length
     # fig12 = figure_accuracy()
     # fig12.savefig('../figures/accuracy-episode-length.pdf')
+
+    # # Figure CNOT counts (fully entangled)
+    # fig13 = figure_cnot_counts('../data/cnot-counts-fully-entangled/')
+    # fig13.savefig('../figures/cnot-counts-fully-entangled.pdf')
