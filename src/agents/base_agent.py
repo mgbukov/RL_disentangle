@@ -6,14 +6,32 @@ import torch
 
 
 class BaseAgent:
-    """An abstract class implementation of a reinforcement learning agent.
-    The agent is initialized with a policy and an environment, and uses the policy to act
-    in the environment.
+    """
+    An abstract class implementation of a reinforcement learning agent.
+    The agent is initialized with a policy and an environment, and uses the
+    policy to act in the environment.
     Concrete classes must implement their own training strategies.
     """
 
-    def __init__(self):
-        raise NotImplementedError("This method must be implemented by the subclass")
+    def __init__(self, env, policy, kind='vec'):
+        self.env = env
+        self.policy = policy
+        if kind not in ('vec', 'rdm', 'cvec', 'ctrdm'):
+            raise ValueError('`kind` must be one of ("vec", "rdm", "cvec", "ctrdm")')
+        self.observation_kind = kind
+        # Bind `self.observe()` method dynamically
+        if kind == 'vec':
+            self.observe = self._observe_vec
+            self._shape = (2 ** (self.env.L + 1),)
+        elif kind == 'cvec':
+            self.observe = self._observe_cvec
+            self._shape = (2 ** self.env.L,)
+        elif kind == 'rdm':
+            self.observe = self._observe_rdm
+            self._shape = (self.env.num_actions * 16 * 2,)
+        elif kind == 'ctrdm':
+            self.observe = self._observe_rdm
+            self._shape = (self.env.num_actions, 16)
 
     def train(self, *args, **kwargs):
         raise NotImplementedError("This method must be implemented by the subclass")
@@ -25,6 +43,45 @@ class BaseAgent:
         batch =  np.hstack([batch.real, batch.imag])
         acts = self.policy.get_action(torch.from_numpy(batch), greedy=greedy, beta=beta)
         return acts
+
+    # def observe(self):
+    # ------------------
+    #   DYNAMICALLY BINDED IN `self.__init__()` to either `self._observe_vec()`
+    #   or `self._observe_rdm()`
+
+    @torch.no_grad()
+    def _observe_vec(self):
+        psi = self.env.states.reshape(self.env.batch_size, -1)
+        return np.hstack([psi.real, psi.imag])
+    
+    @torch.no_grad()
+    def _observe_cvec(self):
+        return self.env.states.reshape(self.env.batch_size, -1)
+
+    @torch.no_grad()
+    def _observe_rdm(self):
+        states = self.env.states
+        rdms = []
+        # qubit_pairs = [a for a in self.env.actions.values() if a[0] < a[1]]
+        qubit_pairs = list(self.env.actions.values())
+        for qubits in qubit_pairs:
+            sysA = tuple(q+1 for q in qubits)
+            sysB = tuple(q+1 for q in range(self.env.L) if q not in qubits)
+            permutation = (0,) + sysA + sysB
+            states = np.transpose(states, permutation)
+            psi = states.reshape(self.env.batch_size, 4, -1)
+            rdm = psi @ np.transpose(psi, (0, 2, 1)).conj()
+            rdms.append(rdm)
+            # Reset permutation
+            states = np.transpose(states, np.argsort(permutation))
+            assert np.all(states == self.env.states)
+        rdms = np.array(rdms)                   # rdms.shape == (Q, B, 4, 4)
+        rdms = rdms.transpose((1, 0, 2, 3))     # rdms.shape == (B, Q, 4, 4)
+        if self.observation_kind == 'ctrdm':
+            return rdms.reshape((-1,) + self._shape)
+        elif self.observation_kind == 'rdm':
+            result = rdms.reshape(self.env.batch_size, -1, 16)
+            return np.dstack([result.real, result.imag]).reshape((-1,) + self._shape)
 
     @torch.no_grad()
     def rollout(self, steps, plan=None, greedy=False, beta=1.0):
@@ -55,15 +112,17 @@ class BaseAgent:
         L = self.env.L
 
         # Allocate torch tensors to store the data from the rollout.
-        states = torch.zeros(size=(steps+1, b, 2 ** (L+1)), dtype=torch.float32, device=device)
-        actions = torch.zeros(size=(steps, b), dtype=torch.int64, device=device)
-        rewards = torch.zeros(size=(steps, b), dtype=torch.float32, device=device)
-        done = torch.zeros(size=(steps, b), dtype=torch.bool, device=device)
+        if self.observation_kind.startswith('c'):
+            states = torch.zeros(size=(steps+1,b)+self._shape, dtype=torch.complex64)
+        else:
+            states = torch.zeros(size=(steps+1,b)+self._shape, dtype=torch.float32)
+        actions = torch.zeros(size=(steps, b), dtype=torch.int64)
+        rewards = torch.zeros(size=(steps, b), dtype=torch.float32)
+        done = torch.zeros(size=(steps, b), dtype=torch.bool)
 
         # Perform parallel rollout along all trajectories.
         for i in range(steps):
-            batch = self.env.states.reshape(b, -1)
-            batch = np.hstack([batch.real, batch.imag])
+            batch = self.observe()
             states[i] = torch.from_numpy(batch)
             if plan is None:
                 acts = self.policy.get_action(states[i], greedy=greedy, beta=beta)
@@ -75,8 +134,7 @@ class BaseAgent:
             done[i] = torch.from_numpy(d)
 
         # Add the last state to the trajectories.
-        batch = self.env.states.reshape(b, -1)
-        batch = np.hstack([batch.real, batch.imag])
+        batch = self.observe()
         states[steps] = torch.from_numpy(batch)
 
         # Permute `step` and `batch_size` dimensions
@@ -89,7 +147,9 @@ class BaseAgent:
         mask = self.generate_mask(done)
         rewards = mask * rewards
 
-        return (states, actions, rewards, done)
+        # Move to device and return
+        return (states.to(device), actions.to(device),
+                rewards.to(device), done.to(device))
 
     @torch.no_grad()
     def generate_mask(self, done):

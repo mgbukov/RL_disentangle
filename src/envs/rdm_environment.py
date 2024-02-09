@@ -151,7 +151,7 @@ class QubitsEnvironment:
         # ----
         if self.stochastic:
             # Add noise
-            A = np.random.uniform(size=Us.shape)
+            A = np.random.randn(*Us.shape)
             H = 0.5 * (A + np.swapaxes(A.conj(), 1, 2))
             R = expm(-1j * self.stochastic_eps * H)
             batch = (R @ batch).reshape(self.shape)

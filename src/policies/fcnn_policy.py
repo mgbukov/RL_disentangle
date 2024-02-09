@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -81,6 +82,45 @@ class FCNNPolicy(nn.Module, BasePolicy):
             out = F.leaky_relu(out)
             out = self.dropout_layers[idx](out)
         out = self.output_layer(out)
+        return out
+
+
+class ComplexNet(nn.Module, BasePolicy):
+
+    def __init__(self, input_size, hidden_sizes, output_size):
+        super().__init__()
+        self.input_size = int(input_size)
+        self.hidden_sizes = list(hidden_sizes)
+        self.out_size = int(output_size)
+        # Store arguments for model initialization.
+        # Kwargs dict is used to save and restore the model.
+        self.kwargs = dict(input_size=self.input_size,
+                           hidden_sizes=self.hidden_sizes,
+                           out_size=self.out_size)
+        # Initialize the model architecture.
+        self.num_layers = len(hidden_sizes)
+        self.hidden_layers = nn.ModuleList()
+        fan_in = input_size
+        for fan_out in hidden_sizes:
+            layer = nn.Linear(fan_in, fan_out, dtype=torch.complex64)
+            self.hidden_layers.append(layer)
+            fan_in = fan_out
+        self.output_layer = nn.Linear(fan_out, self.out_size, dtype=torch.complex64)
+
+    @staticmethod
+    def phase_amplitude_relu(z):
+        return F.relu(torch.abs(z)) * torch.exp(1.j * torch.angle(z))
+
+    @staticmethod
+    def real_imaginary_relu(z):
+        return F.relu(z.real()) + 1.0j * F.relu(z.imag())
+
+    def forward(self, x):
+        out = x
+        for layer in self.hidden_layers:
+            out = layer(out)
+            out = ComplexNet.phase_amplitude_relu(out)
+        out = torch.abs(self.output_layer(out))
         return out
 
 #

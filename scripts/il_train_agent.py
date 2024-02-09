@@ -27,6 +27,8 @@ parser.add_argument("--epsi", dest="epsi", type=float,
     help="Threshold for disentanglement", default=1e-3)
 parser.add_argument("-e", "--num_epochs", dest="num_epochs", type=int,
     help="Number of epochs to run the training for", default=1)
+parser.add_argument("--kind", choices=["vec", "rdm"], default="vec",
+    help="Kind of agent observation - either \"vec\" or \"rdm\"")
 parser.add_argument("-b", "--batch_size", dest="batch_size", type=int,
     help="Batch size parameter for policy network optimization", default=1)
 parser.add_argument("--lr", dest="learning_rate", type=float,
@@ -69,6 +71,7 @@ log_file = os.path.join(log_dir, "train.log")
 logText(f"""##############################
 Training parameters:
     Dataset size:                   {dataset["states"].shape[0]}
+    Kind of observations:           {args.kind}
     Minimum system entropy (epsi):  {args.epsi}
     Number of epochs:               {args.num_epochs}
     Batch size:                     {args.batch_size}
@@ -86,14 +89,20 @@ env = QubitsEnvironment(args.num_qubits, epsi=args.epsi, batch_size=1)
 
 
 # Initialize the policy.
-input_size = 2 ** (args.num_qubits + 1)
+# TODO
+# `input_size` should be return value of an Agent's getter, instead of
+# manually calculated. But Agent cannot be initialized without policy... ?
+if args.kind == "vec":
+    input_size = 2 ** (args.num_qubits + 1)
+else:
+    input_size = (env.num_actions // 2) * 16 * 2
 hidden_dims = [4096, 4096, 512]
 output_size = env.num_actions
 policy = FCNNPolicy(input_size, hidden_dims, output_size, args.dropout)
 
 
 # Train the imitation learning agent.
-agent = ILAgent(env, policy)
+agent = ILAgent(env, policy, kind=args.kind)
 tic = time.time()
 agent.train(dataset, args.num_epochs, args.batch_size, args.learning_rate, args.lr_decay,
             args.clip_grad, args.reg, args.log_every, args.test_every, args.save_every,
