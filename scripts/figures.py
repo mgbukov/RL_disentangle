@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import os
 import pickle
 import sys
-from matplotlib.gridspec import GridSpec
 
 file_path = os.path.split(os.path.abspath(__file__))[0]
 project_dir = os.path.abspath(os.path.join(file_path, os.pardir))
@@ -43,12 +42,14 @@ def str2latex(string_descr):
     name = []
     i = 0
     for r in Rs:
-        # s = r'|R_{' + f'{numbers[i:i+len(r)]}' + r'}\rangle'
-        s = r'R_{' + f'{numbers[i:i+len(r)]}' + '}'
+        s = r'|R_{' + f'{numbers[i:i+len(r)]}' + r'}\rangle'
+        # USE FOR "slighly entangled states, Fig. 14"
+        # s = r'R_{' + f'{numbers[i:i+len(r)]}' + '}'
         name.append(r'\mathrm{' + s + '}')
         i += len(r)
-    # return "$" + ''.join(name) + "$"
-    return "$|" + ''.join(name) + r"\rangle$"
+    return "$" + ''.join(name) + "$"
+    # USE FOR "slighty entangled states, Fig. 14"
+    # return "$|" + ''.join(name) + r"\rangle$"
 
 def rollout(initial_state, max_steps=30):
     """
@@ -289,7 +290,7 @@ def figure1bd():
     return fig
 
 
-def figure2(path_to_search_stats):
+def figure_difficulty(path_to_search_stats):
 
     # Old font size
     old_fontsize = mpl.rcParams['font.size']
@@ -688,7 +689,7 @@ def benchmark_agents(ntests=1000):
     return results
 
 
-def figure6(benchmark_results):
+def figure_stats(benchmark_results):
 
     # Save old fontsize
     old_fontsize = mpl.rcParams['font.size']
@@ -986,14 +987,14 @@ def figure_cnot_counts(datadir):
         # Linear, qiskit
         heights, stds = counts_qiskit_all[i], counts_qiskit_all_std[i]
         rects = ax.bar(xs, heights, yerr=stds, width=BWI, color='peru',
-                       ecolor='red', capsize=5, label="linear, qiskit")
+                       ecolor='red', capsize=5, label="linear, Shende et al.")
         ax.bar_label(rects, [int(np.round(h, 0)) for h in heights], rotation=45,
                      fontsize=10)
 
         # All-to-all, qiskit
         heights, stds = counts_ionq_all[i], counts_ionq_all_std[i]
         rects = ax.bar(xs + BWI, heights, yerr=stds, width=BWI, color='gold',
-                       ecolor='red', capsize=5, label="all-to-all, qiskit")
+                       ecolor='red', capsize=5, label="all-to-all, Shende et al.")
         ax.bar_label(rects, [int(np.round(h, 0)) for h in heights], rotation=45,
                      fontsize=10)
 
@@ -1038,45 +1039,48 @@ def figure_cnot_counts(datadir):
 def figure_accuracy():
     # Old font size
     old_fontsize = mpl.rcParams['font.size']
-    mpl.rcParams['font.size'] = 14
+    mpl.rcParams['font.size'] = 12
 
     # /// User Constants
-    AREC = (0.15, 0.20, 0.7, 0.7)       # subplot (random agent)
-    BREC = (0.5, 0.65, 0.3, 0.2)        # inset (random agent)
+    AREC = (0.59, 0.82, 0.31, 0.13)
+    BREC = (0.59, 0.52, 0.31, 0.13)
+    CREC = (0.59, 0.22, 0.31, 0.13)
 
-    fig = plt.figure(figsize=(6, 6))
+    fig, axs = plt.subplots(3, 1, figsize=(4, 6), layout="tight", sharex=True)
+
     axA = fig.add_axes(AREC)
     axB = fig.add_axes(BREC)
+    axC = fig.add_axes(CREC)
 
     train_hist_4q = os.path.join(
         os.path.dirname(PATH_4Q_AGENT), 'train_history.pickle')
     train_hist_5q = os.path.join(
-        os.path.join(os.path.dirname(PATH_5Q_AGENT), 'train_history.pickle')
-    )
-    train_hist_6q = os.path.join(
-        os.path.join(os.path.dirname(PATH_6Q_AGENT), 'train_history.pickle')
-    )
+        os.path.dirname(PATH_5Q_AGENT), 'train_history.pickle')
+    # train_hist_6q = os.path.join(
+    #     os.path.dirname(PATH_6Q_AGENT), 'train_history.pickle')
     train_hist_6q = "../logs/6q_4000iters_haar_unif3_512/train_history.pickle"
 
     with open(train_hist_4q, mode='rb') as f:
         stats = pickle.load(f)
-        acc_4q = np.array([x["Ratio Terminated"]["avg"] for x in stats])
+        acc_4q = []
         len_4q_x = []
         len_4q_y = []
         for i, x in enumerate(stats):
             if "test_avg" in x['Episode Length']:
                 len_4q_y.append(x["Episode Length"]["test_avg"])
                 len_4q_x.append(i)
+            acc_4q.append(x["Ratio Terminated"]["avg"])
 
     with open(train_hist_5q, mode='rb') as f:
         stats = pickle.load(f)
-        acc_5q = np.array([x["Ratio Terminated"]["avg"] for x in stats])
+        acc_5q = []
         len_5q_x = []
         len_5q_y = []
         for i, x in enumerate(stats):
             if "test_avg" in x['Episode Length']:
                 len_5q_y.append(x["Episode Length"]["test_avg"])
                 len_5q_x.append(i)
+            acc_5q.append(x["Ratio Terminated"]["avg"])
 
     with open(train_hist_6q, mode='rb') as f:
         stats = pickle.load(f)
@@ -1087,65 +1091,67 @@ def figure_accuracy():
             if "Episode Length" in x and "test_avg" in x['Episode Length']:
                 len_6q_y.append(x["Episode Length"]["test_avg"])
                 len_6q_x.append(i)
-            if "Ratio Terminated" in x:
-                acc_6q.append(x["Ratio Terminated"]["avg"])
+            acc_6q.append(x["Ratio Terminated"]["avg"])
 
-    acc_4q = acc_4q[1:500]
-    acc_5q = acc_5q[1:500]
-    acc_6q = acc_6q[1:500]
+    len_4q_x = np.asarray(len_4q_x)[:40]
+    len_5q_x = np.asarray(len_5q_x)[:40]
+    len_6q_x = np.asarray(len_6q_x)[:40]
 
-    axA.plot(len_4q_x, len_4q_y, label='$L = 4$', color='tab:blue')
-    # axA.plot(len_5q_x, len_5q_y, label='$L = 5$', color='tab:orange')
-    # axA.plot(len_6q_x, len_6q_y, label='$L = 6$', color='tab:green')
+    len_4q_y = np.asarray(len_4q_y)[:40]
+    len_5q_y = np.asarray(len_5q_y)[:40]
+    len_6q_y = np.asarray(len_6q_y)[:40]
 
-    axB.plot(acc_4q, color='tab:blue')
-    # axB.plot(acc_5q, color='tab:orange')
-    # axB.plot(acc_6q, color='tab:green')
+    acc_4q = np.asarray(acc_4q)[1:101]    # first iteration has accuracy 1.0 ?
+    acc_5q = np.asarray(acc_5q)[:250]
+    acc_6q = np.asarray(acc_6q)[:1000]
 
-    axA.set_xlabel('iteration')
-    axA.set_ylabel('episode length')
-    axB.set_xlabel('iteration')
-    axB.set_ylabel('accuracy')
+    axs[0].plot(len_4q_x, len_4q_y, label='$L = 4$', color='tab:blue')
+    axs[1].plot(len_5q_x, len_5q_y, label='$L = 5$', color='tab:green')
+    axs[2].plot(len_6q_x, len_6q_y, label='$L = 6$', color='tab:orange')
 
-    # search_stats_dir = "/Users/stefan/code/RL_disentangle/stefan/results.pickle"
+    axA.plot(acc_4q, color='tab:blue', linewidth=1)
+    axB.plot(acc_5q, color='tab:green', linewidth=1)
+    axC.plot(acc_6q, color='tab:orange', linewidth=1)
+
+    # search_stats_dir = "/Users/stefan/code/RL_disentangle/data/stefan/results.pickle"
     # with open(search_stats_dir, mode='rb') as f:
     #     search_stats = pickle.load(f)
 
-    # y = search_stats["Episode_Len_4q"]
-    # x = 100 * np.arange(len(y))
-    # axA.plot(x, y, label='$L = 4$', color='tab:blue')
-    # y = search_stats["Episode_Len_5q"]
-    # x = 100 * np.arange(len(y))
-    # axA.plot(x, y, label='$L = 5$', color='tab:orange')
+    # axs[0].axhline(search_stats["Episode_Len_4q_Search"], linestyle='--', color='k')
+    # axs[1].axhline(search_stats["Episode_Len_5q_Search"], linestyle='--', color='k')
+    # axs[2].axhline(search_stats["Episode_Len_6q_Search"], linestyle='--', color='k')
+    # axs[0].set_title("$L = 4$")
+    # axs[1].set_title("$L = 5$")
+    # axs[2].set_title("$L = 6$")
 
-    # axA.axhline(search_stats["Episode_Len_4q_Search"], linestyle='--', color='k')
-    # axA.axhline(search_stats["Episode_Len_5q_Search"], linestyle='--', color='k')
-    # axA.axhline(search_stats["Episode_Len_6q_Search"], linestyle='--', color='k')
+    for ax in (axA, axB, axC):
+        ax.set_xlabel("iteration", fontsize=10)
+        ax.set_ylabel("accuracy", fontsize=10)
+        ax.set_ylim(0.8, 1.05)
+        ax.tick_params(axis='both', which='major', labelsize=10)
+    axB.set_xticks([0, 250])
+    
+    for ax in axs:
+        # ax.set_xticks([])
+        ax.set_ylabel("episode length")
 
-    # y = search_stats["Accuracy_4q"]
-    # x = 250 * np.arange(len(y))
-    # axB.plot(x, y, color='tab:blue')
+    axs[2].set_xlabel("iteration")
+    axs[2].set_xticks([1, 1000, 2000, 3000, 4000])
+    axs[0].text(x=0.1, y=0.8, s="$L=4$", transform=axs[0].transAxes)
+    axs[1].text(x=0.1, y=0.8, s="$L=5$", transform=axs[1].transAxes)
+    axs[2].text(x=0.1, y=0.8, s="$L=6$", transform=axs[2].transAxes)
 
-    # y = search_stats["Accuracy_5q"]
-    # x = 250 * np.arange(len(y))
-    # axB.plot(x, y, color='tab:orange')
-
-    # axB.plot(acc_4q, color='tab:blue')
-    # axB.plot(acc_5q, color='tab:orange')
-    # axB.plot(acc_6q, color='tab:green')
-
-    axA.legend(loc=(0.2, -0.2), ncol=3)
-    axA.set_ylim(0, 90)
+    mpl.rcParams["font.size"] = old_fontsize
 
     return fig
 
 
 if __name__ == '__main__':
 
-    # # Benchmark agents
-    # results = benchmark_agents(1000)
-    # with open("../data/agents-benchmark-final-8000.json", mode='w') as f:
-    #     json.dump(results, f, indent=2)
+    # Benchmark agents
+    results = benchmark_agents(1000)
+    with open("../data/agents-benchmark-final.json", mode='w') as f:
+        json.dump(results, f, indent=2)
 
     # # Figure 1
     # fig1a = figure1a()
@@ -1154,7 +1160,7 @@ if __name__ == '__main__':
     # fig1bd.savefig('../figures/circuit-4q.pdf')
 
     # # Figure 2
-    # fig2 = figure2('../data/random-greedy-stats.pickle')
+    # fig2 = figure_difficulty('../data/random-greedy-stats.pickle')
     # fig2.savefig('../figures/exponential-difficulty-both.pdf')
 
     # # Figure 4a
@@ -1187,7 +1193,7 @@ if __name__ == '__main__':
     #   seed in [2,4,5,6,10,22,23,188,189,212,254]: ends with less than 5 gates
     #   seed in [240, 86, 126]: ends with 4q- protocol
 
-    # for s in (5, 240, 281):
+    # for s in (4, 240, 281):
     #     np.random.seed(s)
     #     try:
     #         fig = figure_5q_protocol(random_quantum_state(5, 1.0))
@@ -1197,11 +1203,11 @@ if __name__ == '__main__':
     #     if s % 10 == 0:
     #         print(s)
 
-    # # Figure, statistical properties of 4-, 5-, 6-qubit agents
-    # with open('../data/agents-benchmark-final.json') as f:
-    #     results = json.load(f)
-    #     fig6 = figure6(results)
-    #     fig6.savefig('../figures/456q-agents-final.pdf')
+    # Figure, statistical properties of 4-, 5-, 6-qubit agents
+    with open('../data/agents-benchmark-final.json') as f:
+        results = json.load(f)
+        fig6 = figure_stats(results)
+        fig6.savefig('../figures/456q-agents-final.pdf')
 
     # # Figure CNOT counts
     # fig11 = figure_cnot_counts('../data/cnot-counts/')
@@ -1211,7 +1217,6 @@ if __name__ == '__main__':
     # fig13 = figure_cnot_counts('../data/cnot-counts-fully-entangled/')
     # fig13.savefig('../figures/cnot-counts-fully-entangled.pdf')
 
-    # Figure Accuracy & Episode Length
-    fig12 = figure_accuracy()
-    fig12.savefig('../figures/accuracy-episode-length.pdf')
-
+    # # Figure Accuracy & Episode Length
+    # fig12 = figure_accuracy()
+    # fig12.savefig('../figures/accuracy-episode-length-final.pdf')
