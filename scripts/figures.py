@@ -22,9 +22,9 @@ mpl.rcParams['text.usetex'] = True
 mpl.rcParams['font.family'] = 'serif'
 
 
-PATH_4Q_AGENT = os.path.join(project_dir, "logs/4q_10000_iters_haar_unif2_1024envs/agent.pt")
-PATH_5Q_AGENT = os.path.join(project_dir, "logs/5q_20000_iters_haar_unif2_128envs/agent.pt")
-PATH_6Q_AGENT = os.path.join(project_dir, "logs/6q_4000iters_haar_unif3_512envs_seed7_3rd/agent.pt")
+PATH_4Q_AGENT = os.path.join(project_dir, "logs/4q_final/agent.pt")
+PATH_5Q_AGENT = os.path.join(project_dir, "logs/5q_final/agent.pt")
+PATH_6Q_AGENT = os.path.join(project_dir, "logs/6q_final/agent.pt")
 
 
 def str2state(string_descr):
@@ -43,10 +43,12 @@ def str2latex(string_descr):
     name = []
     i = 0
     for r in Rs:
-        s = r'|R_{' + f'{numbers[i:i+len(r)]}' + r'}\rangle'
+        # s = r'|R_{' + f'{numbers[i:i+len(r)]}' + r'}\rangle'
+        s = r'R_{' + f'{numbers[i:i+len(r)]}' + '}'
         name.append(r'\mathrm{' + s + '}')
         i += len(r)
-    return "$" + ''.join(name) + "$"
+    # return "$" + ''.join(name) + "$"
+    return "$|" + ''.join(name) + r"\rangle$"
 
 def rollout(initial_state, max_steps=30):
     """
@@ -294,9 +296,9 @@ def figure2(path_to_search_stats):
     mpl.rcParams['font.size'] = 14
 
     # /// User Constants
-    AREC = (0.15, 0.10 + 0.48, 0.8, 0.37)      # top subplot (random agent)
+    AREC = (0.18, 0.10 + 0.48, 0.78, 0.37)      # top subplot (random agent)
     BREC = (0.62, 0.345 + 0.48, 0.3, 0.1)      # top inset (random agent)
-    CREC = (0.15, 0.10, 0.8, 0.37)             # bottom subplot (greedy agent)
+    CREC = (0.18, 0.10, 0.78, 0.37)             # bottom subplot (greedy agent)
     DREC = (0.62, 0.345, 0.3, 0.1)             # bottom inset (gredy agent)
 
     with open(path_to_search_stats, mode="rb") as f:
@@ -350,7 +352,7 @@ def figure2(path_to_search_stats):
     axB.plot([4,5,6,7,8], step_index_disentangled, color='k', linestyle='--',
              marker='o', linewidth=0.5)
     axB.set_xlabel('$L$', fontdict=dict(fontsize=12))
-    axB.set_ylabel('$M$', fontdict=dict(fontsize=12))
+    axB.set_ylabel('$c(L)$', fontdict=dict(fontsize=12))
 
     # Plot greedy agent
     step_index_disentangled = []
@@ -388,7 +390,7 @@ def figure2(path_to_search_stats):
     axD.plot([4,5,6,7,8], step_index_disentangled, color='k', linestyle='--',
              marker='o', linewidth=0.5)
     axD.set_xlabel('$L$', fontdict=dict(fontsize=12))
-    axD.set_ylabel('$M$', fontdict=dict(fontsize=12))
+    axD.set_ylabel('$c(L)$', fontdict=dict(fontsize=12))
 
     for ax in (axA, axC):
         ax.set_ylabel("$\mathrm{S_{avg}}$", fontdict=dict(fontsize=14))
@@ -401,12 +403,16 @@ def figure2(path_to_search_stats):
         ax.set_xticks([4,5,6,7,8])
         ax.set_yticks([10**0, 10**1, 10**2, 10**3])
 
+    # Add axes labels (a) & (b)
+    axA.text(-0.2, 1.0, '(a)', transform=axA.transAxes)
+    axC.text(-0.2, 1.0, '(b)', transform=axC.transAxes)
+
     # Restore old fontsize
     mpl.rcParams['font.size'] = old_fontsize
     return fig
 
 
-def figure5(initial_state, selected_actions=None):
+def figure_5q_protocol(initial_state, selected_actions=None):
 
     # Save old fontsize
     old_fontsize = mpl.rcParams['font.size']
@@ -789,7 +795,7 @@ def figure6(benchmark_results):
     return fig
 
 
-def figure4(initial_state, state_name=''):
+def figure_4q_protocol(initial_state, state_name=''):
     #
     # Figure contains only 1 ax and almost everything drawn with
     # shape primitives. The left subfigure shows the application of gates
@@ -1035,8 +1041,8 @@ def figure_accuracy():
     mpl.rcParams['font.size'] = 14
 
     # /// User Constants
-    AREC = (0.15, 0.20, 0.7, 0.7)      # subplot (random agent)
-    BREC = (0.5, 0.65, 0.3, 0.2)     # inset (random agent)
+    AREC = (0.15, 0.20, 0.7, 0.7)       # subplot (random agent)
+    BREC = (0.5, 0.65, 0.3, 0.2)        # inset (random agent)
 
     fig = plt.figure(figsize=(6, 6))
     axA = fig.add_axes(AREC)
@@ -1088,41 +1094,41 @@ def figure_accuracy():
     acc_5q = acc_5q[1:500]
     acc_6q = acc_6q[1:500]
 
-    # axA.plot(len_4q_x, len_4q_y, label='$L = 4$', color='tab:blue')
+    axA.plot(len_4q_x, len_4q_y, label='$L = 4$', color='tab:blue')
     # axA.plot(len_5q_x, len_5q_y, label='$L = 5$', color='tab:orange')
-    axA.plot(len_6q_x, len_6q_y, label='$L = 6$', color='tab:green')
+    # axA.plot(len_6q_x, len_6q_y, label='$L = 6$', color='tab:green')
 
-    # axB.plot(acc_4q, color='tab:blue')
+    axB.plot(acc_4q, color='tab:blue')
     # axB.plot(acc_5q, color='tab:orange')
-    axB.plot(acc_6q, color='tab:green')
+    # axB.plot(acc_6q, color='tab:green')
 
     axA.set_xlabel('iteration')
     axA.set_ylabel('episode length')
     axB.set_xlabel('iteration')
     axB.set_ylabel('accuracy')
 
-    search_stats_dir = "/Users/stefan/code/RL_disentangle/stefan/results.pickle"
-    with open(search_stats_dir, mode='rb') as f:
-        search_stats = pickle.load(f)
+    # search_stats_dir = "/Users/stefan/code/RL_disentangle/stefan/results.pickle"
+    # with open(search_stats_dir, mode='rb') as f:
+    #     search_stats = pickle.load(f)
 
-    y = search_stats["Episode_Len_4q"]
-    x = 100 * np.arange(len(y))
-    axA.plot(x, y, label='$L = 4$', color='tab:blue')
-    y = search_stats["Episode_Len_5q"]
-    x = 100 * np.arange(len(y))
-    axA.plot(x, y, label='$L = 5$', color='tab:orange')
+    # y = search_stats["Episode_Len_4q"]
+    # x = 100 * np.arange(len(y))
+    # axA.plot(x, y, label='$L = 4$', color='tab:blue')
+    # y = search_stats["Episode_Len_5q"]
+    # x = 100 * np.arange(len(y))
+    # axA.plot(x, y, label='$L = 5$', color='tab:orange')
 
-    axA.axhline(search_stats["Episode_Len_4q_Search"], linestyle='--', color='k')
-    axA.axhline(search_stats["Episode_Len_5q_Search"], linestyle='--', color='k')
-    axA.axhline(search_stats["Episode_Len_6q_Search"], linestyle='--', color='k')
+    # axA.axhline(search_stats["Episode_Len_4q_Search"], linestyle='--', color='k')
+    # axA.axhline(search_stats["Episode_Len_5q_Search"], linestyle='--', color='k')
+    # axA.axhline(search_stats["Episode_Len_6q_Search"], linestyle='--', color='k')
 
-    y = search_stats["Accuracy_4q"]
-    x = 250 * np.arange(len(y))
-    axB.plot(x, y, color='tab:blue')
+    # y = search_stats["Accuracy_4q"]
+    # x = 250 * np.arange(len(y))
+    # axB.plot(x, y, color='tab:blue')
 
-    y = search_stats["Accuracy_5q"]
-    x = 250 * np.arange(len(y))
-    axB.plot(x, y, color='tab:orange')
+    # y = search_stats["Accuracy_5q"]
+    # x = 250 * np.arange(len(y))
+    # axB.plot(x, y, color='tab:orange')
 
     # axB.plot(acc_4q, color='tab:blue')
     # axB.plot(acc_5q, color='tab:orange')
@@ -1136,12 +1142,12 @@ def figure_accuracy():
 
 if __name__ == '__main__':
 
-    # Benchmark agents
+    # # Benchmark agents
     # results = benchmark_agents(1000)
-    # with open("agents-benchmark.json", mode='w') as f:
+    # with open("../data/agents-benchmark-final-8000.json", mode='w') as f:
     #     json.dump(results, f, indent=2)
 
-    # Figure 1
+    # # Figure 1
     # fig1a = figure1a()
     # fig1a.savefig('../figures/circuit-3q.pdf')
     # fig1bd = figure1bd()
@@ -1154,57 +1160,58 @@ if __name__ == '__main__':
     # # Figure 4a
     # bell =  np.array([1.0, 0.0, 0.0, 1.0], dtype=np.complex64) / np.sqrt(2)
     # bb = np.einsum("ij,kl -> ijkl", bell.reshape(2,2), bell.reshape(2,2))
-    # fig4a = figure4(bb, r"$\mathrm{|Bell_{1,2}\rangle|Bell_{3,4}\rangle}$")
+    # fig4a = figure_4q_protocol(bb, r"$\mathrm{|Bell_{1,2}\rangle|Bell_{3,4}\rangle}$")
     # fig4a.savefig('../figures/circuit-bell-bell.pdf')
 
     # # Figure 4b
     # w = np.array([0, 1, 1, 0, 1, 0, 0, 0], dtype=np.complex64) / np.sqrt(3)
     # zero = np.array([1, 0], dtype=np.complex64)
     # zero_ghz = np.einsum("i,jkl -> ijkl", zero, w.reshape(2,2,2)) 
-    # fig4b = figure4(zero_ghz, r"$\mathrm{|0\rangle|GHZ_{2,3,4}\rangle}$")
+    # fig4b = figure_4q_protocol(zero_ghz, r"$\mathrm{|0\rangle|GHZ_{2,3,4}\rangle}$")
     # fig4b.savefig('../figures/circuit-ghz.pdf')
 
     # # Figure 4c
     # np.random.seed(23)
     # s = np.einsum("ijk,l -> ijkl", random_quantum_state(3, 1.0), random_quantum_state(1, 1.0))
-    # fig4c = figure4(s, r"$\mathrm{|R_{1,2,3}\rangle|R_4\rangle}$")
+    # fig4c = figure_4q_protocol(s, r"$\mathrm{|R_{1,2,3}\rangle|R_4\rangle}$")
     # fig4c.savefig('../figures/circuit-RRR-R.pdf')
 
     # # Figure 4d
     # np.random.seed(45)
-    # fig4d = figure4(random_quantum_state(4, 1.0), r"$\mathrm{|R_{1,2,3,4}\rangle}$")
+    # fig4d = figure_4q_protocol(random_quantum_state(4, 1.0), r"$\mathrm{|R_{1,2,3,4}\rangle}$")
     # fig4d.savefig('../figures/circuit-RRRR.pdf')
 
-    # Figure 5
-    # np.random.seed(45)
-    # fig5 = figure5(random_quantum_state(5, 1.0))
-    # fig5.savefig('../figures/5q-trajectory.pdf')
+    # Figure showing 5 qubit protocols
+    #
+    #   seed in [0,281]: ends with 3q protocol
+    #   seed in [2,4,5,6,10,22,23,188,189,212,254]: ends with less than 5 gates
+    #   seed in [240, 86, 126]: ends with 4q- protocol
 
-    # Figure 5 with 4q protocol at the end
-    for s in (2, 18, 56, 89, 183, 245, 285, 352, 380, 396):
-        np.random.seed(s)
-        try:
-            fig = figure5(random_quantum_state(5, 1.0))
-            fig.savefig(f'../figures/5q/5q-trajectory-seed={s}.pdf')
-        except AssertionError:
-            pass
-        if s % 10 == 0:
-            print(s)
+    # for s in (5, 240, 281):
+    #     np.random.seed(s)
+    #     try:
+    #         fig = figure_5q_protocol(random_quantum_state(5, 1.0))
+    #         fig.savefig(f'../figures/5q/5q-trajectory-seed={s}.pdf')
+    #     except AssertionError:
+    #         pass
+    #     if s % 10 == 0:
+    #         print(s)
 
-    # # Figure 6
-    # with open('../data/agents-benchmark.json') as f:
+    # # Figure, statistical properties of 4-, 5-, 6-qubit agents
+    # with open('../data/agents-benchmark-final.json') as f:
     #     results = json.load(f)
     #     fig6 = figure6(results)
-    #     fig6.savefig('../figures/456q-agents.pdf')
+    #     fig6.savefig('../figures/456q-agents-final.pdf')
 
     # # Figure CNOT counts
     # fig11 = figure_cnot_counts('../data/cnot-counts/')
     # fig11.savefig('../figures/cnot-counts.pdf')
 
-    # # Figure Accuracy & Episode Length
-    # fig12 = figure_accuracy()
-    # fig12.savefig('../figures/accuracy-episode-length.pdf')
-
     # # Figure CNOT counts (fully entangled)
     # fig13 = figure_cnot_counts('../data/cnot-counts-fully-entangled/')
     # fig13.savefig('../figures/cnot-counts-fully-entangled.pdf')
+
+    # Figure Accuracy & Episode Length
+    fig12 = figure_accuracy()
+    fig12.savefig('../figures/accuracy-episode-length.pdf')
+
