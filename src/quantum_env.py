@@ -432,7 +432,7 @@ def rsqr(states, max_angle=np.pi/6, max_rotated_qubits=1):
     return np.array(rotated_states)
 
 
-def rdm_2q_rsqr_mean(states, max_angle=np.pi/6, max_rotated_qubits=1):
+def rdm_2q_rsqr_mean(states, max_angle=2*np.pi, max_rotated_qubits=4):
     """
     Returns 2-qubit RDM observations with random single qubit rotations applied
     over at most `max_rotated_qubits`. The axis of rotation is arbitrary,
@@ -447,7 +447,7 @@ def rdm_2q_rsqr_mean(states, max_angle=np.pi/6, max_rotated_qubits=1):
     return rdm_2q_mean_complex(rotated_states)
 
 
-def rdm_2q_rsqr_mean_real(states, max_angle=np.pi/6, max_rotated_qubits=1):
+def rdm_2q_rsqr_mean_real(states, max_angle=2*np.pi, max_rotated_qubits=4):
     """
     Returns 2-qubit RDM observations with random single qubit rotations applied
     over at most `max_rotated_qubits`. The axis of rotation is arbitrary,
@@ -463,7 +463,7 @@ def rdm_2q_rsqr_mean_real(states, max_angle=np.pi/6, max_rotated_qubits=1):
     return np.dstack([rdms.real, rdms.imag])
 
 
-def rdm_2q_rsqr_nisq_mean(states, max_angle=np.pi/6, max_rotated_qubits=1,
+def rdm_2q_rsqr_nisq_mean(states, max_angle=2*np.pi, max_rotated_qubits=4,
                           max_bitflip_noise=0.15, ampdeph=True):
     """
     Returns 2-qubit RDM observations with random single qubit rotations applied
@@ -478,7 +478,7 @@ def rdm_2q_rsqr_nisq_mean(states, max_angle=np.pi/6, max_rotated_qubits=1,
     return rdm_2q_nisq_mean(rotated_states, max_bitflip_noise, ampdeph)
 
 
-def rdm_2q_rsqr_nisq_mean_real(states, max_angle=np.pi/6, max_rotated_qubits=1,
+def rdm_2q_rsqr_nisq_mean_real(states, max_angle=2*np.pi, max_rotated_qubits=4,
                                max_bitflip_noise=0.15, ampdeph=True):
     """
     Returns 2-qubit RDM observations with random single qubit rotations applied
