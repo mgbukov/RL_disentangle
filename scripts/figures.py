@@ -1060,38 +1060,61 @@ def figure_accuracy():
     #     os.path.dirname(PATH_6Q_AGENT), 'train_history.pickle')
     train_hist_6q = "../logs/6q_4000iters_haar_unif3_512/train_history.pickle"
 
+    acc_hist_4q = "../logs/4q_400iters_testacc/train_history.pickle"
+    acc_hist_5q = "../logs/5q_400iters_testacc/train_history.pickle"
+    acc_hist_6q = "../logs/6q_400iters_testacc/train_history.pickle"
+
     with open(train_hist_4q, mode='rb') as f:
         stats = pickle.load(f)
-        acc_4q = []
+        # acc_4q = []
         len_4q_x = []
         len_4q_y = []
         for i, x in enumerate(stats):
             if "test_avg" in x['Episode Length']:
                 len_4q_y.append(x["Episode Length"]["test_avg"])
                 len_4q_x.append(i)
-            acc_4q.append(x["Ratio Terminated"]["avg"])
+            # acc_4q.append(x["Ratio Terminated"]["avg"])
 
     with open(train_hist_5q, mode='rb') as f:
         stats = pickle.load(f)
-        acc_5q = []
+        # acc_5q = []
         len_5q_x = []
         len_5q_y = []
         for i, x in enumerate(stats):
             if "test_avg" in x['Episode Length']:
                 len_5q_y.append(x["Episode Length"]["test_avg"])
                 len_5q_x.append(i)
-            acc_5q.append(x["Ratio Terminated"]["avg"])
+            # acc_5q.append(x["Ratio Terminated"]["avg"])
 
     with open(train_hist_6q, mode='rb') as f:
         stats = pickle.load(f)
-        acc_6q = []
+        # acc_6q = []
         len_6q_x = []
         len_6q_y = []
         for i, x in enumerate(stats):
             if "Episode Length" in x and "test_avg" in x['Episode Length']:
                 len_6q_y.append(x["Episode Length"]["test_avg"])
                 len_6q_x.append(i)
-            acc_6q.append(x["Ratio Terminated"]["avg"])
+            # acc_6q.append(x["Ratio Terminated"]["avg"])
+
+    acc_4q = []
+    acc_5q = []
+    acc_6q = []
+
+    with open(acc_hist_4q, mode='rb') as f:
+        stats = pickle.load(f)
+        for i, x in enumerate(stats):
+            acc_4q.append(x["Ratio Terminated"]["test_avg"])
+
+    with open(acc_hist_5q, mode='rb') as f:
+        stats = pickle.load(f)
+        for i, x in enumerate(stats):
+            acc_5q.append(x["Ratio Terminated"]["test_avg"])
+
+    with open(acc_hist_6q, mode='rb') as f:
+        stats = pickle.load(f)
+        for i, x in enumerate(stats):
+            acc_6q.append(x["Ratio Terminated"]["test_avg"])
 
     len_4q_x = np.asarray(len_4q_x)[:40]
     len_5q_x = np.asarray(len_5q_x)[:40]
@@ -1101,38 +1124,26 @@ def figure_accuracy():
     len_5q_y = np.asarray(len_5q_y)[:40]
     len_6q_y = np.asarray(len_6q_y)[:40]
 
-    acc_4q = np.asarray(acc_4q)[1:101]    # first iteration has accuracy 1.0 ?
-    acc_5q = np.asarray(acc_5q)[:250]
-    acc_6q = np.asarray(acc_6q)[:1000]
+    acc_4q = np.asarray(acc_4q)
+    acc_5q = np.asarray(acc_5q)
+    acc_6q = np.asarray(acc_6q)
 
     axs[0].plot(len_4q_x, len_4q_y, label='$L = 4$', color='tab:blue')
     axs[1].plot(len_5q_x, len_5q_y, label='$L = 5$', color='tab:green')
     axs[2].plot(len_6q_x, len_6q_y, label='$L = 6$', color='tab:orange')
 
-    axA.plot(acc_4q, color='tab:blue', linewidth=1)
-    axB.plot(acc_5q, color='tab:green', linewidth=1)
-    axC.plot(acc_6q, color='tab:orange', linewidth=1)
-
-    # search_stats_dir = "/Users/stefan/code/RL_disentangle/data/stefan/results.pickle"
-    # with open(search_stats_dir, mode='rb') as f:
-    #     search_stats = pickle.load(f)
-
-    # axs[0].axhline(search_stats["Episode_Len_4q_Search"], linestyle='--', color='k')
-    # axs[1].axhline(search_stats["Episode_Len_5q_Search"], linestyle='--', color='k')
-    # axs[2].axhline(search_stats["Episode_Len_6q_Search"], linestyle='--', color='k')
-    # axs[0].set_title("$L = 4$")
-    # axs[1].set_title("$L = 5$")
-    # axs[2].set_title("$L = 6$")
+    axA.plot(acc_4q, color='tab:blue', linewidth=0.5)
+    axB.plot(acc_5q, color='tab:green', linewidth=0.5)
+    axC.plot(acc_6q, color='tab:orange', linewidth=0.5)
 
     for ax in (axA, axB, axC):
         ax.set_xlabel("iteration", fontsize=10)
         ax.set_ylabel("accuracy", fontsize=10)
-        ax.set_ylim(0.8, 1.05)
+        ax.set_ylim(0.0, 1.05)
         ax.tick_params(axis='both', which='major', labelsize=10)
-    axB.set_xticks([0, 250])
+        ax.set_xticks([0, 200, 400])
     
     for ax in axs:
-        # ax.set_xticks([])
         ax.set_ylabel("episode length")
 
     axs[2].set_xlabel("iteration")
@@ -1142,16 +1153,59 @@ def figure_accuracy():
     axs[2].text(x=0.1, y=0.8, s="$L=6$", transform=axs[2].transAxes)
 
     mpl.rcParams["font.size"] = old_fontsize
+    return fig
+
+
+def figure_search_scalability(path_to_stats):
+
+    mpl.rcParams['font.size'] = 11
+    WTH = 4
+    HEI = 3
+    fig, axs = plt.subplots(2, 1, figsize=(WTH, HEI), sharex=True, layout="tight")
+
+    with open(path_to_stats, mode='rt') as f:
+        data = json.load(f)
+
+    # Unpack
+    avglen = []
+    avglen_qbq = []
+    avgvis = []
+    avgvis_qbq = []
+    xs = []
+    for L, stats in data.items():
+        xs.append(int(L))
+        avglen.append(stats["beam"]["average_length"])
+        avglen_qbq.append(stats["beam_qbyq"]["average_length"])
+        avgvis.append(stats["beam"]["average_visited"])
+        avgvis_qbq.append(stats["beam_qbyq"]["average_visited"])
+    
+    axs[0].scatter(xs, avglen, c="tab:red", s=20, label="beam search")
+    axs[0].scatter(xs, avglen_qbq, c="tab:blue", s=20, label="qubit-by-qubit search")
+    axs[0].set_ylabel("$M$")
+    axs[0].yaxis.set_label_coords(-0.15, 0.5)
+
+    axs[1].scatter(xs, avgvis, c="tab:red", s=20, label="beam search")
+    axs[1].scatter(xs, avgvis_qbq, c="tab:blue", s=20, label="qubit-by-qubit search")
+    axs[1].set_xlabel("$L$")
+    axs[1].set_ylabel("visited nodes")
+    axs[1].set_yscale("log")
+    axs[1].yaxis.set_label_coords(-0.15, 0.5)
+    axs[0].legend(loc="upper left", ncol=1, fancybox=False)
+
+    # Add vertical grid
+    for x in (5,6,8,10):
+        axs[0].axvline(x, linewidth=0.5, alpha=0.2, ls="--", color="k")
+        axs[1].axvline(5, linewidth=0.5, alpha=0.2, ls="--", color="k")
 
     return fig
 
 
 if __name__ == '__main__':
 
-    # Benchmark agents
-    results = benchmark_agents(1000)
-    with open("../data/agents-benchmark-final.json", mode='w') as f:
-        json.dump(results, f, indent=2)
+    # # Benchmark agents
+    # results = benchmark_agents(1000)
+    # with open("../data/agents-benchmark-final.json", mode='w') as f:
+    #     json.dump(results, f, indent=2)
 
     # # Figure 1
     # fig1a = figure1a()
@@ -1203,11 +1257,11 @@ if __name__ == '__main__':
     #     if s % 10 == 0:
     #         print(s)
 
-    # Figure, statistical properties of 4-, 5-, 6-qubit agents
-    with open('../data/agents-benchmark-final.json') as f:
-        results = json.load(f)
-        fig6 = figure_stats(results)
-        fig6.savefig('../figures/456q-agents-final.pdf')
+    # # Figure, statistical properties of 4-, 5-, 6-qubit agents
+    # with open('../data/agents-benchmark-final.json') as f:
+    #     results = json.load(f)
+    #     fig6 = figure_stats(results)
+    #     fig6.savefig('../figures/456q-agents-final.pdf')
 
     # # Figure CNOT counts
     # fig11 = figure_cnot_counts('../data/cnot-counts/')
@@ -1219,4 +1273,7 @@ if __name__ == '__main__':
 
     # # Figure Accuracy & Episode Length
     # fig12 = figure_accuracy()
-    # fig12.savefig('../figures/accuracy-episode-length-final.pdf')
+    # fig12.savefig('../figures/accuracy-episode-length-final-all-test.pdf')
+
+    fig22 = figure_search_scalability("../data/search_stats.json")
+    fig22.savefig("../figures/search-scalability.pdf")
