@@ -1,0 +1,1 @@
+run.py --seed 0 --num_qubits 4 --num_envs 256 --steps 8 --steps_limit 12 --num_iters 5000 --state_generator haar_geom --p_gen 0.9 --obs_fn rdm_2q_nisq_mean_real --attn_heads 4 --transformer_layers 4 --embed_dim 128 --dim_mlp 512 --batch_size 128 --pi_lr 2e-4 --entropy_reg 0.1 --suffix _bitflip0.15 --log_every 100

@@ -1,0 +1,26 @@
+{
+  "|RR-R-R>": {
+    "avg_len": 1.8564453125,
+    "95_percentile": 4.0,
+    "max_len": 12.0,
+    "ratio_solved": 0.9599609375
+  },
+  "|RR-RR>": {
+    "avg_len": 2.498046875,
+    "95_percentile": 4.0,
+    "max_len": 12.0,
+    "ratio_solved": 0.96484375
+  },
+  "|RRR-R>": {
+    "avg_len": 2.34375,
+    "95_percentile": 3.0,
+    "max_len": 12.0,
+    "ratio_solved": 0.98828125
+  },
+  "|RRRR>": {
+    "avg_len": 8.9794921875,
+    "95_percentile": 12.0,
+    "max_len": 12.0,
+    "ratio_solved": 0.6533203125
+  }
+}
