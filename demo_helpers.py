@@ -22,6 +22,24 @@ SIGMA_Y = np.array([[0, -1j], [1j, 0]], dtype=np.complex64)
 SIGMA_Z = np.array([[1, 0], [0, -1]], dtype=np.complex64)
 
 
+def str2state(string_descr):
+    """Generates Haar random state from string description like 'R-RRR-R'."""
+    psi = np.array([1.0], dtype=np.complex64)
+    nqubits = 0
+    for pair in string_descr.split('-'):
+        q = pair.count('R')
+        phi = random_quantum_state(q=q, prob=1.)
+        if nqubits == 0:
+            psi = phi
+        else:
+            A = "ijkl"[:nqubits]
+            B = "pqrs"[:q]
+            einstr = f"{A},{B}->{A}{B}"
+            psi = np.einsum(einstr, psi, phi)
+        nqubits += q
+    return psi.reshape((2,) * nqubits)
+
+
 def get_special_states():
     """Returns dictionaty with special states for 4 & 5 qubits."""
 

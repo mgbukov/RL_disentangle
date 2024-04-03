@@ -27,12 +27,21 @@ PATH_6Q_AGENT = os.path.join(project_dir, "logs/6q_final/agent.pt")
 
 
 def str2state(string_descr):
+    """Generates Haar random state from string description like 'R-RRR-R'."""
     psi = np.array([1.0], dtype=np.complex64)
     nqubits = 0
+    chars = "abcdefghijklmn"
     for pair in string_descr.split('-'):
         q = pair.count('R')
+        phi = random_quantum_state(q=q, prob=1.)
+        if nqubits == 0:
+            psi = phi
+        else:
+            A = chars[:nqubits]
+            B = chars[nqubits:nqubits+q]
+            einstr = f"{A},{B}->{A}{B}"
+            psi = np.einsum(einstr, psi, phi)
         nqubits += q
-        psi = np.kron(psi, random_quantum_state(q=q, prob=1.))
     return psi.reshape((2,) * nqubits)
 
 def str2latex(string_descr):
@@ -1200,6 +1209,53 @@ def figure_search_scalability(path_to_stats):
     return fig
 
 
+def figure_attention_scores(state):
+
+    # Load 4q agent
+    agent = torch.load(PATH_4Q_AGENT, map_location=torch.device("cpu"))
+    for layer in agent.policy_network.net:
+        layer.activation_relu_or_gelu = 1
+
+    env = QuantumEnv(4, 1, obs_fn='rdm_2q_mean_real')
+    env.reset()
+    env.simulator.states = np.expand_dims(state, 0)
+    observation = torch.from_numpy(env.obs_fn(env.simulator.states))
+
+    # Get attention scores
+    with torch.no_grad():
+        emb = agent.policy_network.net[0](observation)
+        attn_weights = []
+        # First layer is the embedding layer, last two layers are output layers
+        for i in range(1, len(agent.policy_network.net) - 2):
+            z_norm = agent.policy_network.net[i].norm1(emb)
+            _, attn = agent.policy_network.net[i].self_attn(
+                z_norm, z_norm, z_norm,
+                need_weights=True, average_attn_weights=False
+            )
+            emb = agent.policy_network.net[i](emb)
+            attn_weights.append(attn.numpy())
+        attn_weights = np.vstack(attn_weights)
+
+    # Plot attention scores
+    fig, axs = plt.subplots(2,2, figsize=(4.5,4.5), layout="tight",
+                            sharex=True, sharey=True)
+    n_layers, n_heads = attn_weights.shape[0], attn_weights.shape[1]
+    actions = list(itertools.combinations((1,2,3,4), 2))
+    labels = [r"$o^{(" + f"{i},{j}" + ")}$" for i, j in actions]
+
+    axiter = axs.flat
+    locators = np.arange(len(list(labels))) + 0.5
+    for i, j in itertools.product(range(n_layers), range(n_heads)):
+        ax = next(axiter)
+        ax.pcolormesh(attn_weights[i][j].T, vmin=0., vmax=1.)
+        ax.set_title(f"Layer {i+1}, Head {j+1}")
+        ax.set_xticks(locators, labels, rotation=45)
+        ax.set_yticks(locators, labels, rotation=0)
+        ax.set_aspect(1.0)
+
+    return fig
+
+
 if __name__ == '__main__':
 
     # # Benchmark agents
@@ -1275,5 +1331,21 @@ if __name__ == '__main__':
     # fig12 = figure_accuracy()
     # fig12.savefig('../figures/accuracy-episode-length-final-all-test.pdf')
 
-    fig22 = figure_search_scalability("../data/search_stats.json")
-    fig22.savefig("../figures/search-scalability.pdf")
+    # fig22 = figure_search_scalability("../data/search_stats.json")
+    # fig22.savefig("../figures/search-scalability.pdf")
+
+    # Figure for Attention Head Scores
+    #   |R>|R>|RR>
+    np.random.seed(21)
+    psi = str2state("R-R-RR")
+    fig30 = figure_attention_scores(psi)
+    fig30.savefig("../figures/attention-scores-R-R-RR.pdf")
+
+    #   |0>|Bell>|0>
+    bell = np.array([1.0, 0.0, 0.0, 1.0], dtype=np.complex64) / np.sqrt(2)
+    bell = bell.reshape(2,2)
+    zero = np.array([1, 0], dtype=np.complex64)
+    bell_zero = np.einsum("ij,k->ijk", bell, zero)
+    zero_bell_zero = np.einsum("i,jkl->ijkl", zero, bell_zero)
+    fig31 = figure_attention_scores(zero_bell_zero)
+    fig31.savefig("../figures/attention-scores-0-Bell-0.pdf")
