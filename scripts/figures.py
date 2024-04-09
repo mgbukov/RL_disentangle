@@ -1247,10 +1247,14 @@ def figure_attention_scores(state):
     locators = np.arange(len(list(labels))) + 0.5
     for i, j in itertools.product(range(n_layers), range(n_heads)):
         ax = next(axiter)
-        ax.pcolormesh(attn_weights[i][j].T, vmin=0., vmax=1.)
+        X = attn_weights[i][j]
+        # Flip the order of rows, because pcolomesh Y coordinates increase
+        # with the rows index coordinates of X. We want element X(0,0) to be
+        # plotted at the top-left corner
+        ax.pcolormesh(X[::-1, :], vmin=0., vmax=1., cmap="gray")
         ax.set_title(f"Layer {i+1}, Head {j+1}")
         ax.set_xticks(locators, labels, rotation=45)
-        ax.set_yticks(locators, labels, rotation=0)
+        ax.set_yticks(locators, labels[::-1], rotation=0)
         ax.set_aspect(1.0)
 
     return fig
@@ -1349,3 +1353,33 @@ if __name__ == '__main__':
     zero_bell_zero = np.einsum("i,jkl->ijkl", zero, bell_zero)
     fig31 = figure_attention_scores(zero_bell_zero)
     fig31.savefig("../figures/attention-scores-0-Bell-0.pdf")
+
+    # #   |RR>|Bell>
+    # haar_rnd = random_quantum_state(2, 1.0).reshape(2,2)
+    # haar_bell = np.einsum("ij,kl->ijkl", haar_rnd, bell)
+    # fig32 = figure_attention_scores(haar_bell)
+    # fig32.savefig("../figures/attention-scores-RR-Bell.pdf")
+
+    # #   |R>|R>|Bell>
+    # haar1 = random_quantum_state(1, 1.0)
+    # haar2 = random_quantum_state(1, 1.0)
+    # haar_subsys = np.einsum("i,j->ij", haar1, haar2)
+    # haar_bell = np.einsum("ij,kl->ijkl", haar_subsys, bell)
+    # fig32 = figure_attention_scores(haar_bell)
+    # fig32.savefig("../figures/attention-scores-R-R-Bell.pdf")
+
+    #   |1>|1>|RR>
+    np.random.seed(7)
+    one = np.array([0.0, 1.0], dtype=np.complex64)
+    oneone = np.einsum("i,j->ij", one, one)
+    one_RR = np.einsum("ij,kl->ijkl", oneone, random_quantum_state(2, 1.0).reshape(2,2))
+    fig34 = figure_attention_scores(one_RR)
+    fig34.savefig("../figures/attention-scores-1-1-RR.pdf")
+
+    #   |RR>|RR>
+    np.random.seed(1)
+    subsysA = random_quantum_state(2, 1.0)
+    subsysB = random_quantum_state(2, 1.0)
+    RR_RR = np.einsum("ij,kl->ijkl", subsysA, subsysB)
+    fig33 = figure_attention_scores(RR_RR)
+    fig33.savefig("../figures/attention-scores-RR-RR.pdf")
