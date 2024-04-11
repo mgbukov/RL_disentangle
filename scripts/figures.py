@@ -1241,7 +1241,7 @@ def figure_attention_scores(state):
                             sharex=True, sharey=True)
     n_layers, n_heads = attn_weights.shape[0], attn_weights.shape[1]
     actions = list(itertools.combinations((1,2,3,4), 2))
-    labels = [r"$o^{(" + f"{i},{j}" + ")}$" for i, j in actions]
+    labels = [r"$x^{(" + f"{i},{j}" + ")}$" for i, j in actions]
 
     axiter = axs.flat
     locators = np.arange(len(list(labels))) + 0.5
@@ -1257,6 +1257,21 @@ def figure_attention_scores(state):
         ax.set_yticks(locators, labels[::-1], rotation=0)
         ax.set_aspect(1.0)
 
+    return fig
+
+def figure_attention_colorbar():
+
+    AREC = (2.0, 2.0, 0.1, 0.1)
+    BREC = (0.1, 0.5, 0.8, 0.5)
+    fig = plt.figure(figsize=(4.5, 0.45))
+    axA = fig.add_axes(AREC)
+    axB = fig.add_axes(BREC)
+
+    vals = np.linspace(0.0, 1.0, 36).reshape(6,6)
+    mappable = axA.pcolormesh(vals, vmin=0.0, vmax=1.0, cmap="gray")
+    plt.colorbar(mappable, cax=axB, orientation="horizontal", fraction=0.5,
+                 shrink=0.5,
+                 ticks=np.linspace(0.0, 1.0, 11), format="{x:.1f}")
     return fig
 
 
@@ -1383,3 +1398,7 @@ if __name__ == '__main__':
     RR_RR = np.einsum("ij,kl->ijkl", subsysA, subsysB)
     fig33 = figure_attention_scores(RR_RR)
     fig33.savefig("../figures/attention-scores-RR-RR.pdf")
+
+    #   Colorbar
+    fig34 = figure_attention_colorbar()
+    fig34.savefig("../figures/attention-colorbar.pdf")
