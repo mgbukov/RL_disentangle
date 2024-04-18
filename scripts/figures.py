@@ -29,11 +29,30 @@ PATH_6Q_AGENT = os.path.join(project_dir, "logs/6q_final/agent.pt")
 def str2state(string_descr):
     """Generates Haar random state from string description like 'R-RRR-R'."""
     psi = np.array([1.0], dtype=np.complex64)
+    bell = np.array([1/np.sqrt(2), 0, 0, -1/np.sqrt(2)]).astype(np.complex64)
+    W = np.array([0, 1/np.sqrt(3), 1/np.sqrt(3), 0, 1/np.sqrt(3), 0, 0, 0]).astype(np.complex64)
+    zero = np.array([1, 0]).astype(np.complex64)
+    one = np.array([0, 1]).astype(np.complex64)
     nqubits = 0
     chars = "abcdefghijklmn"
     for pair in string_descr.split('-'):
-        q = pair.count('R')
-        phi = random_quantum_state(q=q, prob=1.)
+        if pair == "B":
+            phi = bell.reshape(2,2)
+            q = 2
+        elif pair == "1":
+            phi = one
+            q = 1
+        elif pair == "0":
+            phi = zero
+            q = 1
+        elif pair == "W":
+            phi = W.reshape(2,2,2)
+            q = 3
+        elif set(pair) == {'R'}:
+            q = pair.count('R')
+            phi = random_quantum_state(q=q, prob=1.)
+        else:
+            raise ValueError(f"Unknown quantum subsystem coding: \"{pair}\"")
         if nqubits == 0:
             psi = phi
         else:
@@ -47,15 +66,32 @@ def str2state(string_descr):
 def str2latex(string_descr):
     """Transforms state name like "R-RR" to "|R>|RR>" in Latex."""
     numbers = "123456789"
-    Rs = string_descr.split("-")
+    codes = string_descr.split("-")
     name = []
     i = 0
-    for r in Rs:
-        s = r'|R_{' + f'{numbers[i:i+len(r)]}' + r'}\rangle'
+    for c in codes:
+        if c == "W":
+            q = 3
+            letter = "W"
+        elif c == "1":
+            q = 1
+            letter = "1"
+        elif c == "0":
+            q = 1
+            letter = "0"
+        elif c == "B":
+            q = 2
+            letter = "Bell"
+        elif set(c) == {"R",}:
+            q = len(c)
+            letter = "R"
+        else:
+            raise ValueError(f"Unknown quantum subsystem coding: \"{c}\"")
+        s = f'|{letter}_{{' + f"{numbers[i:i+q]}" + r"}\rangle"
         # USE FOR "slighly entangled states, Fig. 14"
         # s = r'R_{' + f'{numbers[i:i+len(r)]}' + '}'
         name.append(r'\mathrm{' + s + '}')
-        i += len(r)
+        i += q
     return "$" + ''.join(name) + "$"
     # USE FOR "slighty entangled states, Fig. 14"
     # return "$|" + ''.join(name) + r"\rangle$"
@@ -1209,7 +1245,7 @@ def figure_search_scalability(path_to_stats):
     return fig
 
 
-def figure_attention_scores(state):
+def get_attention_scores(state, expand_dim=True):
 
     # Load 4q agent
     agent = torch.load(PATH_4Q_AGENT, map_location=torch.device("cpu"))
@@ -1218,7 +1254,7 @@ def figure_attention_scores(state):
 
     env = QuantumEnv(4, 1, obs_fn='rdm_2q_mean_real')
     env.reset()
-    env.simulator.states = np.expand_dims(state, 0)
+    env.simulator.states = np.expand_dims(state, 0) if expand_dim else state
     observation = torch.from_numpy(env.obs_fn(env.simulator.states))
 
     # Get attention scores
@@ -1234,7 +1270,22 @@ def figure_attention_scores(state):
             )
             emb = agent.policy_network.net[i](emb)
             attn_weights.append(attn.numpy())
-        attn_weights = np.vstack(attn_weights)
+        attn_weights = np.array(attn_weights)
+        # Swap (layer, batch, head, X, Y) dimensions to (batch, layer, head, X, Y)
+        attn_weights = attn_weights.swapaxes(0, 1)
+        # If `expand_dim` was true, then we had only 1 single state.
+        # Squeeze dim 0 from `attn_weights` in any case and catch the ValueError.
+        try:
+            attn_weights = attn_weights.squeeze(0)
+        except ValueError:
+            pass
+
+    return attn_weights
+
+
+def figure_attention_scores(state):
+    # Calculate attention scores
+    attn_weights = get_attention_scores(state)
 
     # Plot attention scores
     fig, axs = plt.subplots(2,2, figsize=(4.5,4.5), layout="tight",
@@ -1259,6 +1310,7 @@ def figure_attention_scores(state):
 
     return fig
 
+
 def figure_attention_colorbar():
 
     AREC = (2.0, 2.0, 0.1, 0.1)
@@ -1272,6 +1324,65 @@ def figure_attention_colorbar():
     plt.colorbar(mappable, cax=axB, orientation="horizontal", fraction=0.5,
                  shrink=0.5,
                  ticks=np.linspace(0.0, 1.0, 11), format="{x:.1f}")
+    return fig
+
+
+def figure_attention_heads_average(nsamples=1000):
+
+    state_codings = [
+        "RRRR",
+        "RRR-R",
+        "RR-RR",
+        "R-R-RR",
+        "B-RR",
+        "B-R-R",
+        "W-R",
+        "RRR-1",
+        "RR-1-1"
+    ]
+    test_states = {s: [str2state(s) for _ in range(nsamples)] for s in state_codings}
+
+    # Load 4q agent
+    agent = torch.load(PATH_4Q_AGENT, map_location=torch.device("cpu"))
+    for layer in agent.policy_network.net:
+        layer.activation_relu_or_gelu = 1
+
+    env = QuantumEnv(4, 1, obs_fn='rdm_2q_mean_real')
+    attention_distributions = {}
+    for key, states in test_states.items():
+        # Compute all attention scores for `states`
+
+        weights = get_attention_scores(np.array(states), expand_dim=False)
+        assert weights.shape == (len(states), 2, 2, 6, 6)
+        # Average the scores
+        mean_attn = np.mean(weights, axis=0)
+        assert mean_attn.shape == (2, 2, 6, 6)
+        attention_distributions[key] = mean_attn
+    
+    fig, axs = plt.subplots(9, 4, figsize=(6, 16), sharex=True, sharey=True,
+                            layout="tight")
+    axiter = axs.flat
+    actions = list(itertools.combinations((1,2,3,4), 2))
+    labels = [r"$x^{(" + f"{i},{j}" + ")}$" for i, j in actions]
+    locators = np.arange(len(list(labels))) + 0.5
+
+    for key, attns in attention_distributions.items():
+        for layer_idx, head_idx in itertools.product((0,1), (0, 1)):
+            ax = next(axiter)
+            A = attns[layer_idx][head_idx]
+            # Flip the order of rows, because pcolomesh Y coordinates increase
+            # with the rows index coordinates of X. We want element X(0,0) to be
+            # plotted at the top-left corner
+            ax.pcolormesh(A[::-1, :], vmin=0.0, vmax=1.0, cmap="gray")
+            # if layer_idx == 0 and head_idx == 0:
+            title = f"{str2latex(key)}\nL{layer_idx}, H{head_idx}"
+            # else:
+                # title = f"L{layer_idx}, H{head_idx}"
+            ax.set_title(title)
+            ax.set_xticks(locators, labels, rotation=45)
+            ax.set_yticks(locators, labels[::-1], rotation=0)
+            ax.set_aspect(1.0)
+
     return fig
 
 
@@ -1353,12 +1464,12 @@ if __name__ == '__main__':
     # fig22 = figure_search_scalability("../data/search_stats.json")
     # fig22.savefig("../figures/search-scalability.pdf")
 
-    # Figure for Attention Head Scores
-    #   |R>|R>|RR>
-    np.random.seed(21)
-    psi = str2state("R-R-RR")
-    fig30 = figure_attention_scores(psi)
-    fig30.savefig("../figures/attention-scores-R-R-RR.pdf")
+    # # Figure for Attention Head Scores
+    # #   |R>|R>|RR>
+    # np.random.seed(21)
+    # psi = str2state("R-R-RR")
+    # fig30 = figure_attention_scores(psi)
+    # fig30.savefig("../figures/attention-scores-R-R-RR.pdf")
 
     #   |0>|Bell>|0>
     bell = np.array([1.0, 0.0, 0.0, 1.0], dtype=np.complex64) / np.sqrt(2)
@@ -1383,13 +1494,13 @@ if __name__ == '__main__':
     # fig32 = figure_attention_scores(haar_bell)
     # fig32.savefig("../figures/attention-scores-R-R-Bell.pdf")
 
-    #   |1>|1>|RR>
-    np.random.seed(7)
-    one = np.array([0.0, 1.0], dtype=np.complex64)
-    oneone = np.einsum("i,j->ij", one, one)
-    one_RR = np.einsum("ij,kl->ijkl", oneone, random_quantum_state(2, 1.0).reshape(2,2))
-    fig34 = figure_attention_scores(one_RR)
-    fig34.savefig("../figures/attention-scores-1-1-RR.pdf")
+    # #   |1>|1>|RR>
+    # np.random.seed(7)
+    # one = np.array([0.0, 1.0], dtype=np.complex64)
+    # oneone = np.einsum("i,j->ij", one, one)
+    # one_RR = np.einsum("ij,kl->ijkl", oneone, random_quantum_state(2, 1.0).reshape(2,2))
+    # fig34 = figure_attention_scores(one_RR)
+    # fig34.savefig("../figures/attention-scores-1-1-RR.pdf")
 
     #   |RR>|RR>
     np.random.seed(1)
@@ -1402,3 +1513,7 @@ if __name__ == '__main__':
     #   Colorbar
     fig34 = figure_attention_colorbar()
     fig34.savefig("../figures/attention-colorbar.pdf")
+
+    np.random.seed(777)
+    fig40 = figure_attention_heads_average(1000)
+    fig40.savefig("../figures/attention-matrix-mean-reduction.pdf")
