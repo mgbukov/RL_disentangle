@@ -1282,6 +1282,34 @@ def get_attention_scores(state, expand_dim=True):
 
     return attn_weights
 
+def get_output_embeddings(state, expand_dim=True):
+    # Define hook
+    result = None
+    def embedding_hook(module, input, output):
+        nonlocal result
+        result = input[0].detach().cpu().numpy()
+
+    # Load 4q agent
+    agent = torch.load(PATH_4Q_AGENT, map_location=torch.device("cpu"))
+    for layer in agent.policy_network.net:
+        layer.activation_relu_or_gelu = 1
+
+    # Add hook
+    last_embedding_layer = list(agent.policy_network.net.modules())[-2]
+    last_embedding_layer.register_forward_hook(embedding_hook)
+
+    # Prepare environment
+    env = QuantumEnv(4, 1, obs_fn='rdm_2q_mean_real')
+    env.reset()
+    env.simulator.states = np.expand_dims(state, 0) if expand_dim else state
+    observation = torch.from_numpy(env.obs_fn(env.simulator.states))
+
+    with torch.no_grad():
+        _ = agent.policy_network.net(observation)
+
+    assert result is not None
+    return result
+
 
 def figure_attention_scores(state):
     # Calculate attention scores
@@ -1342,12 +1370,6 @@ def figure_attention_heads_average(nsamples=1000):
     ]
     test_states = {s: [str2state(s) for _ in range(nsamples)] for s in state_codings}
 
-    # Load 4q agent
-    agent = torch.load(PATH_4Q_AGENT, map_location=torch.device("cpu"))
-    for layer in agent.policy_network.net:
-        layer.activation_relu_or_gelu = 1
-
-    env = QuantumEnv(4, 1, obs_fn='rdm_2q_mean_real')
     attention_distributions = {}
     for key, states in test_states.items():
         # Compute all attention scores for `states`
@@ -1384,6 +1406,93 @@ def figure_attention_heads_average(nsamples=1000):
             ax.set_aspect(1.0)
 
     return fig
+
+
+def figure_embeddings_projection(nsamples=1000, method="pca"):
+    state_codings = [
+        "RRRR",
+        "RR-RR",
+        "R-1-RR",
+        "B-RR",
+        "W-R",
+    ]
+    test_states = {s: [str2state(s) for _ in range(nsamples)] for s in state_codings}
+    embeddings_dict = {}
+    for key, states in test_states.items():
+        # Compute all attention scores for `states`
+        embeddings = get_output_embeddings(np.array(states), expand_dim=False)
+        embeddings_dict[key] = embeddings
+
+    from sklearn.decomposition import PCA
+    from sklearn.manifold import TSNE
+    X_train, y_train = [], []
+    X_test, y_test = [], []
+    for key, emb in embeddings_dict.items():
+        if 'B' in key or ('W' in key):
+            X_test.extend(emb)
+            y_test.extend([key] * len(emb))
+        else:
+            X_train.extend(emb)
+            y_train.extend([key] * len(emb))
+    X_train = np.asarray(X_train)
+    y_train = np.asarray(y_train)
+    X_test  = np.asarray(X_test)
+    y_test  = np.asarray(y_test)
+    X = np.concatenate([X_train, X_test])
+    y = np.concatenate([y_train, y_test])
+
+    fig, axs = plt.subplots(3, 2, figsize=(8, 12), layout="tight")
+    axiter = axs.flat
+    rho_labels = [f"$\\rho^{{{x}}}$" for x in [(1,2), (1,3), (1,4), (2,3), (2,4), (3,4)]]
+
+    if method == "pca":
+        pca = PCA(n_components=2)
+        for i in range(6):
+            ax = next(axiter)
+            # Fit train embedings
+            pca.fit(X_train[:, i, :])
+            expvar = pca.explained_variance_ratio_.sum()
+            for key, emb in embeddings_dict.items():
+                projections = pca.transform(emb[:, i, :])
+                istest = ('B' in key) or ('W' in key)
+                marker = 'o' if not istest else 'x'
+                ax.scatter(projections[:, 0], projections[:, 1],
+                        s=25 if istest else 15,
+                        alpha=1.0 if istest else 0.5,
+                        label=key, marker=marker, edgecolors=None)
+            rho = rho_labels[i]
+            ax.set_title(f"PCA on embeddings of {rho}\nExplaind Variance Ratio = {expvar:.2f}")
+        ax.legend(loc="upper right")
+
+    elif method == "tsne":
+        tsne = TSNE(n_components=2)
+        for i in range(6):
+            ax = next(axiter)
+            projections = tsne.fit_transform(X[:, i, :])
+            for j in range(0, len(state_codings) * nsamples, nsamples):
+                xs = projections[j:j+nsamples]
+                ys = y[j:j+nsamples]
+                assert len(set(ys)) == 1
+                key = ys[0]
+                istest = ('B' in key) or ('W' in key)
+                marker = 'o' if not istest else 'x'
+                ax.scatter(xs[:, 0], xs[:, 1],
+                        s=25 if istest else 15,
+                        alpha=1.0 if istest else 0.5,
+                        label=key, marker=marker, edgecolors=None)
+            rho = rho_labels[i]
+            ax.set_title(f"tSNE on embeddings of {rho}\n")
+        ax.legend(loc="upper right")
+    
+    else:
+        raise ValueError(f"Unknown methhod: {method}")
+
+    for ax in axs.flat:
+        ax.set_aspect(1.0)
+        ax.set_box_aspect(1.0)
+
+    return fig
+
 
 
 if __name__ == '__main__':
@@ -1471,14 +1580,14 @@ if __name__ == '__main__':
     # fig30 = figure_attention_scores(psi)
     # fig30.savefig("../figures/attention-scores-R-R-RR.pdf")
 
-    #   |0>|Bell>|0>
-    bell = np.array([1.0, 0.0, 0.0, 1.0], dtype=np.complex64) / np.sqrt(2)
-    bell = bell.reshape(2,2)
-    zero = np.array([1, 0], dtype=np.complex64)
-    bell_zero = np.einsum("ij,k->ijk", bell, zero)
-    zero_bell_zero = np.einsum("i,jkl->ijkl", zero, bell_zero)
-    fig31 = figure_attention_scores(zero_bell_zero)
-    fig31.savefig("../figures/attention-scores-0-Bell-0.pdf")
+    # #   |0>|Bell>|0>
+    # bell = np.array([1.0, 0.0, 0.0, 1.0], dtype=np.complex64) / np.sqrt(2)
+    # bell = bell.reshape(2,2)
+    # zero = np.array([1, 0], dtype=np.complex64)
+    # bell_zero = np.einsum("ij,k->ijk", bell, zero)
+    # zero_bell_zero = np.einsum("i,jkl->ijkl", zero, bell_zero)
+    # fig31 = figure_attention_scores(zero_bell_zero)
+    # fig31.savefig("../figures/attention-scores-0-Bell-0.pdf")
 
     # #   |RR>|Bell>
     # haar_rnd = random_quantum_state(2, 1.0).reshape(2,2)
@@ -1502,18 +1611,26 @@ if __name__ == '__main__':
     # fig34 = figure_attention_scores(one_RR)
     # fig34.savefig("../figures/attention-scores-1-1-RR.pdf")
 
-    #   |RR>|RR>
-    np.random.seed(1)
-    subsysA = random_quantum_state(2, 1.0)
-    subsysB = random_quantum_state(2, 1.0)
-    RR_RR = np.einsum("ij,kl->ijkl", subsysA, subsysB)
-    fig33 = figure_attention_scores(RR_RR)
-    fig33.savefig("../figures/attention-scores-RR-RR.pdf")
+    # #   |RR>|RR>
+    # np.random.seed(1)
+    # subsysA = random_quantum_state(2, 1.0)
+    # subsysB = random_quantum_state(2, 1.0)
+    # RR_RR = np.einsum("ij,kl->ijkl", subsysA, subsysB)
+    # fig33 = figure_attention_scores(RR_RR)
+    # fig33.savefig("../figures/attention-scores-RR-RR.pdf")
 
-    #   Colorbar
-    fig34 = figure_attention_colorbar()
-    fig34.savefig("../figures/attention-colorbar.pdf")
+    # #   Colorbar
+    # fig34 = figure_attention_colorbar()
+    # fig34.savefig("../figures/attention-colorbar.pdf")
 
-    np.random.seed(777)
-    fig40 = figure_attention_heads_average(1000)
-    fig40.savefig("../figures/attention-matrix-mean-reduction.pdf")
+    # # Figure showing Attention distributions averaged over many inputs
+    # np.random.seed(777)
+    # fig40 = figure_attention_heads_average(1000)
+    # fig40.savefig("../figures/attention-matrix-mean-reduction.pdf")
+
+    # Figure showing embeddgins manifold projected on 2D
+    np.random.seed(10)
+    fig50 = figure_embeddings_projection(100, "pca")
+    fig50.savefig("../figures/figure-embeddings-projection-PCA.pdf")
+    fig51 = figure_embeddings_projection(100, "tsne")
+    fig51.savefig("../figures/figure-embeddings-projection-tSNE.pdf")
