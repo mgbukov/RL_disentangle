@@ -173,10 +173,7 @@ def test_peek_next_4q(n_tests=100, verbose=False):
     return result
 
 
-def test_rdms_noise(
-        policy: Literal['universal', 'equivariant', 'transformer', 'ordered'],
-        state
-    ):
+def test_rdms_noise(policy: Literal['universal', 'transformer'], state):
     nsteps = 5 if policy == 'universal' else 8
 
     result = True
@@ -199,7 +196,7 @@ def test_rdms_noise(
     return result
 
 
-def do_qiskit_rollout(state, policy, max_steps=10):
+def do_qiskit_rollout(state, max_steps=10):
     P = np.eye(4,4, dtype=np.complex64)
     P[[1,2]] = P[[2,1]]
     s = state.ravel()
@@ -217,7 +214,7 @@ def do_qiskit_rollout(state, policy, max_steps=10):
         RDMs.append(rdms)
         entanglements.append(get_entanglements(s))
 
-        U, i, j = get_action_4q(rdms, policy)
+        U, i, j = get_action_4q(rdms, "transformer")
         preswaps.append(np.all(get_preswap_gate(rdms, i, j) == P))
         postswaps.append(np.all(get_postswap_gate(rdms, i, j) == P))
         a = get_action_index_from_ij(rdms, i, j)
@@ -244,7 +241,7 @@ def do_qiskit_rollout(state, policy, max_steps=10):
     }
 
 
-def do_rlenv_rollout(state, policy, max_steps=10):
+def do_rlenv_rollout(state, max_steps=10):
     L = int(np.log2(state.size))
     env = QuantumEnv(L, 1, obs_fn="rdm_2q_mean_real")
     env.reset()
@@ -255,19 +252,14 @@ def do_rlenv_rollout(state, policy, max_steps=10):
     RDMs = []
     preswaps, postswaps = [], []
 
-    policy_net = None
-    if policy == "transformer":
-        policy_net = TRANSFORMER_POLICY
-    elif policy == "ordered":
-        if L == 4:
-            policy_net = ORDERED_POLICY_4Q
-        elif L == 5:
-            policy_net = ORDERED_POLICY_5Q
-        elif L == 6:
-            policy_net = ORDERED_POLICY_6Q
+    if L == 4:
+        policy_net = POLICY_4Q
+    elif L == 5:
+        policy_net = POLICY_5Q
+    elif L == 6:
+        policy_net = POLICY_6Q
     else:
-        raise ValueError("Test is valid only with 'ordered' or 'transformer' "
-                         "policies.")
+        raise ValueError(f"No policy available for {L} qubits.")
 
     done = False
     n = 0
@@ -300,7 +292,7 @@ def do_rlenv_rollout(state, policy, max_steps=10):
     }
 
 
-def test_rollout_equivalence(policy, n_qubits=4, n_tests=200):
+def test_rollout_equivalence(n_qubits=4, n_tests=200):
     env = QuantumEnv(n_qubits, 1, obs_fn="phase_norm")
     result = True
     failed = 0
@@ -311,8 +303,8 @@ def test_rollout_equivalence(policy, n_qubits=4, n_tests=200):
         env.reset()
         env.simulator.set_random_states_()
         psi = env.simulator.states.ravel().copy()
-        qiskit_rollout = do_qiskit_rollout(psi.copy(), policy, max_steps)
-        rl_env_rollout = do_rlenv_rollout(psi.copy(), policy, max_steps)
+        qiskit_rollout = do_qiskit_rollout(psi.copy(), max_steps)
+        rl_env_rollout = do_rlenv_rollout(psi.copy(), max_steps)
         res = True
         # Test action selection
         if len(qiskit_rollout['actions']) != len(rl_env_rollout['actions']):
@@ -338,7 +330,7 @@ def test_rollout_equivalence(policy, n_qubits=4, n_tests=200):
         print('.' if res else 'F', end='', flush=True)
         failed += int(not res)
         result &= res
-    print(f'\ntest_rollout_equivalence(policy={policy}, n_qubits={n_qubits}):',
+    print(f'\ntest_rollout_equivalence(n_qubits={n_qubits}):',
           f'{failed}/{n_tests} failed')
     # np.save('diverging-states.npy', np.array(diverging_states))
     return result
@@ -351,9 +343,9 @@ if __name__ == '__main__':
     test_get_postswap_gate(100, verbose=True)
     test_get_U(100, verbose=True)
     test_peek_next_4q(100)
-    test_rollout_equivalence("ordered", 4, 100)
-    test_rollout_equivalence("ordered", 5, 25)
-    test_rollout_equivalence("ordered", 6, 10)
+    test_rollout_equivalence(4, 100)
+    test_rollout_equivalence(5, 25)
+    test_rollout_equivalence(6, 10)
 
     # Test |BB>|BB> and all it's permutations state wih noise added to RDMs
     print('Testing |BB>|BB> state with universal circuit:')
@@ -364,10 +356,10 @@ if __name__ == '__main__':
         test_rdms_noise('universal', np.transpose(psi, P))
 
     # Test |BB>|BB> and all it's permutations state wih noise added to RDMs
-    print('\n\nTesting |BB>|BB> state with ordered policy:')
+    print('\n\nTesting |BB>|BB> state with transformer policy:')
     bell = np.sqrt(1/2) * np.array([1.0, 0.0, 0.0, 1.0])
     psi = np.kron(bell, bell).reshape(2, 2, 2, 2)   # 01-23 entangled
     for P in itertools.permutations(range(4)):
         print(f'\n\tPermutation {P}: ', end='')
-        test_rdms_noise('ordered', np.transpose(psi, P))
+        test_rdms_noise('transformer', np.transpose(psi, P))
     print()

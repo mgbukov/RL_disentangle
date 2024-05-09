@@ -1,11 +1,11 @@
 """ Helper functions for disentanglement of 4-qubit systems."""
-import numpy as np
 import os
 import sys
-import torch
-import torch.nn.functional as F
 from itertools import cycle, permutations, combinations
 from typing import Sequence, Tuple, Literal
+
+import numpy as np
+import torch
 
 # Find the the absolute path to project directory
 dirname = os.path.dirname(os.path.realpath(__file__))
@@ -72,32 +72,13 @@ def eval_policy(inputs, policy):
 
 # Load all policies in global constants
 # -----------------------------------------------------------------------------
-#   Policy with permutation equivariant network
-PE_POLICY = torch.jit.load(os.path.join(dirname, "pe-policy-2.0.pts")).eval()
-#   Policty with transformer network
-TRANSFORMER_POLICY = load_policy(
-    os.path.join(
-        project_root,
-        "logs/4q_pGen_0.9_attnHeads_2_tLayers_2_ppoBatch_512_entReg_0.1_embed_128_mlp_256/agent.pt"
-    )
-)
-#   Policy with transformer network + constrain that preserves the order
-#   of entanglements, i.e if S_i < S_j then S_i' < S_j' and vice versa, where
-#   S are the entanglements before applying action, S' after action.
-ORDERED_POLICY_4Q = load_policy(
-    os.path.join(
-        project_root, "logs/4q_10000_iters_haar_unif2_1024envs/agent.pt"
-))
 
-ORDERED_POLICY_5Q = load_policy(
-    os.path.join(
-        project_root, "logs/5q_20000_iters_haar_unif2_128envs/agent.pt"
-))
-
-ORDERED_POLICY_6Q = load_policy(
-    os.path.join(
-        project_root, "logs/6q_4000iters_haar_unif3_512envs_seed7_3rd/agent.pt"
-))
+# Policies with transformer network + constrain that preserves the order
+# of entanglements, i.e if S_i < S_j then S_i' < S_j' and vice versa, where
+# S are the entanglements before applying action, S' after action.
+POLICY_4Q = load_policy(os.path.join(project_root, "agents/4q-agent.pt"))
+POLICY_5Q = load_policy(os.path.join(project_root, "agents/5q-agent.pt"))
+POLICY_6Q = load_policy(os.path.join(project_root, "agents/6q-agent.pt"))
 
 
 def get_action_4q(
@@ -115,9 +96,8 @@ def get_action_4q(
         Sequence of reduced density matrices in order:
             rho_01, rho_02, rho_03, rho_12, rho_13, rho_23, ..., rho_45
     policy: str, default="universal"
-        "universal" uses a predefined circuit, "equivariant" uses equivariant
-        policy from trained RL agent, "transformer" uses transformer
-        architecture, "ordered" uses transformer and requires that S(q_i) > S(q_j)
+        "universal" uses a predefined circuit,"transformer" uses equivariant
+        transformer architecture with constrain S(q_i) > S(q_j)
 
     Returns: Sequence[numpy.ndarray, int, int]
         Gate U_{ij} to be applied, i, j
@@ -128,29 +108,19 @@ def get_action_4q(
     if policy == 'universal':
         assert rdms.shape[0] == 6
         i, j = next(UNIVERSAL_CIRCUIT)
-    elif policy == 'equivariant':
-        assert rdms.shape[0] == 6
-        x = _prepare_all_rdms_input(rdms)
-        a = eval_policy(x, PE_POLICY)
-        i, j = ACTION_SET_4Q_FULL[a]
     elif policy == 'transformer':
         x = _prepare_reduced_real_input(rdms)
-        a = eval_policy(x, TRANSFORMER_POLICY)
-        i, j = get_ij_from_action_index(a, L)
-    elif policy == 'ordered':
-        x = _prepare_reduced_real_input(rdms)
         if L == 4:
-            a = eval_policy(x, ORDERED_POLICY_4Q)
+            a = eval_policy(x, POLICY_4Q)
         elif L == 5:
-            a = eval_policy(x, ORDERED_POLICY_5Q)
+            a = eval_policy(x, POLICY_5Q)
         elif L == 6:
-            a = eval_policy(x, ORDERED_POLICY_6Q)
+            a = eval_policy(x, POLICY_6Q)
         i, j = get_ij_from_action_index(a, L)
     else:
-        raise ValueError("`policy` must be one of ('universal', " \
-                         "'equivariant', 'transformer', 'ordered').")
+        raise ValueError("`policy` must be one of ('universal', 'transformer').")
     # Gate + preswap + postswap
-    use_swaps = (policy == 'ordered')
+    use_swaps = (policy == 'transformer')
     U = get_U(rdms, i, j, apply_preswap=use_swaps, apply_postswap=use_swaps)
     return U, i, j
 
