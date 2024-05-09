@@ -1,1 +1,0 @@
-run.py --seed 0 --num_qubits 5 --num_envs 128 --steps 40 --steps_limit 64 --num_iters 20000 --attn_heads 4 --transformer_layers 4 --embed_dim 128 --dim_mlp 512 --batch_size 512 --pi_lr 2e-4 --entropy_reg 0.1 --obs_fn rdm_2q_mean_real --state_generator haar_unif --min_entangled 2 --p_gen 0.3 --log_every 100 --checkpoint_every 100 --suffix haar_unif2_128envs_seed0
