@@ -21,9 +21,9 @@ mpl.rcParams['text.usetex'] = True
 mpl.rcParams['font.family'] = 'serif'
 
 
-PATH_4Q_AGENT = os.path.join(project_dir, "logs/4q_final/agent.pt")
-PATH_5Q_AGENT = os.path.join(project_dir, "logs/5q_final/agent.pt")
-PATH_6Q_AGENT = os.path.join(project_dir, "logs/6q_final/agent.pt")
+PATH_4Q_AGENT = os.path.join(project_dir, "agents/4q-agent.pt")
+PATH_5Q_AGENT = os.path.join(project_dir, "agents/5q-agent.pt")
+PATH_6Q_AGENT = os.path.join(project_dir, "agents/6q-agent.pt")
 
 
 def str2state(string_descr):
@@ -1097,13 +1097,9 @@ def figure_accuracy():
     axB = fig.add_axes(BREC)
     axC = fig.add_axes(CREC)
 
-    train_hist_4q = os.path.join(
-        os.path.dirname(PATH_4Q_AGENT), 'train_history.pickle')
-    train_hist_5q = os.path.join(
-        os.path.dirname(PATH_5Q_AGENT), 'train_history.pickle')
-    # train_hist_6q = os.path.join(
-    #     os.path.dirname(PATH_6Q_AGENT), 'train_history.pickle')
-    train_hist_6q = "../logs/6q_4000iters_haar_unif3_512/train_history.pickle"
+    train_hist_4q = "../logs/4q_final/train_history.pickle"
+    train_hist_5q = "../logs/5q_final/train_history.pickle"
+    train_hist_6q = "../logs/6q_final/train_history.pickle"
 
     acc_hist_4q = "../logs/4q_400iters_testacc/train_history.pickle"
     acc_hist_5q = "../logs/5q_400iters_testacc/train_history.pickle"
@@ -1502,39 +1498,46 @@ if __name__ == '__main__':
     # with open("../data/agents-benchmark-final.json", mode='w') as f:
     #     json.dump(results, f, indent=2)
 
-    # # Figure 1
-    # fig1a = figure1a()
-    # fig1a.savefig('../figures/circuit-3q.pdf')
-    # fig1bd = figure1bd()
-    # fig1bd.savefig('../figures/circuit-4q.pdf')
+    # Figure 1
+    fig1a = figure1a()
+    fig1a.savefig('../figures/circuit-3q.pdf')
+    plt.close(fig1a)
+    fig1bd = figure1bd()
+    fig1bd.savefig('../figures/circuit-4q.pdf')
+    plt.close(fig1bd)
 
-    # # Figure 2
-    # fig2 = figure_difficulty('../data/random-greedy-stats.pickle')
-    # fig2.savefig('../figures/exponential-difficulty-both.pdf')
+    # Figure 2
+    fig2 = figure_difficulty('../data/random-greedy-stats.pickle')
+    fig2.savefig('../figures/exponential-difficulty-both.pdf')
+    plt.close(fig2)
 
-    # # Figure 4a
-    # bell =  np.array([1.0, 0.0, 0.0, 1.0], dtype=np.complex64) / np.sqrt(2)
-    # bb = np.einsum("ij,kl -> ijkl", bell.reshape(2,2), bell.reshape(2,2))
-    # fig4a = figure_4q_protocol(bb, r"$\mathrm{|Bell_{1,2}\rangle|Bell_{3,4}\rangle}$")
-    # fig4a.savefig('../figures/circuit-bell-bell.pdf')
+    # Figure 4a
+    bell =  np.array([1.0, 0.0, 0.0, 1.0], dtype=np.complex64) / np.sqrt(2)
+    bb = np.einsum("ij,kl -> ijkl", bell.reshape(2,2), bell.reshape(2,2))
+    fig4a = figure_4q_protocol(bb, r"$\mathrm{|Bell_{1,2}\rangle|Bell_{3,4}\rangle}$")
+    fig4a.savefig('../figures/circuit-bell-bell.pdf')
+    plt.close(fig4a)
 
-    # # Figure 4b
-    # w = np.array([0, 1, 1, 0, 1, 0, 0, 0], dtype=np.complex64) / np.sqrt(3)
-    # zero = np.array([1, 0], dtype=np.complex64)
-    # zero_ghz = np.einsum("i,jkl -> ijkl", zero, w.reshape(2,2,2)) 
-    # fig4b = figure_4q_protocol(zero_ghz, r"$\mathrm{|0\rangle|GHZ_{2,3,4}\rangle}$")
-    # fig4b.savefig('../figures/circuit-ghz.pdf')
+    # Figure 4b
+    w = np.array([0, 1, 1, 0, 1, 0, 0, 0], dtype=np.complex64) / np.sqrt(3)
+    zero = np.array([1, 0], dtype=np.complex64)
+    zero_ghz = np.einsum("i,jkl -> ijkl", zero, w.reshape(2,2,2)) 
+    fig4b = figure_4q_protocol(zero_ghz, r"$\mathrm{|0\rangle|GHZ_{2,3,4}\rangle}$")
+    fig4b.savefig('../figures/circuit-ghz.pdf')
+    plt.close(fig4b)
 
-    # # Figure 4c
-    # np.random.seed(23)
-    # s = np.einsum("ijk,l -> ijkl", random_quantum_state(3, 1.0), random_quantum_state(1, 1.0))
-    # fig4c = figure_4q_protocol(s, r"$\mathrm{|R_{1,2,3}\rangle|R_4\rangle}$")
-    # fig4c.savefig('../figures/circuit-RRR-R.pdf')
+    # Figure 4c
+    np.random.seed(23)
+    s = np.einsum("ijk,l -> ijkl", random_quantum_state(3, 1.0), random_quantum_state(1, 1.0))
+    fig4c = figure_4q_protocol(s, r"$\mathrm{|R_{1,2,3}\rangle|R_4\rangle}$")
+    fig4c.savefig('../figures/circuit-RRR-R.pdf')
+    plt.close(fig4c)
 
-    # # Figure 4d
-    # np.random.seed(45)
-    # fig4d = figure_4q_protocol(random_quantum_state(4, 1.0), r"$\mathrm{|R_{1,2,3,4}\rangle}$")
-    # fig4d.savefig('../figures/circuit-RRRR.pdf')
+    # Figure 4d
+    np.random.seed(45)
+    fig4d = figure_4q_protocol(random_quantum_state(4, 1.0), r"$\mathrm{|R_{1,2,3,4}\rangle}$")
+    fig4d.savefig('../figures/circuit-RRRR.pdf')
+    plt.close(fig4d)
 
     # Figure showing 5 qubit protocols
     #
@@ -1542,66 +1545,74 @@ if __name__ == '__main__':
     #   seed in [2,4,5,6,10,22,23,188,189,212,254]: ends with less than 5 gates
     #   seed in [240, 86, 126]: ends with 4q- protocol
 
-    # for s in (4, 240, 281):
-    #     np.random.seed(s)
-    #     try:
-    #         fig = figure_5q_protocol(random_quantum_state(5, 1.0))
-    #         fig.savefig(f'../figures/5q/5q-trajectory-seed={s}.pdf')
-    #     except AssertionError:
-    #         pass
-    #     if s % 10 == 0:
-    #         print(s)
+    for s in (4, 240, 281):
+        np.random.seed(s)
+        try:
+            fig5 = figure_5q_protocol(random_quantum_state(5, 1.0))
+            fig5.savefig(f'../figures/5q/5q-trajectory-seed={s}.pdf')
+            plt.close(fig5)
+        except AssertionError:
+            pass
 
-    # # Figure, statistical properties of 4-, 5-, 6-qubit agents
-    # with open('../data/agents-benchmark-final.json') as f:
-    #     results = json.load(f)
-    #     fig6 = figure_stats(results)
-    #     fig6.savefig('../figures/456q-agents-final.pdf')
+    # Figure, statistical properties of 4-, 5-, 6-qubit agents
+    with open('../data/agents-benchmark-final.json') as f:
+        results = json.load(f)
+        fig6 = figure_stats(results)
+        fig6.savefig('../figures/456q-agents-final.pdf')
+        plt.close(fig6)
 
-    # # Figure CNOT counts
-    # fig11 = figure_cnot_counts('../data/cnot-counts/')
-    # fig11.savefig('../figures/cnot-counts.pdf')
+    # Figure CNOT counts
+    fig11 = figure_cnot_counts('../data/cnot-counts/')
+    fig11.savefig('../figures/cnot-counts.pdf')
+    plt.close(fig11)
 
-    # # Figure CNOT counts (fully entangled)
-    # fig13 = figure_cnot_counts('../data/cnot-counts-fully-entangled/')
-    # fig13.savefig('../figures/cnot-counts-fully-entangled.pdf')
+    # Figure CNOT counts (fully entangled)
+    fig12 = figure_cnot_counts('../data/cnot-counts-fully-entangled/')
+    fig12.savefig('../figures/cnot-counts-fully-entangled.pdf')
+    plt.close(fig12)
 
-    # # Figure Accuracy & Episode Length
-    # fig12 = figure_accuracy()
-    # fig12.savefig('../figures/accuracy-episode-length-final-all-test.pdf')
+    # Figure Accuracy & Episode Length
+    fig13 = figure_accuracy()
+    fig13.savefig('../figures/accuracy-episode-length-final-all-test.pdf')
+    plt.close(fig13)
 
     # fig22 = figure_search_scalability("../data/search_stats.json")
     # fig22.savefig("../figures/search-scalability.pdf")
+    # plt.close(fig22)
 
-    # # Figure for Attention Head Scores
-    # #   |R>|R>|RR>
-    # np.random.seed(21)
-    # psi = str2state("R-R-RR")
-    # fig30 = figure_attention_scores(psi)
-    # fig30.savefig("../figures/attention-scores-R-R-RR.pdf")
+    # Figure for Attention Head Scores
+    #   |R>|R>|RR>
+    np.random.seed(21)
+    psi = str2state("R-R-RR")
+    fig30 = figure_attention_scores(psi)
+    fig30.savefig("../figures/attention-scores-R-R-RR.pdf")
+    plt.close(fig30)
 
-    # #   |0>|Bell>|0>
-    # bell = np.array([1.0, 0.0, 0.0, 1.0], dtype=np.complex64) / np.sqrt(2)
-    # bell = bell.reshape(2,2)
-    # zero = np.array([1, 0], dtype=np.complex64)
-    # bell_zero = np.einsum("ij,k->ijk", bell, zero)
-    # zero_bell_zero = np.einsum("i,jkl->ijkl", zero, bell_zero)
-    # fig31 = figure_attention_scores(zero_bell_zero)
-    # fig31.savefig("../figures/attention-scores-0-Bell-0.pdf")
+    #   |0>|Bell>|0>
+    bell = np.array([1.0, 0.0, 0.0, 1.0], dtype=np.complex64) / np.sqrt(2)
+    bell = bell.reshape(2,2)
+    zero = np.array([1, 0], dtype=np.complex64)
+    bell_zero = np.einsum("ij,k->ijk", bell, zero)
+    zero_bell_zero = np.einsum("i,jkl->ijkl", zero, bell_zero)
+    fig31 = figure_attention_scores(zero_bell_zero)
+    fig31.savefig("../figures/attention-scores-0-Bell-0.pdf")
+    plt.close(fig31)
 
-    # #   |RR>|Bell>
-    # haar_rnd = random_quantum_state(2, 1.0).reshape(2,2)
-    # haar_bell = np.einsum("ij,kl->ijkl", haar_rnd, bell)
-    # fig32 = figure_attention_scores(haar_bell)
-    # fig32.savefig("../figures/attention-scores-RR-Bell.pdf")
+    #   |RR>|Bell>
+    haar_rnd = random_quantum_state(2, 1.0).reshape(2,2)
+    haar_bell = np.einsum("ij,kl->ijkl", haar_rnd, bell)
+    fig32 = figure_attention_scores(haar_bell)
+    fig32.savefig("../figures/attention-scores-RR-Bell.pdf")
+    plt.close(fig32)
 
     # #   |R>|R>|Bell>
     # haar1 = random_quantum_state(1, 1.0)
     # haar2 = random_quantum_state(1, 1.0)
     # haar_subsys = np.einsum("i,j->ij", haar1, haar2)
     # haar_bell = np.einsum("ij,kl->ijkl", haar_subsys, bell)
-    # fig32 = figure_attention_scores(haar_bell)
-    # fig32.savefig("../figures/attention-scores-R-R-Bell.pdf")
+    # fig33 = figure_attention_scores(haar_bell)
+    # fig33.savefig("../figures/attention-scores-R-R-Bell.pdf")
+    # plt.close(fig33)
 
     # #   |1>|1>|RR>
     # np.random.seed(7)
@@ -1610,27 +1621,33 @@ if __name__ == '__main__':
     # one_RR = np.einsum("ij,kl->ijkl", oneone, random_quantum_state(2, 1.0).reshape(2,2))
     # fig34 = figure_attention_scores(one_RR)
     # fig34.savefig("../figures/attention-scores-1-1-RR.pdf")
+    # plt.close(fig34)
 
-    # #   |RR>|RR>
-    # np.random.seed(1)
-    # subsysA = random_quantum_state(2, 1.0)
-    # subsysB = random_quantum_state(2, 1.0)
-    # RR_RR = np.einsum("ij,kl->ijkl", subsysA, subsysB)
-    # fig33 = figure_attention_scores(RR_RR)
-    # fig33.savefig("../figures/attention-scores-RR-RR.pdf")
+    #   |RR>|RR>
+    np.random.seed(1)
+    subsysA = random_quantum_state(2, 1.0)
+    subsysB = random_quantum_state(2, 1.0)
+    RR_RR = np.einsum("ij,kl->ijkl", subsysA, subsysB)
+    fig35 = figure_attention_scores(RR_RR)
+    fig35.savefig("../figures/attention-scores-RR-RR.pdf")
+    plt.close(fig35)
 
-    # #   Colorbar
-    # fig34 = figure_attention_colorbar()
-    # fig34.savefig("../figures/attention-colorbar.pdf")
+    #   Colorbar
+    fig36 = figure_attention_colorbar()
+    fig36.savefig("../figures/attention-colorbar.pdf")
+    plt.close(fig36)
 
     # # Figure showing Attention distributions averaged over many inputs
     # np.random.seed(777)
     # fig40 = figure_attention_heads_average(1000)
     # fig40.savefig("../figures/attention-matrix-mean-reduction.pdf")
+    # plt.close(fig40)
 
-    # Figure showing embeddgins manifold projected on 2D
-    np.random.seed(10)
-    fig50 = figure_embeddings_projection(100, "pca")
-    fig50.savefig("../figures/figure-embeddings-projection-PCA.pdf")
-    fig51 = figure_embeddings_projection(100, "tsne")
-    fig51.savefig("../figures/figure-embeddings-projection-tSNE.pdf")
+    # # Figure showing embeddgins manifold projected on 2D
+    # np.random.seed(10)
+    # fig50 = figure_embeddings_projection(100, "pca")
+    # fig50.savefig("../figures/figure-embeddings-projection-PCA.pdf")
+    # plt.close(fig50)
+    # fig51 = figure_embeddings_projection(100, "tsne")
+    # fig51.savefig("../figures/figure-embeddings-projection-tSNE.pdf")
+    # plt.close(fig51)

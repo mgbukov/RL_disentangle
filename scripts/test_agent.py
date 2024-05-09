@@ -1,3 +1,7 @@
+"""
+Script that evaluates the performance of an RL agent.
+Stats are saved to JSON file on disk.
+"""
 import argparse
 import json
 import os
