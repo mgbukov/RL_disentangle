@@ -7,11 +7,8 @@ import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import os
 import pickle
-import sys
 
-file_path = os.path.split(os.path.abspath(__file__))[0]
-project_dir = os.path.abspath(os.path.join(file_path, os.pardir))
-sys.path.append(project_dir)
+from context import *
 from src.environment_loop import test_agent
 from src.quantum_env import QuantumEnv
 from src.quantum_state import random_quantum_state

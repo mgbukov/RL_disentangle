@@ -1,30 +1,17 @@
 """Script that shows a sample usage of the RL agents."""
 import os
-import sys
-
 import numpy as np
 import torch
 
-file_path = os.path.split(os.path.abspath(__file__))[0]
-project_dir = os.path.abspath(os.path.join(file_path, os.pardir))
-sys.path.append(project_dir)
+from context import *
 from src.quantum_env import QuantumEnv
 from src.quantum_state import random_quantum_state
 
 
-PATH_4Q_AGENT = os.path.join(project_dir, "agents/4q-agent.pt")
-PATH_5Q_AGENT = os.path.join(project_dir, "agents/5q-agent.pt")
-PATH_6Q_AGENT = os.path.join(project_dir, "agents/6q-agent.pt")
-
 # Load agents
-AGENT_4Q = torch.load(PATH_4Q_AGENT, map_location='cpu')
-AGENT_5Q = torch.load(PATH_5Q_AGENT, map_location='cpu')
-AGENT_6Q = torch.load(PATH_6Q_AGENT, map_location='cpu')
-
-for agent in (AGENT_4Q, AGENT_5Q, AGENT_6Q):
-    for enc in agent.policy_network.net:
-        enc.activation_relu_or_gelu = 1
-    agent.policy_network.eval()
+AGENT_4Q = torch.load(os.path.join(project_dir, "agents/4q-agent.pt"))
+AGENT_5Q = torch.load(os.path.join(project_dir, "agents/5q-agent.pt"))
+AGENT_6Q = torch.load(os.path.join(project_dir, "agents/6q-agent.pt"))
 
 
 def get_action(state):
@@ -108,4 +95,4 @@ if __name__ == "__main__":
 
     # Print the whole trajectory that disentangles the state
     traj, success = get_disentangling_trajectory(state)
-    print("\nRL Trajectory [get_disentangling_trajectory()]:\n", traj[0], '\n')
+    print("\nRL Trajectory [get_disentangling_trajectory()]:\n", traj, '\n')
