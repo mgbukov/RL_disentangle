@@ -1,0 +1,42 @@
+{
+  "5": {
+    "beam": {
+      "average_length": 20.0,
+      "average_visited": 1759.0
+    },
+    "beam_qbyq": {
+      "average_length": 18.5,
+      "average_visited": 1159.64
+    }
+  },
+  "6": {
+    "beam": {
+      "average_length": 57.0,
+      "average_visited": 5451.0
+    },
+    "beam_qbyq": {
+      "average_length": 51.3,
+      "average_visited": 4276.79
+    }
+  },
+  "8": {
+    "beam": {
+      "average_length": 215.0,
+      "average_visited": 21329.0
+    },
+    "beam_qbyq": {
+      "average_length": 197.0,
+      "average_visited": 18523.0
+    }
+  },
+  "10": {
+    "beam": {
+      "average_length": 985.0,
+      "average_visited": 98346.0
+    },
+    "beam_qbyq": {
+      "average_length": 948.0,
+      "average_visited": 93209.0
+    }
+  }
+}

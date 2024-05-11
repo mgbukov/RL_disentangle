@@ -833,6 +833,11 @@ def figure_stats(benchmark_results):
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
 
+    # Add (a), (b), (c) panel titles
+    ax4.text(-0.09/0.3, 1, "(a)", fontsize=14, transform=ax4.transAxes)
+    ax5.text(-0.09/0.4, 1, "(b)", fontsize=14, transform=ax5.transAxes)
+    ax6.text(-0.09/0.85, 1, "(c)", fontsize=14, transform=ax6.transAxes)
+
     # Restore old font size
     mpl.rcParams['font.size'] = old_fontsize
     return fig
@@ -1072,6 +1077,11 @@ def figure_cnot_counts(datadir):
     ax4.set_yticks([1, 15, 30, 45])
     ax5.set_yticks([1, 50, 100, 150])
     ax6.set_yticks([1, 100, 200, 300, 400])
+
+    # Add (a), (b), (c) panel titles
+    ax4.text(-0.09/0.3, 1, "(a)", fontsize=14, transform=ax4.transAxes)
+    ax5.text(-0.09/0.4, 1, "(b)", fontsize=14, transform=ax5.transAxes)
+    ax6.text(-0.09/0.85, 1, "(c)", fontsize=14, transform=ax6.transAxes)
 
     # Restore old font size
     mpl.rcParams['font.size'] = old_fontsize
@@ -1573,9 +1583,9 @@ if __name__ == '__main__':
     fig13.savefig('../figures/accuracy-episode-length-final-all-test.pdf')
     plt.close(fig13)
 
-    # fig22 = figure_search_scalability("../data/search_stats.json")
-    # fig22.savefig("../figures/search-scalability.pdf")
-    # plt.close(fig22)
+    fig22 = figure_search_scalability("../data/search-stats.json")
+    fig22.savefig("../figures/search-scalability.pdf")
+    plt.close(fig22)
 
     # Figure for Attention Head Scores
     #   |R>|R>|RR>
