@@ -34,7 +34,8 @@ PATH_4Q_AGENT = os.path.join(PROJECT_DIR, "agents", "4q-agent.pt")
 PATH_5Q_AGENT = os.path.join(PROJECT_DIR, "agents", "5q-agent.pt")
 
 BUTTON_FONT_SIZE = "11pt"
-
+COLOR0 = "#60b4e1"  # dark blue
+COLOR1 = "#d6f0f6"  # light blue
 
 
 class RotationControls1q:
@@ -56,20 +57,23 @@ class RotationControls1q:
         # Initialize widgets
         self.angle_slider = widgets.FloatSlider(
             value=0.0, min=0.0, max=2*np.pi, step=0.01,
-            description='alpha:', readout_format='.2f',
+            description=r"$\eta$", readout_format='.2f',
         )
+        self.angle_slider.style.handle_color = COLOR0
         self.axis_phi_slider = widgets.FloatSlider(
             value=0.0, min=0.0, max=2*np.pi, step=0.01,
-            description='axis phi:', readout_format='.2f',
+            description=r"$\mathrm{axis}\ \phi$", readout_format='.2f',
         )
+        self.axis_phi_slider.style.handle_color = COLOR0
         self.axis_theta_slider = widgets.FloatSlider(
             value=0.0, min=0.0, max=np.pi, step=0.01,
-            description='axis theta:', readout_format='.2f',
+            description=r"$\mathrm{axis}\ \theta$", readout_format='.2f',
         )
+        self.axis_theta_slider.style.handle_color = COLOR0
         options = list(range(self.n_qubits))
         self.qselector = widgets.Dropdown(
             options={k+1:k for k in options}, value=0,
-            description='Qubit:', disabled=False,
+            description=r"$\mathrm{qubit}\ i$", disabled=False,
         )
         self._widgets = [self.angle_slider, self.axis_phi_slider,
                          self.axis_theta_slider, self.qselector]
@@ -79,7 +83,7 @@ class RotationControls1q:
         observe_widgets(self._widgets, self._handlers)
 
         self.title = widgets.HTML(
-            value=f"<b style=\"font-size:{BUTTON_FONT_SIZE}\">Single Qubit Rotation:</b>")
+            value=f"<b style=\"font-size:{BUTTON_FONT_SIZE}\">Single qubit rotation:</b>")
         imgpath = os.path.join(PROJECT_DIR, "images", "rotation-1q.png")
         if os.path.exists(imgpath):
             with open(imgpath, mode="rb") as f:
@@ -184,20 +188,23 @@ class RotationControls2q:
         # Initialize widgets
         options = {str((i+1,j+1)): (i,j) for i,j in self.qubit_indices}
         self.qselector = widgets.Dropdown(options=options, value=(0, 1),
-            description='Qubits:', disabled=False,
+            description=r"$\mathrm{qubits}\ (i,j)$", disabled=False,
         )
         self.alpha_slider = widgets.FloatSlider(
             value=0.0, min=0.0, max=2*np.pi, step=0.01,
-            description='alpha:', readout_format='.2f'
+            description=r"$\alpha$", readout_format='.2f'
         )
+        self.alpha_slider.style.handle_color = COLOR0
         self.beta_slider = widgets.FloatSlider(
             value=0.0, min=0.0, max=2*np.pi, step=0.01,
-            description='beta:', readout_format='.2f'
+            description=r"$\beta$", readout_format='.2f'
         )
+        self.beta_slider.style.handle_color = COLOR0
         self.gamma_slider = widgets.FloatSlider(
             value=0.0, min=0.0, max=2*np.pi, step=0.01,
-            description='gamma:', readout_format='.2f'
+            description=r"$\gamma$", readout_format='.2f'
         )
+        self.gamma_slider.style.handle_color = COLOR0
         self._widgets = (self.qselector, self.alpha_slider, self.beta_slider,
                          self.gamma_slider)
         self._handlers = (self._selector_callback, self._alpha_callback,
@@ -206,7 +213,7 @@ class RotationControls2q:
         observe_widgets(self._widgets, self._handlers)
 
         self.title = widgets.HTML(
-            value=f"<b style=\"font-size:{BUTTON_FONT_SIZE}\">Two Qubits Rotation:</b>")
+            value=f"<b style=\"font-size:{BUTTON_FONT_SIZE}\">Two-qubit rotation:</b>")
         # Formula
         imgpath = os.path.join(PROJECT_DIR, "images", "rotation-2q.png")
         if os.path.exists(imgpath):
@@ -305,10 +312,10 @@ class AmplitudesBox:
             description="Set", layout=widgets.Layout(height="auto", width="120px")
         )
         self.set_button.style.font_size = BUTTON_FONT_SIZE
-        self.set_button.style.button_color = "#d6f0f6"
+        self.set_button.style.button_color = COLOR1
         self.set_button.on_click(self._set_callback)
         self.title = widgets.HTML(
-            value=f"<b style=\"font-size: {BUTTON_FONT_SIZE}\">Computational / z-basis Amplitudes:</b>")
+            value=f"<b style=\"font-size: {BUTTON_FONT_SIZE}\">Computational / z-basis amplitudes:</b>")
 
         # Initialize Layout
         self.layout = widgets.GridspecLayout(self._nrows+1, 8)
@@ -416,7 +423,8 @@ class RLAgent:
 
 class InitialStateDropdown:
 
-    def __init__(self, user_defined={}, n_qubits=4):
+    def __init__(self, mediator=None, user_defined={}, n_qubits=4):
+        self.mediator = mediator
         self.n_qubits = n_qubits
         # Default states
         self._default = get_special_states()[self.n_qubits]
@@ -429,8 +437,16 @@ class InitialStateDropdown:
 
         names = list(self._choices.keys())
         self.dropdown = widgets.Dropdown(options=names, index=0,
-                                         description="Initial state:")
+                                         description=r"$\mathrm{Initial\ state}$")
+        self.dropdown.observe(self._callback, "value")
+        self._selected = 0
 
+    def _callback(self, change):
+        val = change["new"]
+        if val != self._selected:
+            self._selected = val
+            self.mediator.update("reset")
+        
     def display(self):
         display(self.dropdown)
 
@@ -444,18 +460,16 @@ class EntanglementStatus:
     def __init__(self, n_qubits=4):
         self.n_qubits = n_qubits
         self.status = widgets.HTML(
-            value=f"<b style=\"font-size:{BUTTON_FONT_SIZE}\">Single Qubit Entanglements:</b> ")
+            value=f"<b style=\"font-size:{BUTTON_FONT_SIZE}\">Single qubit entanglements:</b>")
         self._entanglements = np.zeros(self.n_qubits, dtype=np.float32)
-        self._previous = np.zeros(self.n_qubits, dtype=np.float32)
 
     def dispay(self):
         display(self.status)
 
     def update(self, entanglements):
-        self._previous[:] = self._entanglements
         self._entanglements[:] = np.abs(entanglements)
-        dtemplate = "<text style=\"background-color:palegreen;\">{:.3f}</text>"
-        etemplate = "<text>{:.3f}</text>"
+        dtemplate = "<mark style=\"background-color:palegreen;\">{:.3f}</mark>"
+        etemplate = "{:.3f}"
         values = []
         for x in self._entanglements:
             if x < 1e-3:
@@ -463,7 +477,7 @@ class EntanglementStatus:
             else:
                 values.append(etemplate.format(x))
         html_value = (4 * "&nbsp").join(values)
-        msg = f"<b style=\"font-size:{BUTTON_FONT_SIZE}\">Single Qubit Entanglements:</b> " + 4 * "&nbsp" + html_value
+        msg = f"<b style=\"font-size:{BUTTON_FONT_SIZE}\">Single qubit entanglements:</b> " + 4 * "&nbsp" + html_value
         self.status.value = msg
 
     def get_reductions(self):
@@ -476,21 +490,21 @@ class StepControls:
         self.mediator = mediator
         self.step_button = widgets.Button(description="Step")
         self.step_button.on_click(self.step)
-        self.step_button.style.button_color = "#60b4e1"
+        self.step_button.style.button_color = COLOR0
         self.step_button.style.font_size = BUTTON_FONT_SIZE
 
         self.reset_button = widgets.Button(description="Reset")
-        self.reset_button.style.button_color = "#d6f0f6"
+        self.reset_button.style.button_color = COLOR1
         self.reset_button.style.font_size = BUTTON_FONT_SIZE
         self.reset_button.on_click(self.reset)
 
         self.undo_button = widgets.Button(description="Undo", disabled=True)
-        self.undo_button.style.button_color = "#d6f0f6"
+        self.undo_button.style.button_color = COLOR1
         self.undo_button.style.font_size = BUTTON_FONT_SIZE
         self.undo_button.on_click(self.undo)
 
         self.redo_button = widgets.Button(description="Redo", disabled=True)
-        self.redo_button.style.button_color = "#d6f0f6"
+        self.redo_button.style.button_color = COLOR1
         self.redo_button.style.font_size = BUTTON_FONT_SIZE
         self.redo_button.on_click(self.redo)
 
@@ -1090,8 +1104,12 @@ def get_special_states():
     """Returns dictionaty with special states for 4 & 5 qubits."""
 
     bell = np.array([1/np.sqrt(2), 0, 0, -1/np.sqrt(2)]).astype(np.complex64)
-    x = 1/np.sqrt(3)
+    x = 1 / np.sqrt(3)
     w = np.array([0, x, x, 0, x, 0, 0, 0], dtype=np.complex64).reshape(2,2,2)
+    ghz = np.zeros(8, dtype=np.complex64)
+    ghz[0] = 1 / np.sqrt(2)
+    ghz[7] = 1 / np.sqrt(2)
+    ghz = ghz.reshape(2,2,2).astype(np.complex64)
     zero = np.array([1, 0]).astype(np.complex64)
     bell = np.array([1.0, 0.0, 0.0, 1.0], dtype=np.complex64) / np.sqrt(2)
     bell = bell.reshape(2,2)
@@ -1106,7 +1124,8 @@ def get_special_states():
         4: {
             "|0>|Bell>|0>": np.einsum("i,jk,l->ijkl", zero, bell, zero),
             "|Bell>|R>|R>": np.einsum("ij,k,l->ijkl", bell, haar1, haar1),
-            "|WWW>|R>"    : np.einsum("ijk,l->ijkl", w, haar1),
+            "|W>|R>"      : np.einsum("ijk,l->ijkl", w, haar1),
+            "|GHZ>|R>"    : np.einsum("ijk,l->ijkl", ghz, haar1),
             "|RR>|R>|R>"  : np.einsum("ij,k,l->ijkl", haar2, haar1, haar1),
             "|RR>|RR>"    : np.einsum("ij,kl->ijkl", haar2, haar2),
             "|RRR>|R>"    : np.einsum("ijk,l->ijkl", haar3, haar1),
@@ -1115,8 +1134,12 @@ def get_special_states():
         5: {
             "|0>|Bell>|0>|0>": np.einsum("i,jk,l,m->ijklm", zero, bell, zero, zero),
             "|Bell>|Bell>|0>": np.einsum("ij,kl,m->ijklm", bell, bell, zero),
-            "|WWW>|0>|0>"    : np.einsum("ijk,l,m->ijklm", w, zero, zero),
-            "|WWW>|Bell>"    : np.einsum("ijk,lm->ijklm", w, bell),
+            "|W>|0>|0>"      : np.einsum("ijk,l,m->ijklm", w, zero, zero),
+            "|W>|Bell>"      : np.einsum("ijk,lm->ijklm", w, bell),
+            "|W>|RR>"        : np.einsum("ijk,lm->ijklm", ghz, haar2),
+            "|GHZ>|Bell>"    : np.einsum("ijk,lm->ijklm", ghz, bell),
+            "|GHZ>|R>|R>"    : np.einsum("ijk,l,m->ijklm", ghz, haar1, haar1),
+            "|GHZ>|RR>"      : np.einsum("ijk,lm->ijklm", ghz, haar2),
             "|RR>|R>|R>|R>"  : np.einsum("ij,k,l,m->ijklm", haar2, haar1, haar1, haar1),
             "|RR>|RR>|R>"    : np.einsum("ij,kl,m->ijklm", haar2, haar2, haar1),
             "|RRR>|R>|R>"    : np.einsum("ijk,l,m->ijklm", haar3, haar1, haar1),
@@ -1161,7 +1184,7 @@ def Rz(phi, nqubits=1, index=0):
 
 def apply_1q_rotation(psi, qubit, phi, theta, angle):
     # Formula
-    # |\psi\rangle_{new} = e^{-i(\alpha/2)[sin(\theta)cos(\phi)\sigma_x + sin(\theta)sin(\phi)\sigma_y + cos(\theta)\sigma_z]}|\psi\rangle
+    # |\psi_\text{new}\rangle = e^{-i(\eta/2)[\sin(\theta)\cos(\phi)X_i + \sin(\theta)\sin(\phi)Y_i + \cos(\theta)Z_i]}|\psi\rangle
     h = [np.sin(theta) * np.cos(phi),
          np.sin(theta) * np.sin(phi),
          np.cos(theta)]
@@ -1174,7 +1197,7 @@ def apply_1q_rotation(psi, qubit, phi, theta, angle):
 
 def apply_2q_rotation(psi, qubit0, qubit1, alpha, beta, gamma):
     # Formula
-    # |\psi\rangle_{new} = e^{-i[\alpha\sigma_{xx} + \beta\sigma_{yy} + \gamma\sigma_{zz}]}|\psi\rangle
+    # |\psi_\text{new}\rangle = e^{-i[\alpha X_iX_j + \beta Y_iY_j + \gamma Z_iZ_j]}|\psi\rangle
     n_qubits = int(np.log2(psi.size))
     original_shape = psi.shape
     shape = (2,) * n_qubits
@@ -1214,10 +1237,20 @@ def calc_entanglement_reduction(state):
 def start_demo_4q(user_defined_states):
 
     # Initialize figure
-    fig = plt.figure(figsize=(11, 5), layout="none")
+    with plt.ioff():
+        fig = plt.figure(figsize=(11, 5), layout="none")
+    # Always hide the toolbar
+    fig.canvas.toolbar_visible = False
+    # Hide the Figure name at the top of the figure
+    fig.canvas.header_visible = False
+    # Hide the footer
+    fig.canvas.footer_visible = False
+    # Disable the resizing feature
+    fig.canvas.resizable = False
+
     gridspec = fig.add_gridspec(nrows=20, ncols=44, left=0.01, right=0.99, top=0.99, bottom=0.01)
     ax_circuit = fig.add_subplot(gridspec[1:8, :20])
-    ax_policy = fig.add_subplot(gridspec[10:15, :20])
+    ax_policy = fig.add_subplot(gridspec[11:19, :20])
 
     ax_attn11 = fig.add_subplot(gridspec[2:8, 26:32])
     ax_attn12 = fig.add_subplot(gridspec[2:8, 33:39])
@@ -1233,7 +1266,7 @@ def start_demo_4q(user_defined_states):
     ax_attn21.set_title("Layer 2, Head 1", fontsize=10)
     ax_attn22.set_title("Layer 2, Head 2", fontsize=10)
     actions = get_action_pairs(4)
-    labels = [f"$\\rho^{{{a}}}$" for a in actions]
+    labels = [f"$x^{{{a}}}$" for a in actions]
     ax_attn11.set_xticks([])
     ax_attn11.set_yticks(np.arange(len(labels)), labels)
     ax_attn12.set_xticks([])
@@ -1252,7 +1285,7 @@ def start_demo_4q(user_defined_states):
     agent = RLAgent(PATH_4Q_AGENT)
 
     # Initialize widgets
-    init_state_dropdown = InitialStateDropdown(user_defined_states, 4)
+    init_state_dropdown = InitialStateDropdown(None, user_defined_states, 4)
     rot1q = RotationControls1q(None, 4)
     rot2q = RotationControls2q(None, 4)
     step_ctrls = StepControls(None)
@@ -1274,13 +1307,12 @@ def start_demo_4q(user_defined_states):
     rot2q.mediator = mediator
     step_ctrls.mediator = mediator
     amplitudes.mediator = mediator
+    init_state_dropdown.mediator = mediator
 
     # Single Qubit Rotation
     rot1q.display()
     # Two Qubit Rotation
     rot2q.display()
-    # Amplitudes
-    amplitudes.display()
     # Reset / Step / Undo / Redo controls
     controls_layout = widgets.GridspecLayout(1, 6)
     controls_layout[0, 0:1] = init_state_dropdown.dropdown
@@ -1292,6 +1324,12 @@ def start_demo_4q(user_defined_states):
     display(controls_layout)
     # Single qubit entanglements
     ent_status.dispay()
+    display(fig.canvas)
+    # Add empty row
+    display(widgets.HTML(value="<br>"))
+
+    # Amplitudes
+    amplitudes.display()
 
     mediator.update("reset")
 
@@ -1299,7 +1337,16 @@ def start_demo_4q(user_defined_states):
 def start_demo_5q(user_defined_states):
 
     # Initialize figure
-    fig = plt.figure(figsize=(11, 6), layout="none")
+    with plt.ioff():
+        fig = plt.figure(figsize=(11, 6), layout="none")
+    # Always hide the toolbar
+    fig.canvas.toolbar_visible = False
+    # Hide the Figure name at the top of the figure
+    fig.canvas.header_visible = False
+    # Hide the footer
+    fig.canvas.footer_visible = False
+    # Disable the resizing feature
+    fig.canvas.resizable = False
     gridspec = fig.add_gridspec(nrows=24, ncols=44, left=0.01, right=0.99, top=0.99, bottom=0.01)
     ax_circuit = fig.add_subplot(gridspec[:11, :])
     ax_policy = fig.add_subplot(gridspec[13:23, :])
@@ -1310,7 +1357,7 @@ def start_demo_5q(user_defined_states):
     agent = RLAgent(PATH_5Q_AGENT)
 
     # Initialize widgets
-    init_state_dropdown = InitialStateDropdown(user_defined_states, 5)
+    init_state_dropdown = InitialStateDropdown(None, user_defined_states, 5)
     rot1q = RotationControls1q(None, 5)
     rot2q = RotationControls2q(None, 5)
     step_ctrls = StepControls(None)
@@ -1332,13 +1379,12 @@ def start_demo_5q(user_defined_states):
     rot2q.mediator = mediator
     step_ctrls.mediator = mediator
     amplitudes.mediator = mediator
+    init_state_dropdown.mediator = mediator
 
     # Single Qubit Rotation
     rot1q.display()
     # Two Qubit Rotation
     rot2q.display()
-    # Amplitudes
-    amplitudes.display()
     # Reset / Step / Undo / Redo controls
     controls_layout = widgets.GridspecLayout(1, 6)
     controls_layout[0, 0:1] = init_state_dropdown.dropdown
@@ -1350,5 +1396,11 @@ def start_demo_5q(user_defined_states):
     display(controls_layout)
     # Single qubit entanglements
     ent_status.dispay()
+    # Figure
+    display(fig.canvas)
+    # Add empty row
+    display(widgets.HTML(value="<br>"))
+    # Amplitudes
+    amplitudes.display()
 
     mediator.update("reset")
