@@ -4,7 +4,7 @@
 ### 1. Overview
 ***
 This repository contains the source code from the paper "Reinforcement
-Learning to Disentangle Multiqubit Quantum States from Partial Observations."
+Learning to Disentangle Multiqubit Quantum States from Partial Observations", 
 and a demo of the RL Agents in a form of interactive Jupyter Notebook.
 
 ### 2. Structure
