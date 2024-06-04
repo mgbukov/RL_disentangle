@@ -1217,21 +1217,18 @@ def apply_2q_rotation(psi, qubit0, qubit1, alpha, beta, gamma):
 
 def calc_entanglement_reduction(state):
     n_qubits = int(np.log2(state.size))
-    simulator = QStateSimulator(n_qubits, 1)
+    n_actions = ((n_qubits) * (n_qubits - 1)) // 2
+    simulator = QStateSimulator(n_qubits, num_envs=n_actions, act_space="reduced")
+    state = state.reshape((1,) + (2,) * n_qubits)
+    states = np.tile(state, (n_actions,) + (1,) * n_qubits)
+    simulator.states = states
 
-    psi = state.reshape(simulator.states.shape)
-    reductions = {}
-    current_entanglements = calc_entanglement(psi)
-
-    for i, a in enumerate(simulator.actions):
-        simulator.states = psi
-        simulator.apply([i])
-        new_entanglements = simulator.entanglements
-        assert new_entanglements.shape == current_entanglements.shape
-        r = current_entanglements.ravel() - new_entanglements.ravel()
-        reductions[a] = np.mean(r)
-
-    return np.array([reductions[a] for a in simulator.actions])
+    current_entanglements = simulator.entanglements.copy()
+    actions = np.arange(n_actions)
+    simulator.apply(actions)
+    next_entanglements = simulator.entanglements.copy()
+    reductions = current_entanglements - next_entanglements
+    return np.mean(reductions, axis=1)
 
 
 def start_demo_4q(user_defined_states):
