@@ -69,11 +69,14 @@ class PGAgent:
     def update(self, obs, acts, rewards, done):
         raise NotImplementedError("This method must be implemented by the subclass")
 
-    def save(self, dir):
+    def save(self, dir, increment=None):
         """Save the agent at the provided folder location."""
         os.makedirs(dir, exist_ok=True)
         # Save the agent.
-        torch.save(self, os.path.join(dir, "agent.pt"))
+        if increment is None:
+            torch.save(self, os.path.join(dir, "agent.pt"))
+        else:
+            torch.save(self, os.path.join(dir, f"agent{increment}.pt"))
         # Save the training history as a pickle file.
         with open(os.path.join(dir, "train_history.pickle"), "wb") as f:
             pickle.dump(self.train_history, f, protocol=pickle.HIGHEST_PROTOCOL)

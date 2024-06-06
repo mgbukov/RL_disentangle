@@ -127,7 +127,7 @@ def environment_loop(seed, agent, env, num_iters, steps, log_dir,
 
         # Checkpoint
         if checkpoint_every is not None and i % checkpoint_every == 0 and i > 0:
-            agent.save(log_dir)
+            agent.save(log_dir, increment=i)
 
     # Time the entire agent-environment loop.
     toc = time.time()

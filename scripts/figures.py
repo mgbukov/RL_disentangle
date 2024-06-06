@@ -121,9 +121,8 @@ def rollout(initial_state, max_steps=30):
 
     # Rollout a trajectory
     actions, entanglements, probabilities = [], [], []
-    for i in range(max_steps):
+    for _ in range(max_steps):
         ent = env.simulator.entanglements.copy()
-        np.set_printoptions(precision=3, suppress=True)
         observation = torch.from_numpy(env.obs_fn(env.simulator.states))
         probs = agent.policy(observation).probs[0].cpu().numpy()
         a = np.argmax(probs)
@@ -502,15 +501,13 @@ def figure_5q_protocol(initial_state, selected_actions=None):
     FIGSIZE = (22, 9 * NAX)                                         # figsize
 
     # Initialize figure
-    fig = plt.figure(figsize=FIGSIZE)
     fig, axs = plt.subplots(NAX, 1, figsize=FIGSIZE, squeeze=False)
     fig.tight_layout()
 
     # Draw qubit circles & "$S_{avg}$" text
-    qubits_fontdict = dict(fontsize=QFS, ha='center',
-                           va='center')
-    avg_ent_fontdict = dict(fontsize=AFS, ha='center',
-                            va='center', color='k')
+    qubits_fontdict = dict(fontsize=QFS, ha='center', va='center')
+    avg_ent_fontdict = dict(fontsize=AFS, ha='center', va='center', color='k')
+
     for ax in axs.flat:
         # Draw qubit circles 
         qubits_xs = np.full(num_qubits, QCX)
@@ -524,9 +521,7 @@ def figure_5q_protocol(initial_state, selected_actions=None):
         ax.text(QCX, AEY, r'$\mathrm{\frac{S_{avg}}{log(2)}}$', fontdict=avg_ent_fontdict)
 
     # Draw actions & entanglements
-    entanglement_fontdict = dict(fontsize=EFS, ha='center',
-                                 va='center',
-                                 weight='bold')
+    entanglement_fontdict = dict(fontsize=EFS, ha='center', va='center', weight='bold')
     for i in range(steps + 1):
         k, j = divmod(i, MSA)
         ax = axs[k, 0]
