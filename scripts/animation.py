@@ -6,6 +6,7 @@ import matplotlib as mpl
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import os
+from tqdm import tqdm
 
 from context import *
 from src.quantum_env import QuantumEnv
@@ -222,20 +223,17 @@ def draw_frame(policy, actions, entanglements, n_qubits=4, draw_percentages=True
     return fig
 
 
-def draw_trajectory(state, agent):
-    actions, policy, entanglements = rollout(state, agent, 10)
+def draw_trajectory(actions, policy, entanglements):
     nsteps = len(actions)
-    frames = []
     for i in range(0, nsteps+1):
         frame = draw_frame(policy[:i], actions[:i], entanglements[:i+1], n_qubits=4,
                            draw_percentages=False, endswith="ent")
-        frames.append(frame)
+        yield frame
         if i == nsteps:
-            break
+            return
         frame = draw_frame(policy[:i+1], actions[:i+1], entanglements[:i+2], n_qubits=4,
                            draw_percentages=False, endswith="gate")
-        frames.append(frame)
-    return frames
+        yield frame
 
 
 if __name__ == "__main__":
@@ -245,10 +243,31 @@ if __name__ == "__main__":
     frame = draw_frame(policy, actions, entanglements)
     frame.savefig("../animation/test.png")
 
-    # agent = torch.load(os.path.join(AGENTS_PATH, "agent1.pt"))
-    # np.random.seed(4)
-    # state = random_quantum_state(4)
-    # frames = draw_trajectory(state, agent)
-    # for i, frame in enumerate(frames):
-    #     frame.savefig(f"../animation/frame{i}.png")
-    #     plt.close(frame)
+    np.random.seed(8)
+    states = [random_quantum_state(4, prob=1.0) for _ in range(10)]
+    states = np.array(states, dtype=np.complex64)
+    n = 0
+    for i in tqdm(range(1, 1000, 20)):
+        agent = torch.load(os.path.join(AGENTS_PATH, f"agent{i}.pt"))
+        # Find the longest solution path
+        actions_batch = []
+        policy_batch = []
+        entanglements_batch = []
+        lens_batch = []
+        actlen = []
+        for s in states:
+            a, p, e = rollout(s, agent, max_steps=10)
+            actions_batch.append(a)
+            policy_batch.append(p)
+            entanglements_batch.append(e)
+            lens_batch.append(len(a))
+        sorted_lens = np.argsort(lens_batch)
+        j = sorted_lens[len(sorted_lens) // 2]
+        actions, policy, entanglements = actions_batch[j], policy_batch[j], entanglements_batch[j]
+        # Draw the longest trajectory
+        for _ in range(1):
+            frames = draw_trajectory(actions, policy, entanglements)
+            for i, frame in enumerate(frames):
+                frame.savefig(f"../animation/frames/frame{n}.png")
+                plt.close(frame)
+                n += 1
