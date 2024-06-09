@@ -14,7 +14,6 @@ from src.quantum_env import QuantumEnv
 from src.quantum_state import random_quantum_state
 
 
-
 mpl.rcParams['text.usetex'] = True
 mpl.rcParams['font.family'] = 'serif'
 
@@ -28,25 +27,25 @@ COLOR3 = "lightgreen"
 EPSI = 1e-3
 
 # /// USER CONSTANTS
-DPI = 240                        # dpi
+DPI = 240                       # dpi
 FIG = (1920/DPI, 1080/DPI)      # figure size in inches
-MSA = 16        # maximum steps per ax
-QCR = 0.4       # qubits' circles radius
-QCX = -1        # qubits' circles X coordinate
-QFS = 16        # qubits' circles font size
-QLW = 1         # qubits' circles linewidth
-WLW = 0.2       # qubit wires linewidth
-AEY = -0.8      # $S_{avg}$ + per step avg. entropies Y coordinate
-EFS = 9         # single qubit entropies fontsize
-ECR = 0.25      # single qubit entropies circle radius
-ECA = 0.9       # single qubit entropies circle alpha
-GOX = 0.5       # gate's X axis offset from single qubit entanglement circle
-GSS = 100       # gate's wire circle scatter size
-GLW = 2         # gate's linewidth
-PFS = 10        # gate's probability fontsize
-TLW = 0.5       # step timeline linewidth
-LFS = 12        # other labels font size
-END = 10
+MSA = 16                        # maximum steps per ax
+QCR = 0.35                      # qubits' circles radius
+QCX = -1                        # qubits' circles X coordinate
+QFS = 12                        # qubits' circles font size
+QLW = 1                         # qubits' circles linewidth
+WLW = 0.2                       # qubit wires linewidth
+AEY = -0.8                      # $S_{avg}$ + per step avg. entropies Y coordinate
+EFS = 9                         # single qubit entropies fontsize
+ECR = 0.23                      # single qubit entropies circle radius
+ECA = 0.9                       # single qubit entropies circle alpha
+GOX = 0.5                       # gate's X axis offset from single qubit entanglement circle
+GSS = 100                       # gate's wire circle scatter size
+GLW = 2                         # gate's linewidth
+PFS = 9                         # gate's probability fontsize
+TLW = 0.4                       # step timeline linewidth
+LFS = 9                         # other labels font size
+END = 10                        # last step show on circuit
 
 
 def rollout(state, agent, max_steps=30):
@@ -80,7 +79,6 @@ def rollout(state, agent, max_steps=30):
 
 def draw_policy_ax(policy, ax):
 
-    # Draw main policy actions
     if len(policy) > 0:
         taken = np.max(policy)
         for x, p in enumerate(policy):
@@ -88,14 +86,16 @@ def draw_policy_ax(policy, ax):
             bar = patches.Rectangle((x, 0), 0.9, p, facecolor=color)
             ax.add_patch(bar)
     ax.set_ylim(0.0, 1.1)
-    ax.set_yticks([])
+    ax.set_yticks([0.0, 0.5, 1.0], ["0.0", "0.5", "1.0"])
     ax.set_xticks([])
-    ax.set_title("$\pi(a|o)$")
-    ax.spines.left.set_visible(False)
+    ax.set_xlabel("action", fontsize=8)
+    ax.set_ylabel("probability", fontsize=8)
+    ax.set_title("$\pi(a_t|o_t)$", fontsize=10)
     ax.spines.right.set_visible(False)
     ax.spines.top.set_visible(False)
     ax.spines.bottom.set_visible(True)
     ax.spines.bottom.set_bounds(0, 6)
+    ax.tick_params("both", labelsize=8)
 
 
 def draw_return_ax(ax, iteration=-1):
@@ -103,37 +103,44 @@ def draw_return_ax(ax, iteration=-1):
         history = pickle.load(f)
 
     returns = np.array([item["Return"]["avg"] for item in history])
+    returns = returns[:1001]
     ax.plot(returns, linewidth=0.1, color='k', alpha=0.5, zorder=-10)
     ax.set_ylim(-10.5,0.5)
-    ax.set_xlabel("iteration")
-    ax.set_ylabel("return")
+    ax.set_xlabel("iteration", fontsize=8)
+    ax.set_ylabel("return", fontsize=8)
     ax.spines.top.set_visible(False)
     ax.spines.right.set_visible(False)
     ax.tick_params("both", labelsize=8)
+    ax.set_title("$\mathcal{R}$", fontsize=10)
+    # ax.set_yscale("symlog")
+    ax.set_yticks([-10, -5, 0], ["-10", "-5", "0"])
 
     if iteration > 0:
-        i = min(iteration, 1999)
+        i = min(iteration, 1000)
+        xs = np.arange(iteration)
+        y1 = np.full((i,), -1000)
+        y2 = returns[:i]
+        ax.fill_between(xs, y2, y1, color="k", alpha=0.25, zorder=-10, linewidth=0.0)
         ax.scatter([iteration], [returns[i]], s=30, color="tab:red", zorder=0)
 
 
 def draw_S_avg_ax(entanglements, ax):
 
     # Draw S_ent fill curve
-    ys = np.mean(entanglements, axis=1)
+    ys = np.maximum(np.mean(entanglements, axis=1), 1e-5)
     xs = np.arange(len(entanglements))
     ax.plot(xs, ys, color=COLOR0, linewidth=0.5, marker='.')
     ax.fill_between(xs, ys, color="lightblue", alpha=0.5)
-    ax.text(5, 1e-6,
+    ax.text(-1.5-QCR, 5e-9,
         s=r"$S_\mathrm{avg} = \frac{1}{L}\sum_{j=1}^L S_\mathrm{ent}[\rho^{(j)}]$",
-        transform=ax.transData, fontsize=14, ha="center")
-    ax.text(-1.2-QCR, 1e-2, s=r"$\frac{S_\mathrm{avg}}{\log(2)}$", fontsize=12, ha="left")
+        transform=ax.transData, fontsize=6, ha="left")
+    ax.text(-1.5-QCR, 1e-3, s=r"$\frac{S_\mathrm{avg}}{\log(2)}$", fontsize=12, ha="left")
     ax.set_yscale("log")
     ax.set_ylim(1e-4, 1.0)
-    ax.set_yticks([1e-4, 1e-3, 1e-2, 1e-1, 1],
-                        ['', "$10^{-3}$", "$10^{-2}$", "$10^{-1}$", ''])
+    ax.set_yticks([1e-5, 1e-3, 1e-2, 1e-1, 1],
+                        ['0', "$10^{-3}$", "$10^{-2}$", "$10^{-1}$", ''])
     ax.tick_params(axis="y", labelsize=8)
     # Draw grid
-    ax.plot([0.0, 10], [1e-4, 1e-4], linewidth=.05, color='k')
     ax.plot([0.0, 10], [1e-3, 1e-3], linewidth=.05, color='k')
     ax.plot([0.0, 10], [1e-2, 1e-2], linewidth=.05, color='k')
     ax.plot([0.0, 10], [1e-1, 1e-1], linewidth=.05, color='k')
@@ -145,17 +152,17 @@ def draw_S_avg_ax(entanglements, ax):
 
 
 def draw_frame(policy, actions, entanglements, n_qubits=4, draw_percentages=True,
-               draw_S_avg=True, iteration=-1, draw_policy=False,
-               draw_return=False, endswith="gate"):
+               draw_S_avg=True, iteration=-1, draw_policy=True,
+               draw_return=True, endswith="gate"):
 
     steps = len(actions)
 
     # Initialize figure
     fig = plt.figure(figsize=FIG, dpi=DPI, layout="none")
-    ax_center = fig.add_axes((0.02, 0.35, 0.75, 0.6))
-    ax_bright = fig.add_axes((0.80, 0.14, 0.16, 0.12))
-    ax_bottom = fig.add_axes((0.02, .14, 0.75, 0.15))
-    ax_cright = fig.add_axes((0.8, 0.62, 0.15, 0.2))
+    ax_center = fig.add_axes((0.04, 0.24, 0.65, 0.60))
+    ax_bright = fig.add_axes((0.80, 0.12, 0.16, 0.14))
+    ax_bottom = fig.add_axes((0.04, 0.12, 0.65, 0.12))
+    ax_cright = fig.add_axes((0.8, 0.48, 0.15, 0.18))
 
     # Draw qubit circles & "$S_{avg}$" text
     qubits_fontdict  = dict(fontsize=QFS, ha='center', va='center', color="white")
@@ -174,7 +181,6 @@ def draw_frame(policy, actions, entanglements, n_qubits=4, draw_percentages=True
         ax_center.plot([QCX+QCR, END], [q, q], linewidth=WLW, color='k', zorder=-10)
 
     # Draw actions & entanglements on each step
-    ent_fontdict = dict(fontsize=EFS, ha='center', va='center', color="darkblue", weight='bold')
     percentages = (100 * policy).astype(np.int32)
     action_i = np.argmax(policy, axis=1)
     percentages[np.arange(steps), action_i] += 100 - percentages.sum(axis=1)
@@ -246,7 +252,7 @@ def draw_frame(policy, actions, entanglements, n_qubits=4, draw_percentages=True
         else:
             draw_policy_ax(policy[-1], ax_bright)
         ax_bright.set_xlim(0,6)
-    else:
+    else: 
         ax_bright.set_axis_off()
 
     # Draw S_avg
@@ -265,10 +271,10 @@ def draw_frame(policy, actions, entanglements, n_qubits=4, draw_percentages=True
 
     # Draw iteration #
     if iteration > 0:
-        ax_center.text(x=END+2, y=AEY, s=f"\# iteration = {iteration:>3}")
+        ax_center.text(x=END+3.4, y=n_qubits, s=f"Iteration = {iteration:>3}")
 
     # Draw "episode step"
-    ax_center.text(x=-1-QCR, y=AEY+0.1, s="episode step", ma="center", fontsize=11, va="top", ha="left")
+    ax_center.text(x=-1.4-QCR, y=AEY+0.1, s="episode step", ma="center", fontsize=9, va="top", ha="left")
 
     # Set aspect & remove ticks
     ax_center.set_aspect(1.0)
@@ -289,21 +295,22 @@ def draw_frame(policy, actions, entanglements, n_qubits=4, draw_percentages=True
     xticks = np.arange(0, END) + 0.5
     xticklabels = np.arange(1, END+1)
     ax_center.plot(xticks, [AEY] * len(xticks), markevery=1, marker='|',
-            markersize=6, markeredgewidth=1, linewidth=TLW, color='k')
+            markersize=4, markeredgewidth=1, linewidth=TLW, color='k')
     ax_center.arrow(END-0.5, AEY, 1.0, 0, linewidth=TLW, head_width=0.2, color='k')
     for x, lab in zip(xticks, xticklabels):
         ax_center.text(x, AEY - 0.45, str(lab), fontsize=LFS, ha='center')
 
     # Draw legend
-    ax_center.scatter([], [], s=100, color=COLOR0, label='$\mathrm{S_{ent} > 10^{-1}}$')
-    ax_center.scatter([], [], s=100, color=COLOR1, label='$\mathrm{S_{ent} < 10^{-1}}$')
-    ax_center.scatter([], [], s=100, color=COLOR2, label='$\mathrm{S_{ent} < 10^{-2}}$')
-    ax_center.scatter([], [], s=100, color=COLOR3, label='$\mathrm{S_{ent} < 10^{-3}}$')
-    ax_center.legend(loc=(0.2, 0.96), fontsize=11, ncols=4, frameon=False)
+    ax_center.scatter([], [], s=40, color=COLOR0, label='$\mathrm{S_{ent} > 10^{-1}}$')
+    ax_center.scatter([], [], s=40, color=COLOR1, label='$\mathrm{S_{ent} < 10^{-1}}$')
+    ax_center.scatter([], [], s=40, color=COLOR2, label='$\mathrm{S_{ent} < 10^{-2}}$')
+    ax_center.scatter([], [], s=40, color=COLOR3, label='$\mathrm{S_{ent} < 10^{-3}}$')
+    l = ax_center.legend(loc=(0.05, 0.96), fontsize=9, ncols=4, labelspacing=0.75, frameon=True)
+    l.get_frame().set_linewidth(0.5)
     return fig
 
 
-def draw_trajectory(actions, policy, entanglements, iteration=-1, draw_percentages=False,
+def draw_trajectory(actions, policy, entanglements, iteration=-1, draw_percentages=True,
                     draw_S_avg=True, draw_policy=True, draw_return=True):
     
     nsteps = len(actions)
@@ -360,41 +367,43 @@ def save_iteration_frames(iteration):
 
 
 if __name__ == "__main__":
+
     # agent = torch.load("../agents/4q-agent.pt")
     # state = random_quantum_state(4)
-    # actions, policy, entanglements = rollout(state, agent, 5)
+    # actions, policy, entanglements = rollout(state, agent, 6)
     # frame = draw_frame(policy, actions, entanglements, draw_policy=True,
-    #                    draw_return=True, draw_S_avg=True, iteration=45)
+    #                    draw_return=True, draw_S_avg=True, iteration=512, endswith="ent")
     # frame.savefig("../animation/test.png")
-    # os.makedirs("../animation/frames", exist_ok=True)
 
-    # np.random.seed(8)
-    # states = [random_quantum_state(4, prob=1.0) for _ in range(10)]
-    # states = np.array(states, dtype=np.complex64)
-    # n = 1184
-    # for i in tqdm(range(2000, 2001, 20)):
-    #     agent = torch.load(os.path.join(AGENTS_PATH, f"agent{min(i+1, 2000)}.pt"))
-    #     # Find the longest solution path
-    #     actions_batch = []
-    #     policy_batch = []
-    #     entanglements_batch = []
-    #     lens_batch = []
-    #     for s in states:
-    #         a, p, e = rollout(s, agent, max_steps=10)
-    #         actions_batch.append(a)
-    #         policy_batch.append(p)
-    #         entanglements_batch.append(e)
-    #         lens_batch.append(len(a))
-    #     sorted_lens = np.argsort(lens_batch)
-    #     j = sorted_lens[len(sorted_lens) // 2]
-    #     actions, policy, entanglements = actions_batch[j], policy_batch[j], entanglements_batch[j]
-    #     # Draw the longest trajectory
-    #     for _ in range(1):
-    #         frames = draw_trajectory(actions, policy, entanglements, iteration=max(1,i))
-    #         for i, frame in enumerate(frames):
-    #             frame.savefig(f"../animation/frames/frame{n:04}.png")
-    #             plt.close(frame)
-    #             n += 1
+
+    os.makedirs("../animation/frames.v2", exist_ok=True)
+    np.random.seed(8)
+    states = [random_quantum_state(4, prob=1.0) for _ in range(10)]
+    states = np.array(states, dtype=np.complex64)
+    n = 0
+    for i in tqdm(range(0, 1001, 20)):
+        agent = torch.load(os.path.join(AGENTS_PATH, f"agent{min(i+1, 1000)}.pt"))
+        # Find the longest solution path
+        actions_batch = []
+        policy_batch = []
+        entanglements_batch = []
+        lens_batch = []
+        for s in states:
+            a, p, e = rollout(s, agent, max_steps=10)
+            actions_batch.append(a)
+            policy_batch.append(p)
+            entanglements_batch.append(e)
+            lens_batch.append(len(a))
+        sorted_lens = np.argsort(lens_batch)
+        j = sorted_lens[len(sorted_lens) // 2]
+        actions, policy, entanglements = actions_batch[j], policy_batch[j], entanglements_batch[j]
+        # Draw the longest trajectory
+        for _ in range(1):
+            frames = draw_trajectory(actions, policy, entanglements, iteration=max(1,i))
+            for i, frame in enumerate(frames):
+                frame.savefig(f"../animation/frames.v2/frame{n:04}.png")
+                plt.close(frame)
+                n += 1
 
     save_iteration_frames(1)
     save_iteration_frames(20)
@@ -404,4 +413,3 @@ if __name__ == "__main__":
     save_iteration_frames(200)
     save_iteration_frames(300)
     save_iteration_frames(1000)
-    save_iteration_frames(2000)
