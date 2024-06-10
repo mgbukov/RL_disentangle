@@ -15,7 +15,7 @@ cd ..
 #     --log_every 100 --demo_every 100 --suffix sample
 
 python3 run.py \
-    --seed 0 --num_qubits 4 --num_envs 64 --steps 8 --steps_limit 16 --num_iters 2000 \
+    --seed 0 --num_qubits 4 --num_envs 64 --steps 8 --steps_limit 16 --num_iters 4000 \
     --state_generator haar_unif --obs_fn rdm_2q_rsqr_nisq_mean_real \
     --attn_heads 2 --transformer_layers 2 --embed_dim 128 --dim_mlp 256 \
     --batch_size 128 --pi_lr 2e-4 --entropy_reg 0.1  --suffix animation \
