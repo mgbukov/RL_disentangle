@@ -1,14 +1,19 @@
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mgbukov/RL_disentangle/HEAD)
 # RL disentangle
 
+![](resources/4q-loop.gif)
 
 ### 1. Overview
 ***
 This repository contains the source code from the paper "Reinforcement
 Learning to Disentangle Multiqubit Quantum States from Partial Observations", 
-and a demo of the RL Agents in a form of interactive Jupyter Notebook.
+and a demo of the 4q and 5q RL agents in a form of interactive Jupyter Notebook.
+ 
 
 ### 2. Structure
 ***
+* **interactive-demo.ipynb**<br>
+  The interactive Jupyter Notebook that shows the 4q and 5q agents
 
 * **`agents/`**<br>
  This dir contains symbolic links to trained RL agents.
@@ -40,8 +45,7 @@ used to generate the figures in the paper.
 ### 3. How to Use?
 ***
 1. Clone the repo
-2. Create new Conda (or Python) envionment & install packages from **requirements.txt** using:
-`conda install --yes --file requirements.txt`
+2. Create Conda environment with dependent packages using `conda env create -f environment.yaml`
 3. Check the demo script in `scripts/sample.py` and the Interative Notebook `demo.ipynb`
 
 Essentially you must instantiate the RL environment, load the agent and then
@@ -88,4 +92,3 @@ Training times were approximately:
 *  25 minutes for the 4 qubit agent
 *  10 hours for the 5 qubit agent
 *  60 hours for the 6 qubit agent
-

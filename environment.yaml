@@ -12,3 +12,4 @@ dependencies:
   - jupyterlab=4.2.1
   - ipywidgets=8.1.3
   - notebook=7.2.0
+  - tqdm=4.66.4
