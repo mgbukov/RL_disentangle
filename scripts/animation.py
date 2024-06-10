@@ -90,7 +90,7 @@ def draw_policy_ax(policy, ax):
     ax.set_xticks([])
     ax.set_xlabel("action", fontsize=8)
     ax.set_ylabel("probability", fontsize=8)
-    ax.set_title("$\pi(a_t|o_t)$", fontsize=10)
+    ax.set_title("policy\n$\pi(a_t|o_t)$", fontsize=10)
     ax.spines.right.set_visible(False)
     ax.spines.top.set_visible(False)
     ax.spines.bottom.set_visible(True)
@@ -107,11 +107,11 @@ def draw_return_ax(ax, iteration=-1):
     ax.plot(returns, linewidth=0.1, color='k', alpha=0.5, zorder=-10)
     ax.set_ylim(-10.5,0.5)
     ax.set_xlabel("iteration", fontsize=8)
-    ax.set_ylabel("return", fontsize=8)
+    ax.set_ylabel("$\mathcal{R}$", fontsize=8)
     ax.spines.top.set_visible(False)
     ax.spines.right.set_visible(False)
     ax.tick_params("both", labelsize=8)
-    ax.set_title("$\mathcal{R}$", fontsize=10)
+    ax.set_title("return $\mathcal{R}$", fontsize=10)
     # ax.set_yscale("symlog")
     ax.set_yticks([-10, -5, 0], ["-10", "-5", "0"])
 
@@ -141,9 +141,9 @@ def draw_S_avg_ax(entanglements, ax):
                         ['0', "$10^{-3}$", "$10^{-2}$", "$10^{-1}$", ''])
     ax.tick_params(axis="y", labelsize=8)
     # Draw grid
-    ax.plot([0.0, 10], [1e-3, 1e-3], linewidth=.05, color='k')
-    ax.plot([0.0, 10], [1e-2, 1e-2], linewidth=.05, color='k')
-    ax.plot([0.0, 10], [1e-1, 1e-1], linewidth=.05, color='k')
+    ax.plot([0.0, 10], [1e-3, 1e-3], linewidth=.5, linestyle="--", color='k')
+    ax.plot([0.0, 10], [1e-2, 1e-2], linewidth=.1, color='k')
+    ax.plot([0.0, 10], [1e-1, 1e-1], linewidth=.1, color='k')
     ax.set_xticks([], [])
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
@@ -175,6 +175,10 @@ def draw_frame(policy, actions, entanglements, n_qubits=4, draw_percentages=True
         circle = patches.Circle((x, y), QCR, **circle_styledict)
         ax_center.add_patch(circle)
         ax_center.text(x, y, f'$q_{y+1}$', **qubits_fontdict)
+
+    # Draw "Haar random state"
+    ax_center.text(-1.8, 1.5, "Haar random state", fontsize=10,
+                   rotation=90, ha="center", va="center")
 
     # Draw wires
     for q in range(n_qubits):
@@ -271,10 +275,12 @@ def draw_frame(policy, actions, entanglements, n_qubits=4, draw_percentages=True
 
     # Draw iteration #
     if iteration > 0:
-        ax_center.text(x=END+3.4, y=n_qubits, s=f"Iteration = {iteration:>3}")
+        ax_center.text(x=END+3, y=n_qubits, ha="left",
+                       s=f"training iteration = {iteration:>4}")
 
     # Draw "episode step"
-    ax_center.text(x=-1.4-QCR, y=AEY+0.1, s="episode step", ma="center", fontsize=9, va="top", ha="left")
+    ax_center.text(x=-1.4-QCR, y=AEY+0.1, s="episode step\n$t$", ma="center",
+                   fontsize=9, va="top", ha="left")
 
     # Set aspect & remove ticks
     ax_center.set_aspect(1.0)
@@ -368,48 +374,44 @@ def save_iteration_frames(iteration):
 
 if __name__ == "__main__":
 
-    # agent = torch.load("../agents/4q-agent.pt")
-    # state = random_quantum_state(4)
-    # actions, policy, entanglements = rollout(state, agent, 6)
-    # frame = draw_frame(policy, actions, entanglements, draw_policy=True,
-    #                    draw_return=True, draw_S_avg=True, iteration=512, endswith="ent")
-    # frame.savefig("../animation/test.png")
+    agent = torch.load("../agents/4q-agent.pt")
+    state = random_quantum_state(4)
+    actions, policy, entanglements = rollout(state, agent, 6)
+    frame = draw_frame(policy, actions, entanglements, draw_policy=True,
+                       draw_return=True, draw_S_avg=True, iteration=1, endswith="ent")
+    frame.savefig("../animation/test.png")
 
+    # os.makedirs("../animation/frames", exist_ok=True)
+    # np.random.seed(8)
+    # states = [random_quantum_state(4, prob=1.0) for _ in range(10)]
+    # states = np.array(states, dtype=np.complex64)
+    # n = 0
+    # for i in tqdm(range(0, 1001, 20)):
+    #     agent = torch.load(os.path.join(AGENTS_PATH, f"agent{min(i+1, 1000)}.pt"))
+    #     # Find the longest solution path
+    #     actions_batch = []
+    #     policy_batch = []
+    #     entanglements_batch = []
+    #     lens_batch = []
+    #     for s in states:
+    #         a, p, e = rollout(s, agent, max_steps=10)
+    #         actions_batch.append(a)
+    #         policy_batch.append(p)
+    #         entanglements_batch.append(e)
+    #         lens_batch.append(len(a))
+    #     sorted_lens = np.argsort(lens_batch)
+    #     j = sorted_lens[len(sorted_lens) // 2]
+    #     actions, policy, entanglements = actions_batch[j], policy_batch[j], entanglements_batch[j]
+    #     # Draw the longest trajectory
+    #     for _ in range(1):
+    #         frames = draw_trajectory(actions, policy, entanglements, iteration=max(1,i))
+    #         for i, frame in enumerate(frames):
+    #             frame.savefig(f"../animation/frames/frame{n:04}.png")
+    #             plt.close(frame)
+    #             n += 1
 
-    os.makedirs("../animation/frames.v2", exist_ok=True)
-    np.random.seed(8)
-    states = [random_quantum_state(4, prob=1.0) for _ in range(10)]
-    states = np.array(states, dtype=np.complex64)
-    n = 0
-    for i in tqdm(range(0, 1001, 20)):
-        agent = torch.load(os.path.join(AGENTS_PATH, f"agent{min(i+1, 1000)}.pt"))
-        # Find the longest solution path
-        actions_batch = []
-        policy_batch = []
-        entanglements_batch = []
-        lens_batch = []
-        for s in states:
-            a, p, e = rollout(s, agent, max_steps=10)
-            actions_batch.append(a)
-            policy_batch.append(p)
-            entanglements_batch.append(e)
-            lens_batch.append(len(a))
-        sorted_lens = np.argsort(lens_batch)
-        j = sorted_lens[len(sorted_lens) // 2]
-        actions, policy, entanglements = actions_batch[j], policy_batch[j], entanglements_batch[j]
-        # Draw the longest trajectory
-        for _ in range(1):
-            frames = draw_trajectory(actions, policy, entanglements, iteration=max(1,i))
-            for i, frame in enumerate(frames):
-                frame.savefig(f"../animation/frames.v2/frame{n:04}.png")
-                plt.close(frame)
-                n += 1
-
-    save_iteration_frames(1)
-    save_iteration_frames(20)
-    save_iteration_frames(40)
-    save_iteration_frames(50)
-    save_iteration_frames(100)
-    save_iteration_frames(200)
-    save_iteration_frames(300)
-    save_iteration_frames(1000)
+    # save_iteration_frames(20)
+    # save_iteration_frames(50)
+    # save_iteration_frames(100)
+    # save_iteration_frames(200)
+    # save_iteration_frames(1000)
