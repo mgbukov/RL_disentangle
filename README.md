@@ -1,7 +1,7 @@
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mgbukov/RL_disentangle/HEAD)
 # RL disentangle
 
-![](resources/4q-loop.gif)
+![](images/4q-loop.gif)
 
 ### 1. Overview
 ***

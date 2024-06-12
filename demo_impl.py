@@ -62,18 +62,18 @@ class RotationControls1q:
         self.angle_slider.style.handle_color = COLOR0
         self.axis_phi_slider = widgets.FloatSlider(
             value=0.0, min=0.0, max=2*np.pi, step=0.01,
-            description=r"$\mathrm{axis}\ \phi$", readout_format='.2f',
+            description=r"$\text{axis}\ \phi$", readout_format='.2f',
         )
         self.axis_phi_slider.style.handle_color = COLOR0
         self.axis_theta_slider = widgets.FloatSlider(
             value=0.0, min=0.0, max=np.pi, step=0.01,
-            description=r"$\mathrm{axis}\ \theta$", readout_format='.2f',
+            description=r"$\text{axis}\ \theta$", readout_format='.2f',
         )
         self.axis_theta_slider.style.handle_color = COLOR0
         options = list(range(self.n_qubits))
         self.qselector = widgets.Dropdown(
             options={k+1:k for k in options}, value=0,
-            description=r"$\mathrm{qubit}\ i$", disabled=False,
+            description=r"$\text{qubit}\ i$", disabled=False,
         )
         self._widgets = [self.angle_slider, self.axis_phi_slider,
                          self.axis_theta_slider, self.qselector]
@@ -89,7 +89,7 @@ class RotationControls1q:
             with open(imgpath, mode="rb") as f:
                 data = f.read()
             self.formula = widgets.Image(value=data, format="png",
-                                         layout=dict(height="45%", width="auto"))
+                                         layout=dict(height="18px", width="auto"))
         else:
             self.formula = widgets.HTML(value="")
         # Initialize layout
@@ -188,7 +188,7 @@ class RotationControls2q:
         # Initialize widgets
         options = {str((i+1,j+1)): (i,j) for i,j in self.qubit_indices}
         self.qselector = widgets.Dropdown(options=options, value=(0, 1),
-            description=r"$\mathrm{qubits}\ (i,j)$", disabled=False,
+            description=r"$\text{qubits}\ (i,j)$", disabled=False,
         )
         self.alpha_slider = widgets.FloatSlider(
             value=0.0, min=0.0, max=2*np.pi, step=0.01,
@@ -220,7 +220,7 @@ class RotationControls2q:
             with open(imgpath, mode="rb") as f:
                 data = f.read()
             self.formula = widgets.Image(value=data, format="png",
-                                         layout=dict(height="45%", width="auto"))
+                                         layout=dict(height="18px", width="auto"))
         else:
             self.formula = widgets.HTML(value="")
 
@@ -437,7 +437,7 @@ class InitialStateDropdown:
 
         names = list(self._choices.keys())
         self.dropdown = widgets.Dropdown(options=names, index=0,
-                                         description=r"$\mathrm{Initial\ state}$")
+                                         description=r"$\text{Initial\ state}$")
         self.dropdown.observe(self._callback, "value")
         self._selected = 0
 
