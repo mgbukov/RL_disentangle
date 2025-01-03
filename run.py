@@ -23,7 +23,6 @@ python3 run.py \
 import json
 import os
 import sys
-sys.path.append("..")
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -33,7 +32,7 @@ from src.environment_loop import environment_loop
 from src.networks import MLP, TransformerPE_2qRDM
 from src.ppo import PPOAgent
 from src.quantum_env import QuantumEnv
-from src.quantum_state import random_quantum_state
+from src.util import str2state
 
 
 def demo(args):
@@ -95,16 +94,6 @@ def demo(args):
             })
 
     return thunk
-
-
-def str2state(string_descr):
-    psi = np.array([1.0], dtype=np.complex64)
-    nqubits = 0
-    for pair in string_descr.split('-'):
-        q = pair.count('R')
-        nqubits += q
-        psi = np.kron(psi, random_quantum_state(q=q, prob=1.))
-    return psi.reshape((2,) * nqubits)
 
 
 def test(agent, args):
@@ -182,7 +171,10 @@ def pg_solves_quantum(args):
         reward_fn=args.reward_fn,
         obs_fn=args.obs_fn,
         state_generator=args.state_generator,
-        generator_kwargs=dict(p_gen=args.p_gen, min_entangled=args.min_entangled)
+        generator_kwargs=dict(
+            p_gen=args.p_gen,
+            min_entangled=args.min_entangled,
+            chi_max=args.chi_max)
     )
 
     # Try loading the RL agent from checkpoint or ...
@@ -319,6 +311,8 @@ if __name__ == "__main__":
         help="Parameter of `haar_geom` state generator.")
     parser.add_argument("--min_entangled", default=1, type=int,
         help="Parameter of `haar_unif` state generator.")
+    parser.add_argument("--chi_max", default=2, type=int,
+        help="Maximum bond dimension for `mps` state generator.")
 
     parser.add_argument("--log_every", default=100, type=int,
         help="Log training data ${log_every} iterations.")

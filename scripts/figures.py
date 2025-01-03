@@ -12,6 +12,7 @@ from context import *
 from src.environment_loop import test_agent
 from src.quantum_env import QuantumEnv
 from src.quantum_state import random_quantum_state
+from src.util import str2state, str2latex, rollout
 from search import GreedyAgent, RandomAgent
 
 mpl.rcParams['text.usetex'] = True
@@ -21,128 +22,6 @@ mpl.rcParams['font.family'] = 'serif'
 PATH_4Q_AGENT = os.path.join(project_dir, "agents/4q-agent.pt")
 PATH_5Q_AGENT = os.path.join(project_dir, "agents/5q-agent.pt")
 PATH_6Q_AGENT = os.path.join(project_dir, "agents/6q-agent.pt")
-
-
-def str2state(string_descr):
-    """Generates Haar random state from string description like 'R-RRR-R'."""
-    psi = np.array([1.0], dtype=np.complex64)
-    bell = np.array([1/np.sqrt(2), 0, 0, -1/np.sqrt(2)]).astype(np.complex64)
-    W = np.array([0, 1/np.sqrt(3), 1/np.sqrt(3), 0, 1/np.sqrt(3), 0, 0, 0]).astype(np.complex64)
-    zero = np.array([1, 0]).astype(np.complex64)
-    one = np.array([0, 1]).astype(np.complex64)
-    nqubits = 0
-    chars = "abcdefghijklmn"
-    for pair in string_descr.split('-'):
-        if pair == "B":
-            phi = bell.reshape(2,2)
-            q = 2
-        elif pair == "1":
-            phi = one
-            q = 1
-        elif pair == "0":
-            phi = zero
-            q = 1
-        elif pair == "W":
-            phi = W.reshape(2,2,2)
-            q = 3
-        elif set(pair) == {'R'}:
-            q = pair.count('R')
-            phi = random_quantum_state(q=q, prob=1.)
-        else:
-            raise ValueError(f"Unknown quantum subsystem coding: \"{pair}\"")
-        if nqubits == 0:
-            psi = phi
-        else:
-            A = chars[:nqubits]
-            B = chars[nqubits:nqubits+q]
-            einstr = f"{A},{B}->{A}{B}"
-            psi = np.einsum(einstr, psi, phi)
-        nqubits += q
-    return psi.reshape((2,) * nqubits)
-
-def str2latex(string_descr):
-    """Transforms state name like "R-RR" to "|R>|RR>" in Latex."""
-    numbers = "123456789"
-    codes = string_descr.split("-")
-    name = []
-    i = 0
-    for c in codes:
-        if c == "W":
-            q = 3
-            letter = "W"
-        elif c == "1":
-            q = 1
-            letter = "1"
-        elif c == "0":
-            q = 1
-            letter = "0"
-        elif c == "B":
-            q = 2
-            letter = "Bell"
-        elif set(c) == {"R",}:
-            q = len(c)
-            letter = "R"
-        else:
-            raise ValueError(f"Unknown quantum subsystem coding: \"{c}\"")
-        s = f'|{letter}_{{' + f"{numbers[i:i+q]}" + r"}\rangle"
-        # USE FOR "slighly entangled states, Fig. 14"
-        # s = r'R_{' + f'{numbers[i:i+len(r)]}' + '}'
-        name.append(r'\mathrm{' + s + '}')
-        i += q
-    return "$" + ''.join(name) + "$"
-    # USE FOR "slighty entangled states, Fig. 14"
-    # return "$|" + ''.join(name) + r"\rangle$"
-
-def rollout(initial_state, max_steps=30):
-    """
-    Returns action names, entanglements and policy probabilities for each step.
-    """
-
-    # Initialize environment
-    num_qubits = int(np.log2(initial_state.size))
-    shape = (2,) * num_qubits
-    initial_state = initial_state.reshape(shape)
-    env = QuantumEnv(num_qubits, 1, obs_fn='rdm_2q_mean_real')
-    env.reset()
-    env.simulator.states = np.expand_dims(initial_state, 0)
-
-    # Load agent
-    if num_qubits == 6:
-        agent = torch.load(PATH_6Q_AGENT, map_location='cpu')
-    elif num_qubits == 5:
-        agent = torch.load(PATH_5Q_AGENT, map_location='cpu')
-    elif num_qubits == 4:
-        agent = torch.load(PATH_4Q_AGENT, map_location='cpu')
-    else:
-        raise ValueError(f'Cannot find agent for {num_qubits}-qubit system')
-    for enc in agent.policy_network.net:
-        enc.activation_relu_or_gelu = 1
-    agent.policy_network.eval()
-
-    # Rollout a trajectory
-    actions, entanglements, probabilities = [], [], []
-    for _ in range(max_steps):
-        ent = env.simulator.entanglements.copy()
-        observation = torch.from_numpy(env.obs_fn(env.simulator.states))
-        probs = agent.policy(observation).probs[0].cpu().numpy()
-        a = np.argmax(probs)
-        actions.append(env.simulator.actions[a])
-        entanglements.append(ent.ravel())
-        probabilities.append(probs)
-        o, r, t, tr, i = env.step([a], reset=False)
-        if np.all(t):
-            break
-    # Append final entangments
-    assert np.all(env.simulator.entanglements <= env.epsi)
-    entanglements.append(env.simulator.entanglements.copy().ravel())
-
-    return np.array(actions), np.array(entanglements), np.array(probabilities)
-
-
-def peek_policy(state):
-    """Returns the agent probabilites for this state."""
-    _, _, probabilities = rollout(state, max_steps=1)
-    return probabilities[0]
 
 
 def figure1a():
@@ -463,7 +342,7 @@ def figure_5q_protocol(initial_state, selected_actions=None):
     num_qubits = int(np.log2(initial_state.size))
     EPSI = 1e-3
     max_steps = 30 if selected_actions is None else len(selected_actions)
-    
+
     # Rollout a trajectory
     actions, entanglements, _probabilities = rollout(initial_state, max_steps)
     if selected_actions is not None:
@@ -509,7 +388,7 @@ def figure_5q_protocol(initial_state, selected_actions=None):
     avg_ent_fontdict = dict(fontsize=AFS, ha='center', va='center', color='k')
 
     for ax in axs.flat:
-        # Draw qubit circles 
+        # Draw qubit circles
         qubits_xs = np.full(num_qubits, QCX)
         qubits_ys = np.arange(num_qubits)
         for x, y in zip(qubits_xs, qubits_ys):
@@ -607,14 +486,14 @@ def figure_5q_protocol(initial_state, selected_actions=None):
             ax.text(x, AEY - 0.9, str(lab), fontsize=LFS, ha='center')
 
     mpl.rcParams['font.size'] = old_fontsize
-    
+
     # Add legend
     ax.scatter([], [], s=300, color='orangered', alpha=0.5, label='$\mathrm{S_{ent}\\times10^{0}}$')
     ax.scatter([], [], s=300, color='royalblue', alpha=0.5, label='$\mathrm{S_{ent}\\times10^{1}}$')
     ax.scatter([], [], s=300, color='forestgreen', alpha=0.5, label='$\mathrm{S_{ent}\\times10^{2}}$')
     ax.scatter([], [], s=300, color='darkgray', alpha=0.5, label='$\mathrm{S_{ent}\\times10^{3}}$')
     ax.legend(loc=(0.42, -0.17), fontsize=24, ncols=4, frameon=False)
-    
+
     return fig
 
 
@@ -749,7 +628,7 @@ def figure_stats(benchmark_results):
 
     # deep slate blue #3D405B medium blue #0077B6 light blue #90E0EF, pale blue #CAF0F8
     colors = ['#7abacc', '#0077B6', '#3D405B']
-    
+
     # Plot 4q results
     keys4q = (k for k in benchmark_results if len(k.replace('-', '')) == 4)
     offset = 0
@@ -921,7 +800,7 @@ def figure_4q_protocol(initial_state, state_name=''):
         q0, q1 = sorted(actions[n])
         ax.plot([q0, q1], [2*n, 2*n], linewidth=GLW, color='k')
         ax.scatter([q0, q1], [2*n, 2*n], s=GSS, color='k')
-        
+
         # Draw horizontal line connecting policy and gate
         ax.plot([-0.5, num_qubits - 0.5], [2*n - 1, 2*n - 1],
                 linestyle='--', linewidth=0.5, color='k')
@@ -1185,7 +1064,7 @@ def figure_accuracy():
         ax.set_ylim(0.0, 1.05)
         ax.tick_params(axis='both', which='major', labelsize=10)
         ax.set_xticks([0, 200, 400])
-    
+
     for ax in axs:
         ax.set_ylabel("episode length")
 
@@ -1221,7 +1100,7 @@ def figure_search_scalability(path_to_stats):
         avglen_qbq.append(stats["beam_qbyq"]["average_length"])
         avgvis.append(stats["beam"]["average_visited"])
         avgvis_qbq.append(stats["beam_qbyq"]["average_visited"])
-    
+
     axs[0].scatter(xs, avglen, c="tab:red", s=20, label="beam search")
     axs[0].scatter(xs, avglen_qbq, c="tab:blue", s=20, label="qubit-by-qubit search")
     axs[0].set_ylabel("$M$")
@@ -1378,7 +1257,7 @@ def figure_attention_heads_average(nsamples=1000):
         mean_attn = np.mean(weights, axis=0)
         assert mean_attn.shape == (2, 2, 6, 6)
         attention_distributions[key] = mean_attn
-    
+
     fig, axs = plt.subplots(9, 4, figsize=(6, 16), sharex=True, sharey=True,
                             layout="tight")
     axiter = axs.flat
@@ -1481,7 +1360,7 @@ def figure_embeddings_projection(nsamples=1000, method="pca"):
             rho = rho_labels[i]
             ax.set_title(f"tSNE on embeddings of {rho}\n")
         ax.legend(loc="upper right")
-    
+
     else:
         raise ValueError(f"Unknown methhod: {method}")
 
@@ -1523,7 +1402,7 @@ if __name__ == '__main__':
     # Figure 4b
     w = np.array([0, 1, 1, 0, 1, 0, 0, 0], dtype=np.complex64) / np.sqrt(3)
     zero = np.array([1, 0], dtype=np.complex64)
-    zero_ghz = np.einsum("i,jkl -> ijkl", zero, w.reshape(2,2,2)) 
+    zero_ghz = np.einsum("i,jkl -> ijkl", zero, w.reshape(2,2,2))
     fig4b = figure_4q_protocol(zero_ghz, r"$\mathrm{|0\rangle|GHZ_{2,3,4}\rangle}$")
     fig4b.savefig('../figures/circuit-ghz.pdf')
     plt.close(fig4b)

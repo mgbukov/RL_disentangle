@@ -1,6 +1,8 @@
 from itertools import permutations, combinations
 import numpy as np
 
+from .mpslib import generate_random_MPS, MPS_to_state
+
 
 class VectorQuantumState:
     """VectorQuantumState is a vectorized quantum state for parallel simulation.
@@ -31,6 +33,8 @@ class VectorQuantumState:
                     haar_unif:  States are drawn from 2 to `num_qubits`
                                 dimensional Hilbert space and each dimension
                                 has equal probability of being sampled.
+                    mps:        Matrix product states, parametarized by maximum
+                                bond dimension `chi_max`.
             generator_kwargs:
                 Keyword arguments passed to state generator function.
         """
@@ -64,10 +68,12 @@ class VectorQuantumState:
             self.state_generator = sample_haar_geom
         elif state_generator == "haar_unif":
             self.state_generator = sample_haar_unif
+        elif state_generator == "mps":
+            self.state_generator = sample_mps
         else:
             raise ValueError("`state_generator` must be one of ('haar_full', " \
-                             "'haar_geom', 'haar_unif')")
-        self.state_generator_kwargs = generator_kwargs
+                             "'haar_geom', 'haar_unif', 'mps')")
+        self.state_generator_kwargs = generator_kwargs["generator_kwargs"]
 
         # Store the entanglement of every system for faster retrieval.
         self.entanglements = np.zeros((num_envs, num_qubits), dtype=np.float32)
@@ -166,14 +172,8 @@ class VectorQuantumState:
                 postswaps_.append(False)
         self.postswaps_ = np.array(postswaps_)
 
-
     def reset_sub_environment_(self, k):
-        if self.state_generator_name == "haar_full":
-            x = sample_haar_full(self.num_qubits, **self.state_generator_kwargs)
-        elif self.state_generator_name == "haar_geom":
-            x = sample_haar_geom(self.num_qubits, **self.state_generator_kwargs)
-        elif self.state_generator_name == "haar_unif":
-            x = sample_haar_unif(self.num_qubits, **self.state_generator_kwargs)
+        x = self.state_generator(self.num_qubits, **self.state_generator_kwargs)
         self._states[k] = phase_norm(x)
         self.entanglements[k] = entropy(np.expand_dims(self._states[k], axis=0))
 
@@ -213,6 +213,15 @@ def sample_haar_unif(num_qubits, min_entangled=1, **kwargs):
         psi = np.kron(psi, sample_haar_full(r).ravel())
     psi /= np.linalg.norm(psi.ravel())
     return psi.reshape((2,) * num_qubits)
+
+
+def sample_mps(num_qubits, chi_max=None, **kwargs):
+    if chi_max is None:
+        chi_max = 2
+    As, _, Lambdas = generate_random_MPS(num_qubits, 2, chi_max)
+    psi = MPS_to_state(As, Lambdas, canonical=-1)
+    return psi.reshape((2,) * num_qubits)
+
 
 
 #------------------------------ Utility functions -----------------------------#
