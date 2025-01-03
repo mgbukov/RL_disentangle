@@ -174,7 +174,8 @@ def pg_solves_quantum(args):
         generator_kwargs=dict(
             p_gen=args.p_gen,
             min_entangled=args.min_entangled,
-            chi_max=args.chi_max)
+            chi_max=args.chi_max
+        )
     )
 
     # Try loading the RL agent from checkpoint or ...

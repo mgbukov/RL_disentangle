@@ -11,7 +11,7 @@ class VectorQuantumState:
     """
 
     def __init__(self, num_qubits, num_envs, act_space="reduced",
-                 state_generator="haar_full", **generator_kwargs):
+                 state_generator="haar_full", generator_kwargs={}):
         """Init a vector quantum system.
 
         Args:
@@ -35,7 +35,7 @@ class VectorQuantumState:
                                 has equal probability of being sampled.
                     mps:        Matrix product states, parametarized by maximum
                                 bond dimension `chi_max`.
-            generator_kwargs:
+            generator_kwargs: dict, optional
                 Keyword arguments passed to state generator function.
         """
         assert num_qubits >= 2
@@ -73,7 +73,7 @@ class VectorQuantumState:
         else:
             raise ValueError("`state_generator` must be one of ('haar_full', " \
                              "'haar_geom', 'haar_unif', 'mps')")
-        self.state_generator_kwargs = generator_kwargs["generator_kwargs"]
+        self.state_generator_kwargs = generator_kwargs
 
         # Store the entanglement of every system for faster retrieval.
         self.entanglements = np.zeros((num_envs, num_qubits), dtype=np.float32)
