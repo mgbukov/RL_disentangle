@@ -174,6 +174,7 @@ def pg_solves_quantum(args):
         generator_kwargs=dict(
             p_gen=args.p_gen,
             min_entangled=args.min_entangled,
+            max_entangled=args.max_entangled if args.max_entangled > 0 else None,
             chi_max=args.chi_max
         )
     )
@@ -222,7 +223,9 @@ def pg_solves_quantum(args):
 
     # Save the cmd arguments to text file in log directory
     with open(os.path.join(log_dir, "args.txt"), mode='wt') as f:
-        f.write(" ".join(sys.argv) + "\n")
+        f.write("{d:<20} = {dd}\n".format(d="device", dd=str(device)))
+        for arg, val in args._get_kwargs():
+            f.write(f"{arg:<20} = {val}\n")
 
     # Run the environment loop
     environment_loop(seed, agent, env, args.num_iters, args.steps, log_dir,
@@ -312,13 +315,15 @@ if __name__ == "__main__":
         help="Parameter of `haar_geom` state generator.")
     parser.add_argument("--min_entangled", default=1, type=int,
         help="Parameter of `haar_unif` state generator.")
+    parser.add_argument("--max_entangled", default=-1, type=int,
+        help="Parameter of `haar_unif` state generator.")
     parser.add_argument("--chi_max", default=2, type=int,
         help="Maximum bond dimension for `mps` state generator.")
 
     parser.add_argument("--log_every", default=100, type=int,
         help="Log training data ${log_every} iterations.")
     parser.add_argument("--checkpoint_every", default=500, type=int,
-        help="Checkpoint model every ${save_every} iterations.")
+        help="Checkpoint model every ${checkpoint_every} iterations.")
     parser.add_argument("--demo_every", default=100, type=int,
         help="Demo the agent every ${demo_every} iterations.")
     parser.add_argument("--agent_checkpoint", default='', type=str,

@@ -196,12 +196,14 @@ def sample_haar_geom(num_qubits, p_gen=0.95, **kwargs):
     return np.transpose(psi, np.random.permutation(num_qubits))
 
 
-def sample_haar_unif(num_qubits, min_entangled=1, **kwargs):
+def sample_haar_unif(num_qubits, min_entangled=1, max_entangled=None, **kwargs):
     """Draw sample Haar state. The dimension of the Hilbert space is chosen
-       using uniform distribuiton in range [`min_entangled`, `num_qubits`]."""
+       using uniform distribuiton in range [`min_entangled`, `max_entangled`]."""
     if num_qubits == 0:
         return np.array([1.])
-    m = np.random.randint(min_entangled, num_qubits+1)
+    if max_entangled is None:
+        max_entangled = num_qubits
+    m = np.random.randint(min_entangled, max_entangled+1)
     psi = sample_haar_full(m).ravel()
     r = num_qubits - m
     while r > min_entangled:
