@@ -41,19 +41,26 @@ def demo(args):
         if i % args.demo_every != 0:
             return
 
-        num_envs = 1024
+        num_envs = 100
         env = QuantumEnv(
-            num_qubits=args.num_qubits, num_envs=num_envs,
-            epsi=args.epsi, max_episode_steps=args.steps_limit,
-            reward_fn=args.reward_fn, obs_fn=args.obs_fn,
-            state_generator=args.state_generator,
-            generator_kwargs=dict(p_gen=args.p_gen,
-                                  min_entangled=args.min_entangled)
+            num_qubits=         args.num_qubits,
+            num_envs=           num_envs,
+            epsi=               args.epsi,
+            max_episode_steps=  args.steps_limit,
+            reward_fn=          args.reward_fn,
+            obs_fn=             args.obs_fn,
+            state_generator=    args.state_generator,
+            generator_kwargs=   dict(
+                                        p_gen=          args.p_gen,
+                                        min_entangled=  args.min_entangled,
+                                        max_entangled=  args.max_entangled if args.max_entangled > 0 else None,
+                                        chi_max=        args.chi_max
+                                    )
         )
         _ = env.reset() # prepare the environment
 
         # Generate the initial states as fully-entangled states.
-        env.simulator.set_random_states_()
+        # env.simulator.set_random_states_()
         initial_states = env.simulator.states.copy()
 
         # Choose actions greedily or by sampling from the distribution.
@@ -179,16 +186,39 @@ def pg_solves_quantum(args):
         )
     )
 
+    # Initialize value network
+    in_shape = env.single_observation_space.shape
+    value_network = MLP(in_shape, [256, 256], 1).to(device)
+
     # Try loading the RL agent from checkpoint or ...
     if args.agent_checkpoint:
         try:
             agent = torch.load(args.agent_checkpoint, map_location=device)
-        except:
-            print("Cannot load agent from checkpoint")
+            # Re-initialize value network
+            if args.reset_value_network:
+                agent.value_network = value_network
+        except Exception as ex:
+            print("Cannot load agent from checkpoint:")
+            print('\t', ex)
             exit(1)
+        if args.reset_optimizers:
+            print("Resetting optimizers state...")
+            agent.policy_optim = type(agent.policy_optim)(agent.policy_network.parameters(), lr=args.pi_lr)
+            agent.value_optim = type(agent.value_optim)(agent.value_network.parameters(), lr=args.vf_lr)
+        # Set parameters
+        agent.pi_lr =       args.pi_lr
+        agent.vf_lr =       args.vf_lr
+        agent.discount =    args.discount
+        agent.batch_size =  args.batch_size
+        agent.clip_grad =   args.clip_grad
+        agent.entropy_reg = args.entropy_reg
+        agent.pi_clip =     0.2
+        agent.vf_clop =     10.0
+        agent.tgt_KL =      0.01
+        agent.n_epochs =    3
+        agent.lamb =        0.95
     # ... create the RL agent.
     else:
-        in_shape = env.single_observation_space.shape
         in_dim = in_shape[1]
         out_dim = env.single_action_space.n
         policy_network = TransformerPE_2qRDM(
@@ -198,7 +228,6 @@ def pg_solves_quantum(args):
             n_heads=args.attn_heads,
             n_layers=args.transformer_layers,
         ).to(device)
-        value_network = MLP(in_shape, [256, 256], 1).to(device)
         # agent = VPGAgent(policy_network, value_network, config={
         agent = PPOAgent(policy_network, value_network, config={
             "pi_lr"     : args.pi_lr,
@@ -231,11 +260,6 @@ def pg_solves_quantum(args):
     environment_loop(seed, agent, env, args.num_iters, args.steps, log_dir,
                      args.log_every, args.checkpoint_every, demo=demo(args))
 
-    # Test the final agent and store the results.
-    results = test(agent, args)
-    with open(os.path.join(log_dir, "results.json"), "w") as f:
-        json.dump(results, f, indent=2)
-
     # Generate plots.
     plt.style.use("ggplot")
     for k in agent.train_history[0].keys():
@@ -262,6 +286,11 @@ def pg_solves_quantum(args):
         ax.set_xlabel("Number of training iterations")
         ax.set_ylabel(k)
         fig.savefig(os.path.join(log_dir, k.replace(" ", "_")+".png"))
+
+    # # Test the final agent and store the results.
+    # results = test(agent, args)
+    # with open(os.path.join(log_dir, "results.json"), "w") as f:
+    #     json.dump(results, f, indent=2)
 
 
 if __name__ == "__main__":
@@ -328,6 +357,10 @@ if __name__ == "__main__":
         help="Demo the agent every ${demo_every} iterations.")
     parser.add_argument("--agent_checkpoint", default='', type=str,
         help="Path to checkpointed agent")
+    parser.add_argument("--reset_optimizers", action="store_true",
+        help="Reset the state of the optimizers")
+    parser.add_argument("--reset_value_network", action="store_true",
+        help="Reinitialize the value network")
     parser.add_argument("--suffix", type=str, default='',
         help="Suffix appended to log directory name")
 
