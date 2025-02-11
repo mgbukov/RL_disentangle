@@ -3,6 +3,7 @@ import itertools
 import json
 import pickle
 import os
+import collections.abc as abc
 
 import numpy as np
 import torch
@@ -18,7 +19,10 @@ TEST_HAAR_RANDOM_STATES = {
     5: ["RR-R-R-R", "RR-RR-R", "RRR-R-R", "RRR-RR", "RRRR-R", "RRRRR"],
     6: ["RR-R-R-R-R", "RR-RR-R-R", "RR-RR-RR", "RRR-R-R-R", "RRR-RR-R",
         "RRRR-R-R", "RRRR-RR", "RRRRR-R", "RRRRRR"],
-    8: ["RRR-RRR-RR", "RRRR-RRRR", "RRRRR-RRR", "RRRRRR-RR", "RRRRRR-R", "RRRRRRRR"]
+    7: ["RR-RR-RR-R", "RRR-RRR-R", "RRRR-RRR", "RRRRR-RR", "RRRRRR-R"],
+    8: ["RRR-RRR-RR", "RRRR-RRRR", "RRRRR-RRR", "RRRRRR-RR", "RRRRRR-R", "RRRRRRRR"],
+    10: ["RRR-RRR-RRR-R", "RRR-RRRR-RRR", "RRRR-RRRR-RR", "RRRRR-RRRRR",
+         "RRRRRR-RRRR", "RRRRRRRR-RR", "RRRRRRRRR-R", "RRRRRRRRRR"]
 }
 
 
@@ -67,8 +71,13 @@ def test_agent(agent, states, **env_kwargs):
 def test_on_haar_random(agent, num_qubits, n_tests=128, **env_kwargs):
 
     results = {}
-    for L, names in TEST_HAAR_RANDOM_STATES.items():
-        if L > num_qubits:
+    if not isinstance(num_qubits, abc.Iterable):
+        num_qubits = (num_qubits,)
+
+    for L in num_qubits:
+        try:
+            names = TEST_HAAR_RANDOM_STATES[L]
+        except:
             continue
         results[L] = {}
         for name in names:
@@ -80,22 +89,37 @@ def test_on_haar_random(agent, num_qubits, n_tests=128, **env_kwargs):
 
 def test_on_mps(agent, num_qubits, chi_max, n_tests=128, **env_kwargs):
 
-    states = np.array([sample_mps(num_qubits, chi_max) for _ in range(n_tests)])
-    return test_agent(agent, states, **env_kwargs)
+    if not isinstance(num_qubits, abc.Iterable):
+        num_qubits = (num_qubits,)
 
+    if not isinstance(chi_max, abc.Iterable):
+        chi_max = (chi_max,)
+
+    results = {}
+
+    for L in num_qubits:
+        results[L] = {}
+        for chi in chi_max:
+            states = np.array([sample_mps(L, chi) for _ in range(n_tests)])
+            results[L][f"chimax={chi}"] = test_agent(agent, states, **env_kwargs)
+
+    return results
 
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--agent", type=str)
-    parser.add_argument("--num_qubits", type=int)
+    parser.add_argument("--num_qubits", nargs='+', type=int)
     parser.add_argument("--output", type=str)
     parser.add_argument("--max_steps", type=int)
     parser.add_argument("--epsi", type=float, default=1e-3)
     parser.add_argument("--obs_fn", type=str, default="rdm_2q_mean_real")
     parser.add_argument("--n_tests", type=int, default=128)
-    parser.add_argument("--chi_max", type=int, default=4)
+    parser.add_argument("--chi_max", nargs='+', type=int, default=[4])
+    parser.add_argument("--mps", action="store_true")
+    parser.add_argument("--haar_random", action="store_true")
+    parser.add_argument("--cuda", action="store_true")
 
     args = parser.parse_args()
 
@@ -105,6 +129,10 @@ if __name__ == "__main__":
     agent.policy_network.eval()
     agent.value_network.eval()
 
+    if args.cuda:
+        agent.policy_network.cuda()
+        agent.value_network.cuda()
+
     results = {}
     env_kwargs = dict(
         max_episode_steps=      args.max_steps,
@@ -113,23 +141,27 @@ if __name__ == "__main__":
     )
     results['agent'] = args.agent
     results["env_kwargs"] = env_kwargs
-    results["chi_max"] = args.chi_max
+    # results["chi_max"] = args.chi_max
+    results["n_tests"] = args.n_tests
 
-    print("Testing on Haar random states...")
-    results["haar_random"] = test_on_haar_random(
-        agent,
-        args.num_qubits,
-        args.n_tests,
-        **env_kwargs
-    )
-    print("Testing on Matrix product states...")
-    results["mps"] = test_on_mps(
-        agent,
-        args.num_qubits,
-        args.chi_max,
-        args.n_tests,
-        **env_kwargs
-    )
+    if args.haar_random:
+        print("Testing on Haar random states...")
+        results["haar_random"] = test_on_haar_random(
+            agent,
+            args.num_qubits,
+            args.n_tests,
+            **env_kwargs
+        )
+
+    if args.mps:
+        print("Testing on Matrix product states...")
+        results["mps"] = test_on_mps(
+            agent,
+            max(args.num_qubits),
+            args.chi_max,
+            args.n_tests,
+            **env_kwargs
+        )
 
     print("Testing completed! Writing results...")
     with open(args.output, mode='wt') as f:
