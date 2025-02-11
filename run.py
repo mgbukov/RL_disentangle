@@ -29,7 +29,7 @@ import numpy as np
 import torch
 
 from src.environment_loop import environment_loop
-from src.networks import MLP, TransformerPE_2qRDM
+from src.networks import MLP, TransformerPE_2qRDM, PermutationInvariantMLP
 from src.ppo import PPOAgent
 from src.quantum_env import QuantumEnv
 from src.util import str2state
@@ -188,7 +188,8 @@ def pg_solves_quantum(args):
 
     # Initialize value network
     in_shape = env.single_observation_space.shape
-    value_network = MLP(in_shape, [256, 256], 1).to(device)
+    # value_network = MLP(in_shape, [256, 256], 1).to(device)
+    value_network = PermutationInvariantMLP(in_shape[-1], [128, 256], 1).to(device)
 
     # Try loading the RL agent from checkpoint or ...
     if args.agent_checkpoint:
@@ -196,6 +197,7 @@ def pg_solves_quantum(args):
             agent = torch.load(args.agent_checkpoint, map_location=device)
             # Re-initialize value network
             if args.reset_value_network:
+                print("Resetting value network...")
                 agent.value_network = value_network
         except Exception as ex:
             print("Cannot load agent from checkpoint:")
@@ -205,6 +207,9 @@ def pg_solves_quantum(args):
             print("Resetting optimizers state...")
             agent.policy_optim = type(agent.policy_optim)(agent.policy_network.parameters(), lr=args.pi_lr)
             agent.value_optim = type(agent.value_optim)(agent.value_network.parameters(), lr=args.vf_lr)
+        if args.reset_train_history:
+            print("Resetting train history...")
+            agent.train_history.clear()
         # Set parameters
         agent.pi_lr =       args.pi_lr
         agent.vf_lr =       args.vf_lr
@@ -246,7 +251,7 @@ def pg_solves_quantum(args):
         })
 
     # Create log directory
-    log_dirname = f"{args.num_qubits}q_{args.num_iters}iters_" + args.suffix
+    log_dirname = args.prefix + f"{args.num_qubits}q_{args.num_iters}iters" + args.suffix
     log_dir = os.path.join("logs", log_dirname)
     os.makedirs(log_dir, exist_ok=True)
 
@@ -361,8 +366,12 @@ if __name__ == "__main__":
         help="Reset the state of the optimizers")
     parser.add_argument("--reset_value_network", action="store_true",
         help="Reinitialize the value network")
+    parser.add_argument("--reset_train_history", action="store_true",
+        help="Reset agent's train history")
     parser.add_argument("--suffix", type=str, default='',
         help="Suffix appended to log directory name")
+    parser.add_argument("--prefix", type=str, default='',
+        help="Prefix for log directory name")
 
     args = parser.parse_args()
     pg_solves_quantum(args)
