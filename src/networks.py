@@ -64,6 +64,45 @@ class MLP(nn.Module):
         return next(self.parameters()).device
 
 
+
+class PermutationInvariantMLP(nn.Module):
+    """Permutation Invariant MLP for sequence data with dimensions `(B, S, in)`."""
+
+    def __init__(self, input_dim, hidden_dims, output_dim):
+        super().__init__()
+        self.input_dim   = input_dim
+        self.hidden_dims = hidden_dims
+        self.output_dim  = output_dim
+
+        layers = []
+        dims = [self.input_dim] + list(hidden_dims)
+
+        for fan_in ,fan_out in zip(dims[:-1], dims[1:]):
+            layers.extend([
+                nn.Linear(fan_in, fan_out),
+                nn.ReLU(),
+            ])
+        layers.append(nn.Linear(fan_out, output_dim))
+        self.net = nn.Sequential(*layers)
+
+    def forward(self, x):
+        """
+        Expects 3D tensor with dimensions `(batch_dim, sequence_dim, input_dim)`.
+        The MLP is applied only over `input_dim` and `sequence_dim` is averaged.
+
+        Args:
+            x: torch.Tensor
+                Tensor of shape (B, S, input_dim).
+
+        Returns:
+            out: torch.Tensor
+                Tensor of shape (B, 1), giving the resulting output.
+        """
+        device = next(self.net.parameters()).device
+        x = x.contiguous().to(device=device)
+        return self.net(x).mean(dim=1)
+
+
 class MLPC(nn.Module):
     """Fully connected multi-layer perceptron with complex weights."""
 
