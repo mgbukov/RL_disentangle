@@ -109,7 +109,10 @@ def environment_loop(seed, agent, env, num_iters, steps, log_dir,
             warnings.simplefilter("ignore", category=RuntimeWarning)
             avg_r, avg_l = np.mean(episode_returns), np.mean(episode_lengths)
             std_r, std_l = np.std(episode_returns), np.std(episode_lengths)
-        agent.train_history[i].update({
+        # When indexing in `train_history` use -1 instead of `i`, because,
+        # training may have continued from a checkpoint, and `i` starts from 0,
+        # instead of last train iteration.
+        agent.train_history[-1].update({
             "Return"           : {"avg" : avg_r, "std" : std_r, "run" : run_ret},
             "Episode Length"   : {"avg" : avg_l, "std" : std_l, "run" : run_len},
             "Ratio Terminated" : {"avg" : ratio_terminated},
@@ -122,8 +125,22 @@ def environment_loop(seed, agent, env, num_iters, steps, log_dir,
         # Log results.
         if i % log_every == 0:
             logging.info(f"\nIteration ({i+1} / {num_iters}):")
-            for k, v in agent.train_history[i].items():
-                logging.info(f"    {k}: {v}")
+            for k, v in agent.train_history[-1].items():
+                # If `v` is dictionary, round values to 6 digits of precision
+                if isinstance(v, dict):
+                    v_rounded = {}
+                    for kk, vv in v.items():
+                        try:
+                            v_rounded[kk] = round(float(vv), 6)
+                        except:
+                            v_rounded[kk] = vv
+                    v = v_rounded
+                elif isinstance(v, float):
+                    v = round(v, 6)
+                elif isinstance(v, np.inexact):
+                    v = round(float(v), 6)
+                # Log
+                logging.info(f"\t{k:<24}: {v}")
 
         # Checkpoint
         if checkpoint_every is not None and i % checkpoint_every == 0 and i > 0:
