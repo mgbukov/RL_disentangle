@@ -9,10 +9,40 @@ import itertools
 import numpy as np
 import torch
 from scipy.linalg import sqrtm
+from typing import *
 
 from .agent import PGAgent
 from .quantum_env import QuantumEnv
 from .quantum_state import random_quantum_state
+
+
+def toten(state: Union[np.ndarray, torch.tensor], batched: Optional[bool] = None):
+    """Reshapes state vector to tensor with shape (B?, 2, 2, ..., 2)."""
+    if batched is None:
+        batched = _infer_batch_dim(state)
+
+    if batched:
+        assert state.ndim == 2
+        nelems = state.shape[1]
+    else:
+        assert state.ndim == 1
+        nelems = state.size
+
+    nqubits = int(np.log2(nelems))
+    return state.reshape(-1, (2,) * nqubits)
+
+
+def tovec(state: Union[np.ndarray, torch.tensor], batched: Optional[bool] = None):
+    """Reshapes state tensor with shape (B?, 2, 2, ..., 2) to vector"""
+
+
+def _infer_batch_dim(x: Union[np.ndarray, torch.tensor]):
+    ndims = x.ndim
+    if ndims == 1:
+        return False
+    if x.shape[0] == 2:
+        return False
+    return True
 
 
 def str2state(string_descr):
@@ -91,9 +121,9 @@ def str2latex(string_descr):
 
 
 
-def rollout(qstate: np.ndarray, agent: PGAgent, max_steps: int = 30):
+def srollout(qstate: np.ndarray, agent: PGAgent, max_steps: int = 30):
     """
-    Performs a rollout with `agent` for `qstate`.
+    Performs a single rollout with `agent` for `qstate`.
 
     Returns action names, entanglements and policy probabilities for each step.
     """
@@ -135,6 +165,37 @@ def peek_policy(state):
     return probabilities[0]
 
 
+def sqe(states, batched=False):
+    """Calculates single qubit entanglements."""
+    L = states.ndim - 1
+    entropies = [sse(states, [i]) for i in range(L)]
+    return np.stack(entropies).T
+
+
+def sse(states: np.ndarray, subsystem: Iterable):
+    """Calculates subsystem entanglement between `subsystem` and rest of `states`.
+
+    Args:
+        states (np.array): A numpy array of shape (b, 2,2,...,2), giving the states in the
+            batch.
+        subsys_A (list[int]): A list of ints specifying the indices of the qubits to be
+            considered as a subsystem. The subsystem is the same for every state in the
+            batch. If None, defaults to half of the system.
+
+    Returns:
+        entropies (np.Array): A numpy array of shape (b,), giving the entropy of each
+            state in the batch.
+    """
+    L = states.ndim - 1
+    subsys_B = [i for i in range(L) if i not in subsystem]
+    system = subsystem + subsys_B
+    subsys_A_size = len(subsystem)
+    subsys_B_size = L - subsys_A_size
+    states = np.transpose(states, (0,) + tuple(t + 1 for t in system))
+    states = states.reshape((-1, 2 ** subsys_A_size, 2 ** subsys_B_size))
+    lmbda = np.linalg.svd(states, full_matrices=False, compute_uv=False)
+    lmbda += np.finfo(lmbda.dtype).eps # shift lmbda to be positive within machine precision
+    return -2.0 / subsys_A_size * np.einsum('ai, ai->a', lmbda ** 2, np.log(lmbda))
 
 
 def ent_of_formation(rho_2):

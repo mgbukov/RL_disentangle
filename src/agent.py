@@ -1,5 +1,4 @@
 import os
-import pickle
 
 import torch
 from torch.distributions import Categorical
@@ -10,7 +9,7 @@ class PGAgent:
     agent. Concrete classes must implement their own update strategies.
     """
 
-    def __init__(self, policy_network, value_network=None, config={}):
+    def __init__(self, policy_network, value_network=None, config={}, tracker=None):
         """Init a policy gradient agent.
         Set up the configuration parameters for training the model and initialize
         the optimizers for updating the neural networks.
@@ -33,15 +32,20 @@ class PGAgent:
                     Threshold for gradient norm clipping. Default: 1.
                 entropy_reg: float, optional
                     Entropy regularization factor. Default: 0.
+            tracker: optional
+                Instance that will keep track of the training stats.
+                Must provide `add_scalar()` method.
         """
         # The networks should already be moved to device.
         self.policy_network = policy_network
         self.value_network = value_network
 
+        self.tracker = tracker
+
         # The training history is a list of dictionaries. At every update step
         # we will write the update stats to a dictionary and we will store that
         # dictionary in this list.
-        self.train_history = []
+        # self.train_history = []
 
         # Unpack the config parameters to configure the agent for training.
         pi_lr = config.get("pi_lr", 3e-4)
@@ -72,14 +76,19 @@ class PGAgent:
     def save(self, dir, increment=None):
         """Save the agent at the provided folder location."""
         os.makedirs(dir, exist_ok=True)
-        # Save the agent.
-        if increment is None:
-            torch.save(self, os.path.join(dir, "agent.pt"))
-        else:
-            torch.save(self, os.path.join(dir, f"agent{increment}.pt"))
-        # Save the training history as a pickle file.
-        with open(os.path.join(dir, "train_history.pickle"), "wb") as f:
-            pickle.dump(self.train_history, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        basename = f"agent{increment}" if increment else "agent"
+        # Save the complete agent ( Non-Portable !!! )
+        torch.save(self, os.path.join(dir, basename + '.pt'))
+        # Save the policy function
+        pf = self.policy_network.state_dict()
+        torch.save(pf, os.path.join(dir, basename + "-pf.pt"))
+        # Save the value function
+        vf = self.value_network.state_dict()
+        torch.save(vf, os.path.join(dir, basename + '-vf.pt'))
+        # Save policy optimizer
+        po = self.policy_optim.state_dict()
+
 
 class RandomAgent:
 

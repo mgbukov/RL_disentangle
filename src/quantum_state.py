@@ -1,7 +1,8 @@
 from itertools import permutations, combinations
+
 import numpy as np
 
-from .mpslib import generate_random_MPS, MPS_to_state
+from . import stategen
 
 
 class VectorQuantumState:
@@ -11,8 +12,9 @@ class VectorQuantumState:
     """
 
     def __init__(self, num_qubits, num_envs, act_space="reduced",
-                 state_generator="haar_full", generator_kwargs={}):
-        """Init a vector quantum system.
+                 state_generator=None):
+        """
+        Initialize a vector representation of a quantum system
 
         Args:
             num_qubits: int
@@ -22,21 +24,9 @@ class VectorQuantumState:
             act_space: str, optional
                 Whether to use the full or the reduced action space.
                 One of ["full", "reduced"]. Default is "reduced".
-            state_generator: str, optional
-                Choice of state distribution from which states are drawn on
-                reset() call. Currently supported:
-                    haar_full:  States are drawn from `num_qubits` dimensional
-                                Hilbert space.
-                    haar_geom:  States are drawn from 2 to `num_qubits`
-                                dimensional Hilbert space. The dimension is
-                                chosen from geometric distribution.
-                    haar_unif:  States are drawn from 2 to `num_qubits`
-                                dimensional Hilbert space and each dimension
-                                has equal probability of being sampled.
-                    mps:        Matrix product states, parametarized by maximum
-                                bond dimension `chi_max`.
-            generator_kwargs: dict, optional
-                Keyword arguments passed to state generator function.
+            state_generator: StateGenerator, optional
+                Instance of `StateGenerator`. Defaults to `StateGenerator` with
+                `haar_full` sampling function.
         """
         assert num_qubits >= 2
         self.num_qubits = num_qubits
@@ -61,19 +51,11 @@ class VectorQuantumState:
         # The generation of new states is handled by a function,
         # which is selected using `state_generator` and `generator_kwargs`
         # paratemers.
-        self.state_generator_name = state_generator
-        if state_generator == "haar_full":
-            self.state_generator = sample_haar_full
-        elif state_generator == "haar_geom":
-            self.state_generator = sample_haar_geom
-        elif state_generator == "haar_unif":
-            self.state_generator = sample_haar_unif
-        elif state_generator == "mps":
-            self.state_generator = sample_mps
+        if state_generator is None:
+            self.state_generator = stategen.StateGenerator(
+                stategen.sample_haar_full, num_qubits)
         else:
-            raise ValueError("`state_generator` must be one of ('haar_full', " \
-                             "'haar_geom', 'haar_unif', 'mps')")
-        self.state_generator_kwargs = generator_kwargs
+            self.state_generator = state_generator
 
         # Store the entanglement of every system for faster retrieval.
         self.entanglements = np.zeros((num_envs, num_qubits), dtype=np.float32)
@@ -173,57 +155,9 @@ class VectorQuantumState:
         self.postswaps_ = np.array(postswaps_)
 
     def reset_sub_environment_(self, k):
-        x = self.state_generator(self.num_qubits, **self.state_generator_kwargs)
+        x = self.state_generator()
         self._states[k] = phase_norm(x)
         self.entanglements[k] = entropy(np.expand_dims(self._states[k], axis=0))
-
-
-#----------------------------   State Generators   ----------------------------#
-
-def sample_haar_full(num_qubits, **kwargs):
-    """Draw sample Haar state from `num_qubits` dimensional Hilbert space."""
-    if num_qubits < 1:
-        raise ValueError("`num_qubits` must be > 1.")
-    x = np.random.randn(2 ** num_qubits) + 1j * np.random.randn(2 ** num_qubits)
-    x /= np.linalg.norm(x)
-    return x.reshape((2,) * num_qubits)
-
-
-def sample_haar_geom(num_qubits, p_gen=0.95, **kwargs):
-    """Draw sample Haar state. The dimension of the Hilbert space is chosen
-        using geometric distribution with parameter `p_gen`."""
-    psi = random_quantum_state(num_qubits, p_gen)
-    return np.transpose(psi, np.random.permutation(num_qubits))
-
-
-def sample_haar_unif(num_qubits, min_entangled=1, max_entangled=None, **kwargs):
-    """Draw sample Haar state. The dimension of the Hilbert space is chosen
-       using uniform distribuiton in range [`min_entangled`, `max_entangled`]."""
-    if num_qubits == 0:
-        return np.array([1.])
-    if max_entangled is None:
-        max_entangled = num_qubits
-    m = np.random.randint(min_entangled, max_entangled+1)
-    psi = sample_haar_full(m).ravel()
-    r = num_qubits - m
-    while r > min_entangled:
-        q = np.random.randint(min_entangled, min(m + 1, r + 1))
-        psi = np.kron(psi, sample_haar_full(q).ravel())
-        r -= q
-    # Draw the last one
-    if r > 0:
-        psi = np.kron(psi, sample_haar_full(r).ravel())
-    psi /= np.linalg.norm(psi.ravel())
-    return psi.reshape((2,) * num_qubits)
-
-
-def sample_mps(num_qubits, chi_max=None, **kwargs):
-    if chi_max is None:
-        chi_max = 2
-    As, _, Lambdas = generate_random_MPS(num_qubits, 2, chi_max)
-    psi = MPS_to_state(As, Lambdas, canonical=-1)
-    return psi.reshape((2,) * num_qubits)
-
 
 
 #------------------------------ Utility functions -----------------------------#

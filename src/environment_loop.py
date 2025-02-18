@@ -8,13 +8,15 @@ from collections import defaultdict
 from tqdm import tqdm
 import sys
 
-file_path = os.path.split(os.path.abspath(__file__))[0]
-project_dir = os.path.abspath(os.path.join(file_path, os.pardir))
-sys.path.append(project_dir)
-from src.quantum_env import QuantumEnv
+# file_path = os.path.split(os.path.abspath(__file__))[0]
+# project_dir = os.path.abspath(os.path.join(file_path, os.pardir))
+# sys.path.append(project_dir)
+
+from .config import get_default_config, get_logdir
+from .quantum_env import QuantumEnv
 
 
-def environment_loop(seed, agent, env, num_iters, steps, log_dir,
+def environment_loop_old(seed, agent, env, num_iters, steps, log_dir,
                      log_every=1, checkpoint_every=None, demo=None):
     """Runs a number of agent-environment interaction loops.
 
@@ -153,6 +155,113 @@ def environment_loop(seed, agent, env, num_iters, steps, log_dir,
     # Close the environment and save the agent.
     env.close()
     agent.save(log_dir)
+
+
+def environment_loop(agent, env, tracker, triggers_list, num_iters, steps, config=None):
+
+    if config is None:
+        config = get_default_config()
+
+    num_envs = env.num_envs
+    env.reset()
+
+
+    run_ret, run_len = np.nan, np.nan
+    for i in tqdm(range(1, num_iters + 1)):
+        # Allocate tensors for the rollout observations.
+        obs = np.zeros(
+            shape=(steps, num_envs, *env.single_observation_space.shape),
+            dtype=env.obs_dtype
+        )
+        actions = np.zeros(shape=(steps, num_envs), dtype=int)
+        rewards = np.zeros(shape=(steps, num_envs), dtype=np.float32)
+        done = np.zeros(shape=(steps, num_envs), dtype=bool)
+
+        # Perform parallel step-by-step rollout along multiple trajectories.
+        episode_returns, episode_lengths = [], []
+        terminated = 0
+        o = env.obs_fn(env.simulator.states)
+        for s in range(steps):
+            # Sample an action from the agent and step the environment.
+            obs[s] = o
+            acts = agent.policy(torch.from_numpy(o)).sample() # uses torch.no_grad()
+            acts = acts.cpu().numpy()
+            o, r, t, tr, infos = env.step(acts)
+
+            actions[s] = acts
+            rewards[s] = r
+            done[s] = (t | tr)
+
+            # If any of the environments is done, then save the statistics.
+            if done[s].any():
+                episode_returns.extend([
+                    infos["episode"]["r"][k] for k in range(num_envs) if (t | tr)[k]
+                ])
+                episode_lengths.extend([
+                    infos["episode"]["l"][k] for k in range(num_envs) if (t | tr)[k]
+                ])
+
+                terminated += sum((1 for i in range(num_envs) if t[i]))
+
+        # Transpose `step` and `num_envs` dimensions and cast to torch tensors.
+        obs = torch.from_numpy(obs).transpose(1, 0)
+        actions = torch.from_numpy(actions).transpose(1, 0)
+        rewards = torch.from_numpy(rewards).transpose(1, 0)
+        done = torch.from_numpy(done).transpose(1, 0)
+
+        # Pass the experiences to the agent to update the policy.
+        agent.update(obs, actions, rewards, done)
+
+        # Bookkeeping
+        assert len(episode_returns) == len(episode_lengths), "lengths must match"
+        total_ep = len(episode_returns)
+        ratio_terminated = terminated / total_ep if total_ep > 0 else np.nan
+        for r, l in zip(episode_returns, episode_lengths):
+            run_ret = r if run_ret is np.nan else 0.99 * run_ret + 0.01 * r
+            run_len = l if run_len is np.nan else 0.99 * run_len + 0.01 * l
+        with warnings.catch_warnings():
+            # We might finish the rollout without completing any episodes. Then
+            # taking the mean or std of an empty slice throws a runtime warning.
+            # As a result we would get a NaN, which is exactly what we want.
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            avg_r, avg_l = np.mean(episode_returns), np.mean(episode_lengths)
+            std_r, std_l = np.std(episode_returns), np.std(episode_lengths)
+
+        tracker.add_scalar("Return", avg_r, std_r)
+        tracker.add_scalar("Return (run)", run_ret)
+        tracker.add_scalar("Episode Length", avg_l, std_l)
+        tracker.add_scalar("Episode Length (run)", run_len)
+        tracker.add_scalar("Ratio Terminated", ratio_terminated)
+
+        # Test the agent
+        if i > 0 and i % config.test_every == 0:
+            demo_agent(agent, config)
+
+        # Log results
+        if i % config.log_every == 0:
+            logging.info(f"\nIteration ({i} / {num_iters}):")
+            for name in tracker.get_names():
+                j, val, std = tracker.get_last_scalar(name)
+                logging.info(f"\t{name:<24}: {val:.6f} ± {std:.6f}")
+
+        # Save checkpoint
+        if i > 0 and i % config.checkpoint_every == 0:
+            agent.save(get_logdir(config), increment=i)
+
+        # Run triggers
+        if i > 0 and i % config.trigger_every == 0:
+            logging.info("\n\n" + 75 * '=' + "\nRunning triggers...\n")
+            for trigger in triggers_list:
+                trigger(i)
+            logging.info("\n" + 75 * '=' + "\n")
+
+        # Increment tracker timestep
+        tracker.step()
+
+
+
+def demo_agent(agent, config):
+    pass
 
 
 def test_agent(agent, initial_states, **environment_kwargs):

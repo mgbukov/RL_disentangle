@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torch.utils.data as data
 from torch.distributions import Categorical
 
-from src.agent import PGAgent
+from .agent import PGAgent
 
 
 class PPOAgent(PGAgent):
@@ -18,7 +18,7 @@ class PPOAgent(PGAgent):
     discarded.
     """
 
-    def __init__(self, policy_network, value_network, config={}):
+    def __init__(self, policy_network, value_network, config={}, tracker=None):
         """Init a PPO agent.
 
         Args:
@@ -52,7 +52,7 @@ class PPOAgent(PGAgent):
                 lamb: float, optional
                     Advantage estimation discounting factor. Default: 0.95
         """
-        super().__init__(policy_network, value_network, config)
+        super().__init__(policy_network, value_network, config, tracker)
 
         # PPO-specific args.
         self.pi_clip = config.get("pi_clip", 0.02)
@@ -78,7 +78,7 @@ class PPOAgent(PGAgent):
                 observations are terminal states for the environment.
         """
         # Extend the training history with a dict of statistics.
-        self.train_history.append({})
+        # self.train_history.append({})
         N, T = rewards.shape
 
         # Reshape the observations to prepare them as input for the neural nets.
@@ -177,21 +177,38 @@ class PPOAgent(PGAgent):
             if self.tgt_KL is not None and KL.mean() > 1.5 * self.tgt_KL:
                 break
 
-        # Store the stats.
-        self.train_history[-1].update({
-            "Policy Loss"    : {"avg": np.mean(pi_losses), "std": np.std(pi_losses)},
-            "Total_Loss"     : {"avg": np.mean(total_losses), "std": np.std(total_losses)},
-            "Policy Entropy" : {                            # policy entropy after all updates
-                "avg": policy_entropy.mean(dim=-1).item(),
-                "std": policy_entropy.std(dim=-1).item(),
-            },
-            "KL Divergence"  : {                            # KL divergence after all updates
-                "avg": KL.mean().item(),
-                "std": KL.std().item(),
-            },
-            "Policy Grad Norm": {"avg": np.mean(pi_norms), "std": np.std(pi_norms)},
-            "Num PPO updates" : {"avg": n_updates},
-        })
+        # Track stats
+        self.tracker.add_scalar("Policy Loss",
+                                np.mean(pi_losses).item(0),
+                                np.std(pi_losses).item(0))
+        self.tracker.add_scalar("Total Loss",
+                                np.mean(total_losses).item(0),
+                                np.std(total_losses).item(0))
+        self.tracker.add_scalar("Policy Entropy",
+                                policy_entropy.mean(dim=-1).item(),
+                                policy_entropy.std(dim=-1).item())
+        self.tracker.add_scalar("KL Divergence",
+                                KL.mean().item(),
+                                KL.std().item())
+        self.tracker.add_scalar("Policy Grad Norm",
+                                np.mean(pi_norms).item(0),
+                                np.std(pi_norms).item(0))
+        self.tracker.add_scalar("Num PPO Updates",
+                                n_updates)
+        # self.train_history[-1].update({
+        #     "Policy Loss"    : {"avg": np.mean(pi_losses), "std": np.std(pi_losses)},
+        #     "Total_Loss"     : {"avg": np.mean(total_losses), "std": np.std(total_losses)},
+        #     "Policy Entropy" : {                            # policy entropy after all updates
+        #         "avg": policy_entropy.mean(dim=-1).item(),
+        #         "std": policy_entropy.std(dim=-1).item(),
+        #     },
+        #     "KL Divergence"  : {                            # KL divergence after all updates
+        #         "avg": KL.mean().item(),
+        #         "std": KL.std().item(),
+        #     },
+        #     "Policy Grad Norm": {"avg": np.mean(pi_norms), "std": np.std(pi_norms)},
+        #     "Num PPO updates" : {"avg": n_updates},
+        # })
 
     def update_value(self, obs, returns):
         """Update the value network to fit the value function of the current
@@ -241,10 +258,16 @@ class PPOAgent(PGAgent):
                 vf_losses.append(vf_loss.item())
                 vf_norms.append(total_norm.item())
 
-        # Store the stats.
-        self.train_history[-1].update({
-            "Value Loss"      : {"avg": np.mean(vf_losses), "std": np.std(vf_losses)},
-            "Value Grad Norm" : {"avg": np.mean(vf_norms), "std": np.std(vf_norms)},
-        })
+        # Track stats
+        self.tracker.add_scalar("Value Loss",
+                                np.mean(vf_losses).item(0),
+                                np.std(vf_losses).item(0))
+        self.tracker.add_scalar("Value Grad Norm",
+                                np.mean(vf_norms).item(0),
+                                np.std(vf_norms).item(0))
+        # self.train_history[-1].update({
+        #     "Value Loss"      : {"avg": np.mean(vf_losses), "std": np.std(vf_losses)},
+        #     "Value Grad Norm" : {"avg": np.mean(vf_norms), "std": np.std(vf_norms)},
+        # })
 
 #

@@ -3,7 +3,7 @@ from collections import namedtuple
 import sys
 import numpy as np
 
-from src.quantum_state import VectorQuantumState
+from .quantum_state import VectorQuantumState
 
 
 observation_space = namedtuple("observation_space", ["shape"])
@@ -20,9 +20,7 @@ class QuantumEnv():
     """
 
     def __init__(self, num_qubits, num_envs, epsi=1e-3, max_episode_steps=1000,
-                 reward_fn="sparse", obs_fn="phase_norm",
-                 state_generator="haar_geom", **generator_kwargs
-    ):
+                 reward_fn="sparse", obs_fn="phase_norm", state_generator=None):
         """Init a Quantum environment.
 
         Args:
@@ -44,18 +42,16 @@ class QuantumEnv():
                  "rdm_2q_half", "rdm_2q_mean_real", "rdm_2q_nisq_mean",
                  "rdm_2q_nisq_mean_real"].
                 Default: "phase_norm".
-            state_generator: string
+            state_generator: optional
                 Controls how new states are generated in reset(). See
                 `VectorQuantumState`
-            generator_kwargs:
-                Arguments to state generator in `VectorQuantumState`.
         """
         # Private.
         self.epsi = epsi
         self.max_episode_steps = max_episode_steps
         act_space = "reduced"
         self.simulator = VectorQuantumState(
-            num_qubits, num_envs, act_space, state_generator, **generator_kwargs)
+            num_qubits, num_envs, act_space, state_generator)
         self.reward_fn = getattr(sys.modules[__name__], reward_fn)  # get from this module
         self.obs_fn = getattr(sys.modules[__name__], obs_fn)        # get from this module
         self.obs_dtype = self.obs_fn(self.simulator.states).dtype
