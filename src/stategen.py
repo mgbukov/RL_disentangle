@@ -27,6 +27,21 @@ class StateGenerator:
     def __call__(self):
         return self.sample_fn(self.num_qubits, **self.sample_params)
 
+    def __getattr__(self, name):
+        if name in ("sample_fn", "num_qubits", "sample_params"):
+            return self.__dict__[name]
+        if name in self.sample_params:
+            return self.sample_params[name]
+        raise AttributeError()
+
+    def __setattr__(self, name, value):
+        if name in ("sample_fn", "num_qubits", "sample_params"):
+            self.__dict__[name] = value
+        elif name in self.sample_params:
+            self.sample_params[name] = value
+        else:
+            raise AttributeError()
+
     def update(self, **new_sample_params):
         self.sample_params.update(new_sample_params)
 

@@ -1,10 +1,22 @@
 from collections import defaultdict
 import json
 import os
+import pickle
 import warnings
 
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
+
+
+_METRIC_TRACKERS_ = {}
+
+
+def getTracker():
+    if "train" not in _METRIC_TRACKERS_:
+        _METRIC_TRACKERS_["train"] = Tracker("train")
+    return _METRIC_TRACKERS_["train"]
+
 
 
 class Tracker:
@@ -53,10 +65,21 @@ class Tracker:
 
     def save(self, filepath: str):
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        with open(filepath, mode='wt') as f:
-            json.dump(self.stats, f, indent=2)
 
+        if filepath.endswith('.json'):
+            with open(filepath, mode='wt') as f:
+                json.dump(self.stats, f, indent=2)
+        else:
+            with open(filepath, mode='wb') as f:
+                pickle.dump(self.stats, f)
 
+    def state_dict(self):
+        return dict(name=self.name, timestep=self.timestep, stats=self.stats)
+
+    def load_state_dict(self, state_dict: dict):
+        self.name = state_dict["name"]
+        self.timestep = state_dict["timestep"]
+        self.stats = state_dict["stats"]
 
     def plot_scalar(self, name, savepath, xlabel="iteration", **plotargs):
         if name not in self.stats:
@@ -64,7 +87,7 @@ class Tracker:
                             "No plot will be saved.")
             return
 
-        fig, ax = plt.subplots(figize=(16,9))
+        fig, ax = plt.subplots(figsize=(16,9))
         ax.set_title(name)
 
         # Prepare plot data
@@ -75,12 +98,12 @@ class Tracker:
             errs.append(item[2])
 
         plotargs.update({"label": name})
-        self._plot(fig, ax, xs, ys, errs, plotargs)
-        ax.legend()
+        self._plot(ax, xs, ys, errs, **plotargs)
 
         # Save figure
         os.makedirs(os.path.dirname(savepath), exist_ok=True)
-        fig.savefig(savepath, dpi=240)
+        fig.tight_layout()
+        fig.savefig(savepath, dpi=120)
         plt.close(fig)
         return
 
@@ -103,19 +126,20 @@ class Tracker:
                 errs.append(item[2])
 
             plotargs.update({"label": name})
-            self._plot(fig, ax, xs, ys, errs, plotargs)
+            self._plot(ax, xs, ys, errs, **plotargs)
 
         ax.set_xlabel(xlabel)
         ax.legend()
 
         # Save figure
         os.makedirs(os.path.dirname(savepath), exist_ok=True)
-        fig.savefig(savepath, dpi=240)
+        fig.tight_layout()
+        fig.savefig(savepath, dpi=120)
         plt.close(fig)
         return
 
-    def _plot(self, fig, ax, xs, ys, errs, **plotargs):
-
+    def _plot(self, ax, xs, ys, errs, **plotargs):
+        mpl.rcParams['font.size'] = 22
         xs = np.asarray(xs)
         ys = np.asarray(ys)
         errs = np.asarray(errs)
@@ -123,6 +147,7 @@ class Tracker:
         if np.any(errs != 0.0):
             below = ys - 0.5 * errs
             above = ys + 0.5 * errs
-            ax.fill_between(xs, below, above, color="tab:gray", alpha=0.5)
+            ax.fill_between(xs, below, above, color="tab:blue", alpha=0.2)
         ax.plot(xs, ys, **plotargs)
+        ax.grid(True, which="both", axis="both", color="gray", linewidth=0.25)
 

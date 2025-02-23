@@ -1,4 +1,5 @@
 import os
+from typing import *
 
 import torch
 from torch.distributions import Categorical
@@ -9,7 +10,8 @@ class PGAgent:
     agent. Concrete classes must implement their own update strategies.
     """
 
-    def __init__(self, policy_network, value_network=None, config={}, tracker=None):
+    def __init__(self, policy_network: torch.nn.Module,
+                 value_network: Optional[torch.nn.Module] = None, config: dict = {}):
         """Init a policy gradient agent.
         Set up the configuration parameters for training the model and initialize
         the optimizers for updating the neural networks.
@@ -39,8 +41,6 @@ class PGAgent:
         # The networks should already be moved to device.
         self.policy_network = policy_network
         self.value_network = value_network
-
-        self.tracker = tracker
 
         # The training history is a list of dictionaries. At every update step
         # we will write the update stats to a dictionary and we will store that
@@ -80,14 +80,31 @@ class PGAgent:
         basename = f"agent{increment}" if increment else "agent"
         # Save the complete agent ( Non-Portable !!! )
         torch.save(self, os.path.join(dir, basename + '.pt'))
-        # Save the policy function
-        pf = self.policy_network.state_dict()
-        torch.save(pf, os.path.join(dir, basename + "-pf.pt"))
-        # Save the value function
-        vf = self.value_network.state_dict()
-        torch.save(vf, os.path.join(dir, basename + '-vf.pt'))
-        # Save policy optimizer
-        po = self.policy_optim.state_dict()
+
+    def state_dict(self):
+        return {
+            "policy_fn":    self.policy_network.state_dict(),
+            "value_fn":     self.value_network.state_dict() \
+                                if self.value_network is not None else {},
+            "policy_optim": self.policy_optim.state_dict(),
+            "value_optim":  self.value_optim.state_dict() \
+                                if self.value_network is not None else {},
+            "discount":     self.discount,
+            "batch_size":   self.batch_size,
+            "clip_grad":    self.clip_grad,
+            "entropy_reg":  self.entropy_reg
+        }
+
+    def load_state_dict(self, state_dict: dict):
+        self.policy_network.load_state_dict(state_dict["policy_fn"])
+        self.policy_optim.load_state_dict(state_dict["policy_optim"])
+        if self.value_network is not None:
+            self.value_network.load_state_dict(state_dict["value_fn"])
+            self.value_optim.load_state_dict(state_dict["value_optim"])
+        self.discount = state_dict["discount"]
+        self.batch_size = state_dict["batch_size"]
+        self.clip_grad = state_dict["clip_grad"]
+        self.entropy_reg = state_dict["entropy_reg"]
 
 
 class RandomAgent:

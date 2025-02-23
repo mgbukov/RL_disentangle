@@ -4,13 +4,22 @@ Miscelaneous utility functions:
     - str2latex
     - rollout
     - peek_policy
+    - load_checkpoint
+    - save_checkpoint
 """
 import itertools
-import numpy as np
-import torch
-from scipy.linalg import sqrtm
+import logging
+import os
+import pickle
 from typing import *
 
+import numpy as np
+import torch
+import yaml
+from scipy.linalg import sqrtm
+
+from . import metrics
+from .config import get_logdir
 from .agent import PGAgent
 from .quantum_env import QuantumEnv
 from .quantum_state import random_quantum_state
@@ -283,3 +292,45 @@ def entfor_matrix(rhos, batch_dim=True, half=True):
         return matrix
     else:
         return _entfor_matrix(rhos, L, indices)
+
+
+def save_checkpoint(config, agent, triggers=tuple(), iteration=None):
+    # Get current tracker
+    tracker = metrics.getTracker()
+
+    # Pickle state should be portable and loadable even outside the project
+    # environment (assuming PyTorch is installed). No custom classes should
+    # be serialized for that purpose - we limit the state to only Python native
+    # types ( + PyTorch tensors )
+    state = {
+        "iteration": iteration,
+        # We dump `config` to string and then parse it back to Python
+        # dictionary, because YACS cannot serialize it's `CfgNode` as pure
+        # Python objects
+        "config": yaml.load(config.dump(), yaml.Loader),
+        "policy_fn": agent.policy_network.state_dict(),
+        "value_fn": agent.value_network.state_dict() \
+                        if agent.value_network is not None else {},
+        "policy_optim": agent.policy_optim.state_dict(),
+        "value_optim": agent.value_optim.state_dict() \
+                        if agent.value_network is not None else {},
+        # We serialize triggers to pure Python objects. Same for `tracker`
+        "triggers": {str(type(t)): t.state_dict() for t in triggers},
+        "tracker": tracker.state_dict()
+    }
+
+    checkpoint_name = "checkpoint" + str(iteration) if iteration is not None else ''
+    logdir = get_logdir(config)
+    checkpoint_path = os.path.join(logdir, checkpoint_name + ".pickle")
+    with open(checkpoint_path, mode='wb') as f:
+        pickle.dump(state, f)
+
+    logging.info("\nCheckpoint saved!\n")
+
+
+def load_checkpoint(config):
+
+    with open(config.checkpoint.filepath, mode='rb') as f:
+        checkpoint_dict = pickle.load(f)
+
+    return checkpoint_dict

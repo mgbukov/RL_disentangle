@@ -88,7 +88,9 @@ DEFAULT.num_tests = 100
 
 DEFAULT.trigger_every = 500
 
-DEFAULT.triggers = ["StagedStateGeneratorTrigger"]
+DEFAULT.triggers = []
+
+DEFAULT.triggers_levels = []
 
 DEFAULT.reset_optimizers = False
 
@@ -98,7 +100,16 @@ DEFAULT.logdir_prefix = ""
 
 DEFAULT.logdir_suffix = ""
 
-DEFAULT.agent_checkpoint = ""
+DEFAULT.checkpoint = CfgNode()
+
+DEFAULT.checkpoint.filepath = ""
+DEFAULT.checkpoint.use_iteration = True
+DEFAULT.checkpoint.use_policy_fn = True
+DEFAULT.checkpoint.use_value_fn = True
+DEFAULT.checkpoint.use_policy_optim = True
+DEFAULT.checkpoint.use_value_optim = True
+DEFAULT.checkpoint.use_triggers = True
+DEFAULT.checkpoint.use_tracker = True
 
 # ! This attribute is applicable only when the RL agent is evaluated / tested !
 # If `True`, then action selection is performed using `argmax` over the RL agent's policy
