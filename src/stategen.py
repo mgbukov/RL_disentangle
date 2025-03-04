@@ -46,6 +46,12 @@ class StateGenerator:
         self.sample_params.update(new_sample_params)
 
 
+def permute_qubits(q: np.ndarray):
+    n = q.ndim
+    axis = np.random.permutation(np.arange(n))
+    return np.ascontiguousarray(np.permute_dims(q, axis))
+
+
 def random_quantum_state(q, prob=0.95):
     """Generate a quantum state as a Haar random state drawn from a subspace of
     the full Hilbert space.
@@ -135,7 +141,8 @@ def sample_haar_product(num_qubits, min_subsystem_size, max_subsystem_size):
         psi = np.kron(psi, sample_haar_full(L).ravel())
 
     psi /= np.linalg.norm(psi.ravel())
-    return psi.reshape((2,) * num_qubits)
+    psi = psi.reshape((2,) * num_qubits)
+    return permute_qubits(psi)
 
 
 def sample_mps(num_qubits, chi_max=None, **kwargs):
@@ -164,7 +171,7 @@ def sample_subsystem_sizes(num_qubits, min_size, max_size):
     return tuple(result)
 
 
-def sample_generalized_haar(num_qubits: int, min_subsystem_size: int,
+def sample_haar_generalized(num_qubits: int, min_subsystem_size: int,
                             max_subsystem_size: int, eta: float):
     """
     Generates Haar random state, in which entanglement is concentrated in
@@ -238,5 +245,3 @@ def sample_generalized_haar(num_qubits: int, min_subsystem_size: int,
 
     state = MPS_to_state(gammas, lambdas, canonical=0)
     return state.reshape((2,) * num_qubits)
-
-

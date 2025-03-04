@@ -9,7 +9,7 @@ import numpy as np
 import torch
 
 from src.quantum_env import QuantumEnv
-from src.quantum_state import sample_mps
+from src.stategen import sample_mps
 from src.util import str2state
 
 

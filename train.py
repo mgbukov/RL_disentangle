@@ -170,7 +170,7 @@ def train_ppo(config):
 
     # Get start iteration number
     if checkpointed_state is not None and config.checkpoint.use_iteration:
-        start_iter = checkpointed_state["iteration"]
+        start_iter = checkpointed_state["iteration"] + 1
     else:
         start_iter = 1
     tracker.timestep = start_iter

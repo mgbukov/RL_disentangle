@@ -283,12 +283,6 @@ def _generate_permutation_maps(L):
         qubits_inverse_permutations[q0, q1] = np.argsort(P).astype(np.int32)
     return qubits_permutations, qubits_inverse_permutations
 
-_QUBITS = {}
-_QSYSTEMS_P = {}
-_QSYSTEMS_INV_P = {}
-for L in range(2, 15):
-    _QUBITS[L] = (2,)*L
-    _QSYSTEMS_P[L], _QSYSTEMS_INV_P[L] = _generate_permutation_maps(L)
 
 def permute_qubits(batch, qubits_indices, L, inverse=False, inplace=True):
     P = _QSYSTEMS_INV_P[L] if inverse else _QSYSTEMS_P[L]
@@ -300,5 +294,14 @@ def permute_qubits(batch, qubits_indices, L, inverse=False, inplace=True):
     for i, (q0, q1) in enumerate(qubits_indices):
         result[i] = np.transpose(batch[i], P[q0, q1])
     return result
+
+
+_QUBITS = {}
+_QSYSTEMS_P = {}
+_QSYSTEMS_INV_P = {}
+for L in range(2, 19):
+    _QUBITS[L] = (2,)*L
+    _QSYSTEMS_P[L], _QSYSTEMS_INV_P[L] = _generate_permutation_maps(L)
+
 
 #

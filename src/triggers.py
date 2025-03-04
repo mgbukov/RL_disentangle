@@ -10,10 +10,20 @@ from .evaluation import test_lengths
 
 @dataclasses.dataclass
 class StagedTrainingLevel:
+    """
+    Level description for `StagedTrainingTrigger`.
 
-    test_max_steps: int
-    test_min_subsystem_size: int
-    test_max_subsystem_size: int
+    A level specifies the test parameters with which the condition is tested
+    each time `StagedTrainingTrigger` is run, the condition thresholds and the
+    parameters that are updated for the RL environment, RL agent and state
+    generation object.
+    """
+    # Test specific parameters. In order to check if the level condition is
+    # fulfilled, the RL agent is tested with a (possibly different from the
+    # training one) StateGenerator object.
+    test_max_steps: int                 # Maximum rollout steps in the test
+    test_min_subsystem_size: int        # Minimum subsystem size
+    test_max_subsystem_size: int        # Maximum subsystem size
 
     threshold_average_length: float
     threshold_ratio_terminated: float
@@ -34,6 +44,10 @@ class StagedTrainingTrigger:
         self.final_level = len(self.levels) - 1
 
     def __call__(self, *args, **kwargs):
+
+        tracker = metrics.getTracker()
+        tracker.add_scalar("[StagedTrainingTrigger] Level", self.current_level)
+
         # Check if we're at the final level and return immediately if so
         if self.current_level == self.final_level:
             return
@@ -91,7 +105,6 @@ class StagedTrainingTrigger:
                      f"({level.threshold_average_length:.2f})")
 
         tracker = metrics.getTracker()
-        tracker.add_scalar("[StagedTrainingTrigger] Level", self.current_level)
         tracker.add_scalar("[StagedTrainingTrigger] Max Subsystem Size", level.test_max_subsystem_size)
         tracker.add_scalar("[StagedTrainingTrigger] Ratio Terminated", ratio_terminated)
         tracker.add_scalar("[StagedTrainingTrigger] Average Length", avg_length)
