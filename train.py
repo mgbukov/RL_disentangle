@@ -86,7 +86,8 @@ def train_ppo(config):
         max_episode_steps=      config.steps_limit,
         reward_fn=              config.reward_fn,
         obs_fn=                 config.obs_fn,
-        state_generator=        state_generator
+        state_generator=        state_generator,
+        fast_obs=               config.fast_obs
     )
     logging.debug("Initialized RL environment")
 

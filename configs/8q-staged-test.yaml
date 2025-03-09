@@ -8,6 +8,7 @@ steps: 8
 steps_limit: 10
 epsi: 1e-3
 obs_fn: "rdm_2q_mean_real"
+fast_obs: True
 reward_fn: "relative_delta"
 stategen_fn: "sample_haar_product"
 stategen_params: [["min_subsystem_size", 1], ["max_subsystem_size", 2]]
@@ -80,4 +81,4 @@ triggers_levels: [
   ]
 ]
 logdir_prefix: "test_"
-logdir_suffix: ""
+logdir_suffix: "_fast_obs"
