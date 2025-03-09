@@ -28,6 +28,11 @@ DEFAULT.epsi = 1e-2
 # Observation function used by the RL environment
 DEFAULT.obs_fn = "rdm_2q_mean_real"
 
+# If `True`, reuse previous RDM observations and re-compute new RDMs only
+# for qubit pairs (i,j) such that either `i` or `j` is modified by an action.
+# This option cuts the rollout time by half for 15-qubit systems.
+DEFAULT.fast_obs = False
+
 # Reward function used by the RL environment
 DEFAULT.reward_fn = "relative_delta"
 

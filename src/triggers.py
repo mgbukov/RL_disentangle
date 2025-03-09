@@ -289,11 +289,20 @@ class StagedStateGeneratorTrigger:
         # Calculate ration of disentangled states and average solution length
         ratio_terminated = np.sum(~np.isnan(lengths)) / lengths.size
         avg_length = np.nanmean(lengths)
+        min_length = np.nanmin(lengths)
+        max_length = np.nanmax(lengths)
+        p90_length = np.percentile(lengths, 90)
         if np.isnan(avg_length):
             avg_length = np.inf
+            min_length = np.inf
+            max_length = np.inf
+            p90_length = np.inf
         ratio_terminated_req = conds["ratio_terminated"]
         logging.info(f"\tRatio terminated: {ratio_terminated:.3f} ({ratio_terminated_req:.2f})")
         logging.info(f"\tAverage length:   {avg_length:.1f} ({avg_length_req:.2f})")
+        logging.info(f"\tMinimum length:   {min_length:.1f}")
+        logging.info(f"\tMaximum length:   {max_length:.1f}")
+        logging.info(f"\t90-th % length:   {p90_length:.1f}")
 
         # Test condition
         if avg_length <= avg_length_req and ratio_terminated >= ratio_terminated_req:

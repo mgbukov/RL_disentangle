@@ -20,7 +20,8 @@ class QuantumEnv():
     """
 
     def __init__(self, num_qubits, num_envs, epsi=1e-3, max_episode_steps=1000,
-                 reward_fn="sparse", obs_fn="phase_norm", state_generator=None):
+                 reward_fn="sparse", obs_fn="phase_norm", state_generator=None,
+                 fast_obs=False):
         """Init a Quantum environment.
 
         Args:
@@ -45,8 +46,15 @@ class QuantumEnv():
             state_generator: optional
                 Controls how new states are generated in reset(). See
                 `VectorQuantumState`
+            fast_obs: bool, default=False
+                If True, the previous observation and additional info is passed
+                to `obs_fn` to compute the next observation.
+                This can speed up RDM observations, because RDMs can be
+                calculated only for the subset of qubit pairs which the actions
+                touches.
         """
-        # Private.
+        # Private
+        self.num_qubits = num_qubits
         self.epsi = epsi
         self.max_episode_steps = max_episode_steps
         act_space = "reduced"
@@ -55,6 +63,8 @@ class QuantumEnv():
         self.reward_fn = getattr(sys.modules[__name__], reward_fn)  # get from this module
         self.obs_fn = getattr(sys.modules[__name__], obs_fn)        # get from this module
         self.obs_dtype = self.obs_fn(self.simulator.states).dtype
+        self.fast_obs = fast_obs
+        self.last_obs = None
 
         # Public attributes conforming to the OpenAI Gym API.
         self.num_envs = num_envs
@@ -70,9 +80,20 @@ class QuantumEnv():
         """Reset the environment to its initial state."""
         for k in range(self.num_envs):
             self.simulator.reset_sub_environment_(k)
-        self.episode_len = np.zeros(shape=(self.simulator.num_envs,))
-        self.accumulated_return = np.zeros(shape=(self.simulator.num_envs,))
-        return self.obs_fn(self.simulator.states), {}
+        self.episode_len = np.zeros(self.num_envs)
+        self.accumulated_return = np.zeros(self.num_envs)
+        if self.fast_obs:
+            obs = self.obs_fn(self.simulator.states, None, None)
+            self.last_obs = obs
+        else:
+            obs = self.obs_fn(self.simulator.states)
+        return obs, {}
+
+    def set_states(self, states):
+        self.simulator.states = states
+        self.episode_len = np.zeros(self.num_envs)
+        self.accumulated_return = np.zeros(self.num_envs)
+        self.last_obs = None
 
     def close(self):
         pass
@@ -129,15 +150,30 @@ class QuantumEnv():
             }
 
             # Reset only the sub-environments that were done.
-            for k in range(self.simulator.num_envs):
-                if not done[k] or not reset: continue
+            for k in range(self.num_envs):
+                if not done[k] or not reset:
+                    continue
                 self.simulator.reset_sub_environment_(k)
                 self.accumulated_return[k] = 0.
                 self.episode_len[k] = 0
 
         # Finally, get the observations from the next obtained states.
         # Note that we have to do this only after we check for done environments.
-        obs = self.obs_fn(self.simulator.states)
+        if self.fast_obs:
+            if self.last_obs is None:
+                obs = self.obs_fn(self.simulator.states, None, None)
+            else:
+                modified = []
+                for n in range(self.num_envs):
+                    if done[n]:
+                        m = tuple(range(self.num_qubits))
+                    else:
+                        m = self.simulator.actions[acts[n]]
+                    modified.append(m)
+                obs = self.obs_fn(self.simulator.states, self.last_obs, modified)
+            self.last_obs = obs
+        else:
+            obs = self.obs_fn(self.simulator.states)
 
         # NOTE: Take notice that if a sub-environment is done we are resetting
         # it and returning the observation for the new state. This means that
@@ -244,56 +280,132 @@ def rdm_2q_half(states):
     idx = np.array([i < j for i,j in permutations(range(Q), 2)])
     return full[:, idx, :]
 
-def rdm_2q_mean_complex(states):
-    """Returns 2-qubit RDM observations with complex64 dtype.
+
+def rdm_2q_mean_complex(states, rdms=None, modified_qubits=None):
+    """
+    Returns 2-qubit RDM observations with complex64 dtype.
     The rdms resulting from the two different combinations of qubits (i,j) and
-    (j, i) are averaged.
+    (j, i) are averaged. This function supports fast path of computation,
+    in which the RDMs are computed only for a subset of qubit pairs (i,j) and
+    the rest of them are copied from `previous_rdms`.
+
+    Parameters:
+        states (np.ndarray) :
+            Batched tensor of quantum vector states. Shape = (B, 2, 2, ..., 2)
+
+        rdms (Optional[np.ndarray]) :
+            Batched tensor of RDM observations. Shape = (B, Q*(Q-1)/2, 16)
+
+        modified_qubits (Optional[List[tuple]]) :
+            Batched list of modified qubits. The modified qubits are passed as
+            tuple of indices in the system. For a given pair (i, j), if any of
+            `i` or `j` is in this list, then the RDM for (i, j) are recomputed
+            from `states`, otherwise it is copied from `previous_rdms`.
 
     Returns:
-        obs: np.ndarray, dtype=np.complex64
+        obs (np.ndarray[np.complex64]) :
             Numpy tensor with shape (N, Q*(Q-1)/2, 16),
-            where N = number of episodes, Q = number of qubits
+            where N = batch dim, Q = number of qubits
     """
+
+    assert  (rdms is None and modified_qubits is None) or \
+            (rdms is not None and modified_qubits is not None)
+    if rdms is not None:
+        assert len(states) == len(rdms) == len(modified_qubits)
+
     N = states.shape[0]
     Q = len(states.shape[1:])
-    rdms = []
-    qubit_pairs = combinations(range(Q), 2)
+    new_rdms = []
 
-    for qubits in qubit_pairs:
-        sysA = tuple(q+1 for q in qubits)
-        sysB = tuple(q+1 for q in range(Q) if q not in qubits)
+    if modified_qubits is None:
+        qubit_pairs = combinations(range(Q), 2)
+        # Iterate over qubit pairs for all states in the batch
+        for qubits in qubit_pairs:
+            sysA = tuple(q+1 for q in qubits)
+            sysB = tuple(q+1 for q in range(Q) if q not in qubits)
 
-        # qubit pair (i, j)
-        permutation = (0,) + sysA + sysB
-        psi = np.transpose(states, permutation).reshape(N, 4, -1)
-        rdm = psi @ np.transpose(psi, (0, 2, 1)).conj() # rdm.shape = (N, 4, 4)
-        rdm = rdm.reshape(N, 16)
+            # qubit pair (i, j)
+            permutation = (0,) + sysA + sysB
+            psi = np.transpose(states, permutation).reshape(N, 4, -1)
+            rdm = psi @ np.transpose(psi, (0, 2, 1)).conj() # rdm.shape = (N, 4, 4)
+            rdm = rdm.reshape(N, 16)
 
-        # qubit pair (j, i)
-        permutation_rev = (0,) + tuple(reversed(sysA)) + sysB
-        psi = np.transpose(states, permutation_rev).reshape(N, 4, -1)
-        rdm_rev = psi @ np.transpose(psi, (0, 2, 1)).conj() # rdm_rev.shape = (N, 4, 4)
-        rdm_rev = rdm_rev.reshape(N, 16)
+            # qubit pair (j, i)
+            permutation_rev = (0,) + tuple(reversed(sysA)) + sysB
+            psi = np.transpose(states, permutation_rev).reshape(N, 4, -1)
+            rdm_rev = psi @ np.transpose(psi, (0, 2, 1)).conj() # rdm_rev.shape = (N, 4, 4)
+            rdm_rev = rdm_rev.reshape(N, 16)
 
-        # Concatenate the rdms for the two separate combinations.
-        rdm_avg = 0.5 * (rdm + rdm_rev) # rdm_avg.shape = (N, 16)
+            # Average the rdms
+            rdm_avg = 0.5 * (rdm + rdm_rev)
 
-        rdms.append(rdm_avg)
-    obs = np.array(rdms).transpose((1, 0, 2)) # rdms.shape == (Q*(Q-1)/2, N, 16)
-    return obs                                # obs.shape  == (N, Q*(Q-1)/2, 16)
+            new_rdms.append(rdm_avg)
 
-def rdm_2q_mean_real(states):
-    """Returns 2-qubit RDM observations with float32 dtype.
-    The rdms resulting from the two different combinations of qubits (i,j) and
-    (j, i) are averaged.
+
+        # At this point `new_rdms` is with shape (Q*(Q-1)/2, N, 16).
+        # We need to transpose the first 2 dimensions and convert it to NumPy array
+        obs = np.array(new_rdms).transpose((1, 0, 2))
+
+    else:
+        # Iterate trough each state in the batch
+        for n in range(N):
+            nth_rdms = rdms[n]
+            modified = modified_qubits[n]
+            qubit_pairs = combinations(range(Q), 2)
+
+            for k, pair in enumerate(qubit_pairs):
+                # If one of the qubits in the `ij` pair is modified, then
+                # recalculate it's RDM
+                if pair[0] in modified or pair[1] in modified:
+                    sysA = tuple(q for q in pair)
+                    sysB = tuple(q for q in range(Q) if q not in pair)
+
+                    # qubit pair (i, j)
+                    permutation_ij = sysA + sysB
+                    psi = np.transpose(states[n], permutation_ij).reshape(4, -1)
+                    rdm_ij = psi @ psi.T.conj()
+
+                    # qubit pair (j, i)
+                    permutation_ji = tuple(reversed(sysA)) + sysB
+                    psi = np.transpose(states[n], permutation_ji).reshape(4, -1)
+                    rdm_ji = psi @ psi.T.conj()
+
+                    nth_rdms[k] = 0.5 * (rdm_ij + rdm_ji).ravel()
+                # Otherwise do nothing
+                else:
+                    pass
+
+            new_rdms.append(nth_rdms)
+
+        # At this point `new_rdms` is with shape (N, Q*(Q-1)/2, 16).
+        # Turn it into NumPy array and we're done.
+        obs = np.asarray(new_rdms)
+
+    assert obs.shape == (N, Q*(Q-1)/2, 16)
+    return obs
+
+
+def rdm_2q_mean_real(states, rdms=None, modified_qubits=None):
+    """
+    Returns 2-qubit RDM observations with float32 dtype. The rdms resulting
+    from the two different combinations of qubits (i,j) and (j,i) are averaged.
+    See `rdm_2q_mean_complex` for more details.
 
     Returns:
-        obs: np.ndarray, dtype=np.complex64
-            Numpy tensor with shape (N, Q*(Q-1)/2, 32),
-            where N = number of episodes, Q = number of qubits
+        obs (np.ndarray[np.float32]) :
+            Tensor with shape (N, Q*(Q-1)/2, 32),
+            where N = batch dim, Q = number of qubits
     """
-    rdms = rdm_2q_mean_complex(states)        # rdms.shape = (N, Q*(Q-1)/2, 16)
-    return np.dstack([rdms.real, rdms.imag])  # rdms.shape = (N, Q*(Q-1)/2, 32)
+    # Unstack real and imaginary parts of `rmds`
+    if rdms is not None:
+        assert rdms.ndim == 3
+        assert rdms.shape[-1] == 32
+        rdms_real = rdms[..., :16]
+        rdms_imag = rdms[..., 16:]
+        rdms = (rdms_real + 1.0j * rdms_imag).astype(np.complex64)
+    new_rdms = rdm_2q_mean_complex(states, rdms, modified_qubits)
+    # new_rdms.shape = (N, Q*(Q-1)/2, 32)
+    return np.dstack([new_rdms.real, new_rdms.imag])
 
 
 def rdm_2q_nisq_mean(states, max_bitflip_noise=0.15, ampdeph=True):

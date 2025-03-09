@@ -49,7 +49,7 @@ class StateGenerator:
 def permute_qubits(q: np.ndarray):
     n = q.ndim
     axis = np.random.permutation(np.arange(n))
-    return np.ascontiguousarray(np.permute_dims(q, axis))
+    return np.ascontiguousarray(np.transpose(q, axis))
 
 
 def random_quantum_state(q, prob=0.95):
