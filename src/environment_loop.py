@@ -1,4 +1,5 @@
 import logging
+import os
 import warnings
 from collections import defaultdict
 
@@ -6,7 +7,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from .config import get_default_config
+from .config import get_default_config, get_logdir
 from .quantum_env import QuantumEnv
 from . import metrics
 from . import util
@@ -129,6 +130,11 @@ def environment_loop(agent, env, num_iters, steps, start_iter=1,
         # Save checkpoint
         if i > 0 and i % config.checkpoint_every == 0:
             util.save_checkpoint(config, agent, triggers, iteration=i)
+            # Save plots
+            for name in tracker.get_names():
+                logdir = get_logdir(config)
+                figpath = os.path.join(logdir, f"{name}.png")
+                tracker.plot_scalar(name, figpath, linewidth=2.5)
 
         # Run triggers
         if i > 0 and i % config.trigger_every == 0:
