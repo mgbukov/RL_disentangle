@@ -206,42 +206,31 @@ def sample_haar_generalized(num_qubits: int, min_subsystem_size: int,
 
     # Initialize bond dimensions
     #   Example: [1, 2, 4, 8, 16, 32, 64, 32, 16, 8, 4, 2, 1]
-    chivec = [2 ** min(j, num_qubits - j) for j in range(num_qubits)]
+    chivec = np.array([2 ** min(j, num_qubits - j) for j in range(num_qubits+1)])
 
     # Initialize partitions
     chipar = chivec[bonds]
 
     # Create a Haar random state and decompose it as MPS
     psi = sample_haar_full(num_qubits)
-    gammas, lambdas = state_to_MPS(psi, chivec, num_qubits)
+    Gammas, Lambdas = state_to_MPS(psi, chivec, num_qubits)
 
     # Now modify entanglement structure only at partitions / cuts
     for b, chi in zip(bonds[1:-1], chipar[1:-1]):
 
-        # Define new `$\lambda$` matrix. Since `$\lambda` is a diagonal matrix,
+        # Define new `$\Lambda$` matrix. Since `$\Lambda` is a diagonal matrix,
         # we generate only the diagonal vector from uniform distribution and
         # then exponentiate it component-wise. Lambda values define a probability
         # distribution, so they must sum to 1
         lambdaM = np.exp( -eta * np.sort(np.random.uniform(size=chi)) )
         lambdaM /= np.linalg.norm(lambdaM)
 
-        # Update adjacent `$\gamma$` matrices with the following equation:
-        #
-        #   `$\gamma_{new} = \gamma * \lambda / \lambda_{new}$`
-        #
-        # `atol` and `rtol` are constant values added to avoid division of 0
-        atol = 0.0
-        rtol = np.finfo(lambdaM.dtype).eps
-        max_lambda = np.max(lambdaM, initial=0.)
-        val = atol + max_lambda * rtol
-
-        divres = np.zeros_like(lambdaM)
-        #                                          where=(np.abs(lambdaM) > tol) & (np.abs(lambdas[b]) > tol)
-        np.divide(lambdas[b], lambdaM, out=divres, where=np.abs(lambdas[b]/lambdaM) >= val)
-        gammas[b] = np.einsum('a,aib->aib', divres, gammas[b] )
-
         # Replace corresponding Lambda matrix
-        lambdas[b] = lambdaM
+        Lambdas[b] = lambdaM
 
-    state = MPS_to_state(gammas, lambdas, canonical=0)
+        # Recalculate tensors
+        psi = MPS_to_state(Gammas, Lambdas, canonical=0)
+        Gammas, Lambdas = state_to_MPS(psi, chivec, num_qubits, 2)
+
+    state = MPS_to_state(Gammas, Lambdas, canonical=0)
     return state.reshape((2,) * num_qubits)
