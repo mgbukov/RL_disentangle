@@ -133,7 +133,23 @@ def sample_haar_unif(num_qubits, min_entangled=1, max_entangled=None, **kwargs):
     return psi.reshape((2,) * num_qubits)
 
 
-def sample_haar_product(num_qubits, min_subsystem_size, max_subsystem_size):
+def sample_haar_product(num_qubits: int, min_subsystem_size: int,
+                        max_subsystem_size: int, permute: bool = True):
+    """
+    Generate a product state of Haar random states. The subsystem sizes are
+    sampled from uniform distribution `U[min_subsystem_size, max_subsystem_size]`.
+
+    Parameters:
+        num_qubits (int):
+            Total number of qubits
+        min_subsystem_size (int):
+            Minimum allowed subsystem size
+        max_subsystem_size (int):
+            Maximum allowed subsystem size
+        permute (bool):
+            If `True` the qubits in the generated state are permuted before
+            returning
+    """
     subsystems = sample_subsystem_sizes(num_qubits, min_subsystem_size, max_subsystem_size)
 
     psi = sample_haar_full(subsystems[0])
@@ -142,7 +158,7 @@ def sample_haar_product(num_qubits, min_subsystem_size, max_subsystem_size):
 
     psi /= np.linalg.norm(psi.ravel())
     psi = psi.reshape((2,) * num_qubits)
-    return permute_qubits(psi)
+    return permute_qubits(psi) if permute else psi
 
 
 def sample_mps(num_qubits, chi_max=None, **kwargs):
@@ -172,13 +188,19 @@ def sample_subsystem_sizes(num_qubits, min_size, max_size):
 
 
 def sample_haar_generalized(num_qubits: int, min_subsystem_size: int,
-                            max_subsystem_size: int, eta: float):
+                            max_subsystem_size: int, min_eta: float, max_eta: float,
+                            permute=True):
     """
     Generates Haar random state, in which entanglement is concentrated in
     subsystems with size between `[min_system_size, max_system_size]`.
-    Entanglement between subsystems is controlled via the `eta` parameter.
     This function allows the user to "blend" between product states and fully
     entangled states.
+    Entanglement between subsystems is controlled via the `min_eta` and `max_eta`
+    parameters. The very parameter `eta` that controls the bond entanglement is
+    sampled from a uniform distribution `U(min_eta, max_eta)`. The relationship
+    between `eta` and bond entanglements is approximately:
+
+        $$ S_bond = \exp{ -1.7\eta -0.4 } $$
 
     Args:
         num_qubits: int
@@ -187,14 +209,22 @@ def sample_haar_generalized(num_qubits: int, min_subsystem_size: int,
             Minimum number of qubits in subsystem
         max_subsystem_size: int
             Maximum number of qubits in subsystem
-        eta: float
-            Controls entanglement: `eta` > 1.0E2 corresponds to no entanglement
-            across the bonds, `eta` < 1.0E-2 to roughly maximum entanglement.
+        min_eta: float
+            Minimum allowed `eta`
+        max_eta: float
+            Maximum allowed `eta`
 
     Returns:
         psi: np.ndarray
             Numpy array with shape (2, 2, ..., 2) representing the generated state
     """
+
+    # Optimization. If `min_eta` > 7, use `sample_haar_product`, because in this
+    # case bond entanglements are < 1E-5
+    if min_eta >= 7.0:
+        return sample_haar_product(
+            num_qubits, min_subsystem_size, max_subsystem_size, permute
+        )
 
     # Sample subsystem sizes:
     #   Example: (2, 3, 5, 2)
@@ -221,16 +251,22 @@ def sample_haar_generalized(num_qubits: int, min_subsystem_size: int,
         # Define new `$\Lambda$` matrix. Since `$\Lambda` is a diagonal matrix,
         # we generate only the diagonal vector from uniform distribution and
         # then exponentiate it component-wise. Lambda values define a probability
-        # distribution, so they must sum to 1
-        lambdaM = np.exp( -eta * np.sort(np.random.uniform(size=chi)) )
+        # distribution, so they must sum to 1.
+        eta = np.random.uniform(min_eta, max_eta)
+        lambdaM = eta * np.exp(-eta * np.arange(chi))
         lambdaM /= np.linalg.norm(lambdaM)
 
         # Replace corresponding Lambda matrix
         Lambdas[b] = lambdaM
 
         # Recalculate tensors
-        psi = MPS_to_state(Gammas, Lambdas, canonical=0)
-        Gammas, Lambdas = state_to_MPS(psi, chivec, num_qubits, 2)
+        try:
+            psi = MPS_to_state(Gammas, Lambdas, canonical=0)
+            Gammas, Lambdas = state_to_MPS(psi, chivec, num_qubits, 2)
+        except Exception as ex:
+        #     print("lambdaM:", lambdaM)
+        #     print("eta:", eta)
+            raise ex
 
-    state = MPS_to_state(Gammas, Lambdas, canonical=0)
-    return state.reshape((2,) * num_qubits)
+    state = MPS_to_state(Gammas, Lambdas, canonical=0).reshape((2,) * num_qubits)
+    return state if not permute else permute_qubits(state)
