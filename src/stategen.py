@@ -1,4 +1,6 @@
 """Quantum State Generators"""
+import copy
+
 import numpy as np
 
 from .mpslib import MPS_to_state, generate_random_MPS, state_to_MPS
@@ -41,6 +43,13 @@ class StateGenerator:
             self.sample_params[name] = value
         else:
             raise AttributeError()
+
+    def __deepcopy__(self, memo):
+        return StateGenerator(
+            self.sample_fn,
+            self.num_qubits,
+            self.sample_params.copy()
+        )
 
     def update(self, **new_sample_params):
         self.sample_params.update(new_sample_params)
@@ -264,8 +273,9 @@ def sample_haar_generalized(num_qubits: int, min_subsystem_size: int,
             psi = MPS_to_state(Gammas, Lambdas, canonical=0)
             Gammas, Lambdas = state_to_MPS(psi, chivec, num_qubits, 2)
         except Exception as ex:
-        #     print("lambdaM:", lambdaM)
-        #     print("eta:", eta)
+            print("`eta`:", eta)
+            print("`lambdaM`:", eta * np.exp(-eta * np.arange(chi)))
+            print("normed `lambdaM`:", lambdaM)
             raise ex
 
     state = MPS_to_state(Gammas, Lambdas, canonical=0).reshape((2,) * num_qubits)

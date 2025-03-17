@@ -1,3 +1,4 @@
+import copy
 import dataclasses
 import logging
 import numpy as np
@@ -69,18 +70,16 @@ class StagedTrainingTrigger:
         level = self.levels[self.current_level]
 
         # Initialize state sampler to test agent accuracy on the current level
-        test_sampler = stategen.StateGenerator(
-            sample_fn=stategen.sample_haar_product,
-            num_qubits=self.config.num_qubits,
-            sample_params=dict(
+        test_sampler = copy.deepcopy(self.env.simulator.state_generator)
+        test_sampler.sample_params.update(
+            dict(
                 min_subsystem_size=level.test_min_subsystem_size,
-                max_subsystem_size=level.test_max_subsystem_size
+                max_subsystem_size=level.test_max_subsystem_size,
             )
         )
-        logging.info("\tInitialized Haar product state sampler with parameters:\n"
+        logging.info("\tInitialized state sampler with parameters:\n"
                      f"\t\tmin_subsystem_size = {level.test_min_subsystem_size}\n"
                      f"\t\tmax_subsystem_size = {level.test_max_subsystem_size}")
-
 
         # Test the agent
         logging.info(f"\tTesting agent with maximum rollout steps = {level.test_max_steps}")
