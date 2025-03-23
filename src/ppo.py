@@ -65,32 +65,35 @@ class PPOAgent(PGAgent):
         self.n_epochs = config.get("n_epochs", 5)
         self.lamb = config.get("lamb", 0.95)
 
-    def update(self, obs, acts, rewards, done):
+    def update(self, obs: torch.Tensor, acts: torch.Tensor,
+               rewards: torch.Tensor, done: torch.Tensor, logprobs: torch.Tensor):
         """Update the agent policy network and value network using the provided
         experiences.
 
         Args:
-            obs: torch.Tensor
+            obs (torch.Tensor):
                 Tensor of shape (N, T, *), giving the observations produced by
                 the agent during multiple roll-outs.
-            acts: torch.Tensor
+            acts (torch.Tensor):
                 Tensor of shape (N, T), giving the actions selected by the agent.
-            rewards: torch.Tensor
+            rewards (torch.Tensor):
                 Tensor of shape (N, T), giving the obtained rewards.
-            done: torch.Tensor
+            done (torch.Tensor):
                 Boolean tensor of shape (N, T), indicating which of the
                 observations are terminal states for the environment.
+            logprobs (torch.Tensor):
+                Tensor of shape (N, T), giving the log probabilities of the
+                actions selected by the agent
         """
-        # Extend the training history with a dict of statistics.
-        # self.train_history.append({})
         N, T = rewards.shape
 
         # Reshape the observations to prepare them as input for the neural nets.
         obs = obs.reshape(N*T, *obs.shape[2:])
 
         # Bootstrap the last reward of unfinished episodes.
-        values = self.value(obs).to(rewards.device) # uses torch.no_grad
-        values = values.reshape(N, T)               # reshape back to rewards.shape
+        # values = self.value(obs).to(rewards.device) # uses torch.no_grad
+        # values = values.reshape(N, T)               # reshape back to rewards.shape
+        values = self.value(obs).reshape(N, T)
         adv = torch.zeros_like(rewards)
         # adv[:, -1] = torch.where(done[:, -1], rewards[:, -1] - values[:, -1], 0.)
         adv[:, -1] = torch.where(done[:, -1], rewards[:, -1], values[:, -1]) - values[:, -1]
@@ -100,36 +103,42 @@ class PPOAgent(PGAgent):
             delta = rewards[:, t] + self.discount * values[:, t+1] * ~done[:, t] - values[:, t]
             adv[:, t] = delta + self.lamb * self.discount * adv[:, t+1] * ~done[:, t]
 
-        # Reshape the acts, advantages and values.
+        # Reshape the acts, advantages, values and log probabilities.
         acts = acts.reshape(N*T)
         adv = adv.reshape(N*T)
         values = values.reshape(N*T)
+        logprobs = logprobs.reshape(N*T)
 
         # Update value network.
         returns = adv + values
         self.update_value(obs, returns)
 
         # Update the policy network.
-        self.update_policy(obs, acts, adv)
+        self.update_policy(obs, acts, adv, logprobs)
 
-    def update_policy(self, obs, acts, adv):
+    def update_policy(self, obs: torch.Tensor, acts: torch.Tensor,
+                      adv: torch.Tensor, logp: torch.Tensor):
         """Proximal Policy optimization (clip version).
         With early stopping based on KL divergence.
 
         Args:
-            obs: torch.Tensor
+            obs (torch.Tensor):
                 Tensor of shape (N, *), giving the observations produced by the
                 agent during rollout.
-            acts: torch.Tensor
+            acts (torch.Tensor):
                 Tensor of shape (N,), giving the actions selected by the agent.
-            adv: torch.Tensor
+            adv (torch.Tensor):
                 Tensor of shape (N,), giving the obtained advantages.
+            logp (torch.Tensor):
+                Tensor of shape (N,), giving the log probabilities of the
+                selected actions by the agent
         """
         eps = torch.finfo(torch.float32).eps
-        device = self.policy_network.device
+        # device = self.policy_network.device
 
         # Compute the probs using the old parameters.
-        logp_old = self.policy(obs).log_prob(acts.to(device)) # uses torch.no_grad
+        # logp_old = self.policy(obs).log_prob(acts.to(device)) # uses torch.no_grad
+        logp_old = logp
 
         # Update the policy multiple times.
         n_updates = 0
@@ -146,13 +155,13 @@ class PPOAgent(PGAgent):
 
             for o, a, ad, lp_old in loader:
                 logits = self.policy_network(o)
-                logp = -F.cross_entropy(logits, a.to(logits.device), reduction="none")
-                ro = torch.exp(logp - lp_old.to(logp.device))
+                logp = -F.cross_entropy(logits, a, reduction="none")
+                ro = torch.exp(logp - lp_old)
 
                 # Normalize the advantages and compute the clipped loss.
                 # Note that advantages are normalized at the mini-batch level.
                 ad = (ad - ad.mean()) / (ad.std() + eps)
-                ad = ad.to(logp.device)
+                ad = ad
                 clip_adv = torch.clip(ro, 1-self.pi_clip, 1+self.pi_clip) * ad
                 pi_loss = -torch.mean(torch.min(ro * ad, clip_adv))
 
@@ -176,8 +185,9 @@ class PPOAgent(PGAgent):
                 total_losses.append(loss.item())
 
             # Check for early stopping.
-            logp = self.policy(obs).log_prob(acts.to(device))   # uses torch.no_grad
-            KL = logp_old - logp                                # KL(P,Q) = Sum(P log(Q/P)) = E_P[logQ-logP]
+            logp = self.policy(obs).log_prob(acts)   # uses torch.no_grad
+            # KL(P,Q) = Sum(P log(Q/P)) = E_P[logQ-logP]
+            KL = logp_old - logp
             if self.tgt_KL is not None and KL.mean() > 1.5 * self.tgt_KL:
                 break
 
@@ -201,16 +211,16 @@ class PPOAgent(PGAgent):
         tracker.add_scalar("Num PPO Updates",
                             n_updates)
 
-    def update_value(self, obs, returns):
+    def update_value(self, obs: torch.Tensor, returns: torch.Tensor):
         """Update the value network to fit the value function of the current
         policy `V_pi`. This functions performs a single iteration over the
         set of experiences drawing mini-batches of examples and fits the value
         network using MSE loss.
 
         Args:
-            obs: torch.Tensor
+            obs (torch.Tensor):
                 Tensor of shape (N, *), giving the observations of the agent.
-            returns: torch.Tensor
+            returns (torch.Tensor):
                 Tensor of shape (N,), giving the obtained returns.
         """
         returns = returns.reshape(-1, 1) # match the output shape of the net (B, 1)
@@ -234,7 +244,7 @@ class PPOAgent(PGAgent):
                 # implementation of OpenAI.
                 v_pred = self.value_network(o)
                 v_clip = v_old + torch.clip(v_pred-v_old, -self.vf_clip, self.vf_clip)
-                r = r.to(v_pred.device)
+                # r = r.to(v_pred.device)
                 vf_loss = torch.mean(torch.max((v_pred - r)**2, (v_clip - r)**2))
 
                 # Backward pass.

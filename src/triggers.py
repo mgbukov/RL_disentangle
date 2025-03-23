@@ -19,10 +19,6 @@ class StagedTrainingLevel:
     parameters that are updated for the RL environment, RL agent and state
     generation object.
     """
-    # Minimum number of iterations to be spent on current level, before
-    # transitioning to next one
-    min_iterations: int
-
     # Test specific parameters. In order to check if the level condition is
     # fulfilled, the RL agent is tested with a (possibly different from the
     # training one) StateGenerator object.
@@ -37,6 +33,9 @@ class StagedTrainingLevel:
     sgen_parameters: dict
     agent_parameters: dict
 
+    # Minimum number of iterations to be spent on current level, before
+    # transitioning to next one
+    min_iterations: int = 1
 
 class StagedTrainingTrigger:
 

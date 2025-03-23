@@ -61,7 +61,7 @@ class PGAgent:
             self.value_optim = torch.optim.Adam(self.value_network.parameters(), lr=vf_lr)
 
     @torch.no_grad()
-    def policy(self, obs):
+    def policy(self, obs) -> Categorical:
         self.policy_network.eval()
         return Categorical(logits=self.policy_network(obs))
 

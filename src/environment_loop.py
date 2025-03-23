@@ -43,29 +43,38 @@ def environment_loop(agent, env, num_iters, steps, start_iter=1,
     if config is None:
         config = get_default_config()
 
+    device = torch.device(config.device)
     num_envs = env.num_envs
     env.reset()
 
+    # Allocate NumPy tensors
+    obs = np.zeros(
+        shape=(steps, num_envs, *env.single_observation_space.shape),
+        dtype=env.obs_dtype
+    )
+    logprobs = np.zeros(shape=(steps, num_envs), dtype=np.float32)
+    actions = np.zeros(shape=(steps, num_envs), dtype=int)
+    rewards = np.zeros(shape=(steps, num_envs), dtype=np.float32)
+    done = np.zeros(shape=(steps, num_envs), dtype=bool)
 
     run_ret, run_len = np.nan, np.nan
     for i in tqdm(range(start_iter, start_iter + num_iters)):
-        # Allocate tensors for the rollout observations.
-        obs = np.zeros(
-            shape=(steps, num_envs, *env.single_observation_space.shape),
-            dtype=env.obs_dtype
-        )
-        actions = np.zeros(shape=(steps, num_envs), dtype=int)
-        rewards = np.zeros(shape=(steps, num_envs), dtype=np.float32)
-        done = np.zeros(shape=(steps, num_envs), dtype=bool)
 
         # Perform parallel step-by-step rollout along multiple trajectories.
         episode_returns, episode_lengths = [], []
         terminated = 0
         o = env.obs_fn(env.simulator.states)
+
         for s in range(steps):
-            # Sample an action from the agent and step the environment.
+            # Store the current observation
             obs[s] = o
-            acts = agent.policy(torch.from_numpy(o)).sample() # uses torch.no_grad()
+            # Sample an action from the agent and step the environment /
+            # uses torch.no_grad().
+            p = agent.policy(torch.from_numpy(o).to(device))
+            acts = p.sample()
+            # Store the log probabilities for the selected actions
+            logprobs[s] = p.log_prob(acts).cpu().numpy()
+            # acts = agent.policy(torch.from_numpy(o)).sample() # uses torch.no_grad()
             acts = acts.cpu().numpy()
             o, r, t, tr, infos = env.step(acts)
 
@@ -84,14 +93,17 @@ def environment_loop(agent, env, num_iters, steps, start_iter=1,
 
                 terminated += sum((1 for i in range(num_envs) if t[i]))
 
-        # Transpose `step` and `num_envs` dimensions and cast to torch tensors.
-        obs = torch.from_numpy(obs).transpose(1, 0)
-        actions = torch.from_numpy(actions).transpose(1, 0)
-        rewards = torch.from_numpy(rewards).transpose(1, 0)
-        done = torch.from_numpy(done).transpose(1, 0)
+        # Transpose `step` and `num_envs` dimensions.
+        # Cast to torch tensors and move them to `config.device`.
+        torch_obs = torch.from_numpy(obs).transpose(1, 0).to(device)
+        torch_logprobs = torch.from_numpy(logprobs).transpose(1,0).to(device)
+        torch_actions = torch.from_numpy(actions).transpose(1, 0).to(device)
+        torch_rewards = torch.from_numpy(rewards).transpose(1, 0).to(device)
+        torch_done = torch.from_numpy(done).transpose(1, 0).to(device)
 
         # Pass the experiences to the agent to update the policy.
-        agent.update(obs, actions, rewards, done)
+        agent.update(torch_obs, torch_actions, torch_rewards, torch_done,
+                     torch_logprobs)
 
         # Bookkeeping
         assert len(episode_returns) == len(episode_lengths), "lengths must match"

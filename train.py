@@ -103,7 +103,7 @@ def train_ppo(config):
         dim_mlp=        config.dim_mlp,
         n_heads=        config.attn_heads,
         n_layers=       config.transformer_layers
-    )
+    ).to(device)
     logging.debug("Initialized policy network")
 
     # Initialize RL agent
