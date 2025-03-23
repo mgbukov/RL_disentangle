@@ -19,6 +19,10 @@ class StagedTrainingLevel:
     parameters that are updated for the RL environment, RL agent and state
     generation object.
     """
+    # Minimum number of iterations to be spent on current level, before
+    # transitioning to next one
+    min_iterations: int
+
     # Test specific parameters. In order to check if the level condition is
     # fulfilled, the RL agent is tested with a (possibly different from the
     # training one) StateGenerator object.
@@ -68,6 +72,7 @@ class StagedTrainingTrigger:
     def condition(self):
         # Get current level parameters
         level = self.levels[self.current_level]
+        level.min_iterations -= self.config["trigger_every"]
 
         # Initialize state sampler to test agent accuracy on the current level
         test_sampler = copy.deepcopy(self.env.simulator.state_generator)
@@ -121,7 +126,8 @@ class StagedTrainingTrigger:
 
         # Test condition
         if (avg_length <= level.threshold_average_length and
-            ratio_terminated >= level.threshold_ratio_terminated):
+            ratio_terminated >= level.threshold_ratio_terminated and
+            level.min_iterations <= 0):
             return True
         else:
             return False
@@ -186,6 +192,7 @@ class StagedTrainingTrigger:
             return []
 
         allowed_keys = {
+            "min_iterations",
             "test_max_steps",
             "test_min_subsystem_size",
             "test_max_subsystem_size",
