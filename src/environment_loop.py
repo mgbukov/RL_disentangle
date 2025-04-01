@@ -1,3 +1,5 @@
+import copy
+import itertools
 import logging
 import os
 import warnings
@@ -9,8 +11,10 @@ from tqdm import tqdm
 
 from .config import get_default_config, get_logdir
 from .quantum_env import QuantumEnv
+from .evaluation import test_lengths
 from . import metrics
 from . import util
+from .stategen import StateGenerator
 
 
 def environment_loop(agent, env, num_iters, steps, start_iter=1,
@@ -129,7 +133,7 @@ def environment_loop(agent, env, num_iters, steps, start_iter=1,
 
         # Test the agent
         if i > 0 and i % config.test_every == 0:
-            demo_agent(agent, config)
+            demo_agent(agent, env, config)
 
         # Log results
         if i % config.log_every == 0:
@@ -159,34 +163,95 @@ def environment_loop(agent, env, num_iters, steps, start_iter=1,
         tracker.step()
 
 
+@torch.no_grad()
+def demo_agent(agent, env: QuantumEnv, config):
 
-def demo_agent(agent, config):
-    pass
+    def log_results(lengths):
+        ratio_terminated = np.sum(~np.isnan(lengths)) / lengths.size
+        avg_length = np.nanmean(lengths)
+        std_length = np.nanstd(lengths)
+        min_length = np.nanmin(lengths)
+        max_length = np.nanmax(lengths)
+        p90_length = np.nanpercentile(lengths, 90)
+        if np.isnan(avg_length):
+            avg_length = np.inf
+            std_length = np.inf
+            min_length = np.inf
+            max_length = np.inf
+            p90_length = np.inf
+        logging.info(f"\t\tRatio terminated: {ratio_terminated:.3f}")
+        logging.info(f"\t\tAverage length:   {avg_length:.1f} ± {std_length:.1f}")
+        logging.info(f"\t\tMinimum length:   {min_length:.1f}")
+        logging.info(f"\t\tMaximum length:   {max_length:.1f}")
+        logging.info(f"\t\t90-th % length:   {p90_length:.1f}\n")
 
 
+    logging.info('\n\n' + 75 * '-')
+    logging.info("Testing agent on predefined kinds of states...")
+
+    # Iterate trough list of states descriptions.
+    # Example: ["RR-RR-RR", "RRR-RRR", "RRRRRR"]
+    for sdescr in config.test_states:
+        states = itertools.cycle(util.str2state(sdescr) for _ in range(config.num_tests))
+        sample_fn = lambda x: next(states)
+        sampler = StateGenerator(sample_fn, env.num_qubits)
+
+        lengths = test_lengths(agent, sampler,
+                               max_steps=env.max_episode_steps,
+                               obs_fn=config.obs_fn, num_tests=config.num_tests,
+                               epsi=env.epsi, greedy=True)
+        logging.info(f"\n\tState description: {sdescr}")
+        log_results(lengths)
+
+
+    max_subsystem_size = env.simulator.state_generator.sample_params.get("max_subsystem_size")
+    if max_subsystem_size is not None:
+
+        logging.info("\nTesting agent on various subsystem sizes using "
+                     "environment's state sampler...")
+
+        for subsystem_size in range(2, max_subsystem_size+1):
+            # Clone state generator and change `min` and `max_subsystem_size`
+            sampler = copy.deepcopy(env.simulator.state_generator)
+            sampler.update(**dict(min_subsystem_size=subsystem_size,
+                                  max_subsystem_size=subsystem_size))
+
+            lengths = test_lengths(agent, sampler,
+                                max_steps=env.max_episode_steps,
+                                obs_fn=config.obs_fn, num_tests=config.num_tests,
+                                epsi=env.epsi, greedy=True)
+            logging.info(f"\n\tSubsystem size: {subsystem_size}")
+            log_results(lengths)
+    else:
+        pass
+    logging.info('\n' + 75 * '-' + '\n')
+
+
+
+@torch.no_grad()
 def test_agent(agent, initial_states, **environment_kwargs):
     """
     Test the agent on batch of initial states.
 
     Parameters:
-        agent: BaseAgent
+        agent (BaseAgent) :
             The agent to test
-        initial_states: numpy.ndarray
+        initial_states (numpy.ndarray) :
             Batch of initial states.
-        environment_kwargs: dict
+        environment_kwargs (dict) :
             Arguments passed to environment at initialization
 
     Returns: dict
         Dictionary with test results
     """
 
-    # Initialize the environment.
+    # Initialize the environment
     num_qubits = initial_states.ndim - 1
     environment_kwargs["num_qubits"] = num_qubits
     n_states = len(initial_states)
     num_envs = environment_kwargs.get('num_envs', -1)
     if num_envs < 0:
-        num_envs = 128
+        num_envs = 32
     if num_envs > n_states:
         warnings.warn("`num_envs` is greater than the number of initial states."
                       " `num_envs` will be changed to `len(initial_states)`.")
@@ -200,7 +265,7 @@ def test_agent(agent, initial_states, **environment_kwargs):
         env = QuantumEnv(num_qubits=num_qubits, num_envs=len(batch),
                          **environment_kwargs)
         env.reset()
-        env.simulator.states = batch
+        env.set_states(batch)
         o = env.obs_fn(env.simulator.states)
 
         lengths = [None] * env.num_envs

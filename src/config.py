@@ -91,6 +91,8 @@ DEFAULT.test_every = 1000
 
 DEFAULT.num_tests = 100
 
+DEFAULT.test_states = []
+
 DEFAULT.trigger_every = 500
 
 DEFAULT.triggers = []
@@ -120,7 +122,6 @@ DEFAULT.checkpoint.use_tracker = True
 # If `True`, then action selection is performed using `argmax` over the RL agent's policy
 # If `False`, then action is sampled using the policy's probabilities
 DEFAULT.greedy_evaluation_policy = True
-
 
 
 def get_default_config():

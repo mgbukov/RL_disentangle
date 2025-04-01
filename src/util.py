@@ -170,7 +170,7 @@ def srollout(qstate: np.ndarray, agent: PGAgent, max_steps: int = 30):
 
 def peek_policy(state):
     """Returns the agent probabilites for this state."""
-    _, _, probabilities = rollout(state, max_steps=1)
+    _, _, probabilities = srollout(state, max_steps=1)
     return probabilities[0]
 
 
@@ -181,30 +181,49 @@ def sqe(states, batched=False):
     return np.stack(entropies).T
 
 
-def sse(states: np.ndarray, subsystem: Iterable):
+def sse(states: np.ndarray, subsystem: Iterable, batched=True):
     """Calculates subsystem entanglement between `subsystem` and rest of `states`.
 
     Args:
-        states (np.array): A numpy array of shape (b, 2,2,...,2), giving the states in the
+        states (np.array):
+            A numpy array of shape (B,2,2, ..., 2) if `batched` is `True`,
+            otherwise (2, 2, ..., 2).
+        subsystem (Iterable[int]):
+            A list of ints specifying the indices of the qubits to be considered
+            as a subsystem. The subsystem is the same for every state in the
             batch.
-        subsys_A (list[int]): A list of ints specifying the indices of the qubits to be
-            considered as a subsystem. The subsystem is the same for every state in the
-            batch. If None, defaults to half of the system.
+        batched (bool, default=True):
+            If `True`, then the first dimension of `states` is interpreted as
+            batch dimension.
 
     Returns:
-        entropies (np.Array): A numpy array of shape (b,), giving the entropy of each
-            state in the batch.
+        entanglements (np.Array):
+            A numpy array of shape (B,) if `batched == True` giving the entropy
+            of each state in the batch, or numpy array of shape (1,) if
+            `batched == False`
     """
-    L = states.ndim - 1
-    subsys_B = [i for i in range(L) if i not in subsystem]
-    system = subsystem + subsys_B
+    # Increment qubit indices by 1 if we have batch dimension
+    if batched:
+        L = states.ndim - 1
+        subsys_A = [1 + x for x in subsystem]
+        subsys_B = [1 + x for x in range(L) if x not in subsystem]
+    else:
+        L = states.ndim
+        subsys_A = list(subsystem)
+        subsys_B = [i for i in range(L) if i not in subsystem]
+
+    system = subsys_A + subsys_B
     subsys_A_size = len(subsystem)
     subsys_B_size = L - subsys_A_size
-    states = np.transpose(states, (0,) + tuple(t + 1 for t in system))
+
+    tindices = system if batched == False else (0,) + tuple(i+1 for i in system)
+    states = np.transpose(states, tindices)
+
     states = states.reshape((-1, 2 ** subsys_A_size, 2 ** subsys_B_size))
     lmbda = np.linalg.svd(states, full_matrices=False, compute_uv=False)
     lmbda += np.finfo(lmbda.dtype).eps # shift lmbda to be positive within machine precision
-    return -2.0 / subsys_A_size * np.einsum('ai, ai->a', lmbda ** 2, np.log(lmbda))
+    res = -2.0 * np.einsum('ai, ai->a', lmbda ** 2, np.log(lmbda))
+    return np.squeeze(res)
 
 
 def ent_of_formation(rho_2):
