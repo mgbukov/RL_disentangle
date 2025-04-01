@@ -14,7 +14,7 @@ from src.util import str2state
 
 
 # Define the initial states on which we want to test the agent.
-TEST_HAAR_RANDOM_STATES = {
+TEST_HAAR_PRODUCT_STATES = {
     4: ["RR-R-R", "RR-RR", "RRR-R", "RRRR"],
     5: ["RR-R-R-R", "RR-RR-R", "RRR-R-R", "RRR-RR", "RRRR-R", "RRRRR"],
     6: ["RR-R-R-R-R", "RR-RR-R-R", "RR-RR-RR", "RRR-R-R-R", "RRR-RR-R",
@@ -22,7 +22,12 @@ TEST_HAAR_RANDOM_STATES = {
     7: ["RR-RR-RR-R", "RRR-RRR-R", "RRRR-RRR", "RRRRR-RR", "RRRRRR-R"],
     8: ["RRR-RRR-RR", "RRRR-RRRR", "RRRRR-RRR", "RRRRRR-RR", "RRRRRR-R", "RRRRRRRR"],
     10: ["RRR-RRR-RRR-R", "RRR-RRRR-RRR", "RRRR-RRRR-RR", "RRRRR-RRRRR",
-         "RRRRRR-RRRR", "RRRRRRRR-RR", "RRRRRRRRR-R", "RRRRRRRRRR"]
+         "RRRRRR-RRRR", "RRRRRRRR-RR", "RRRRRRRRR-R", "RRRRRRRRRR"],
+    12: ["RR-RR-RR-RR-RR-RR", "RRR-RRR-RRR-RRR", "RRRR-RRRR-RRRR", "RRRR-RRRRR-R",
+         "RRRRRR-RRRRRR"],
+    15: ["RR-RR-RR-RR-RR-RR-RR-R", "RRR-RRR-RRR-RRR-RRR", "RRRR-RRRR-RRRR-RRR",
+         "RRRRR-RRRRR-RRRRR"],
+    16: ["RR-RR-RR-RR-RR-RR-RR-RR", "RRR-RRR-RRR-RRR-RRR-R", "RRRR-RRRR-RRRR-RRRR"]
 }
 
 
@@ -76,7 +81,7 @@ def test_on_haar_random(agent, num_qubits, n_tests=128, **env_kwargs):
 
     for L in num_qubits:
         try:
-            names = TEST_HAAR_RANDOM_STATES[L]
+            names = TEST_HAAR_PRODUCT_STATES[L]
         except:
             continue
         results[L] = {}
@@ -145,7 +150,7 @@ if __name__ == "__main__":
     results["n_tests"] = args.n_tests
 
     if args.haar_random:
-        print("Testing on Haar random states...")
+        print("Testing on Haar product states...")
         results["haar_random"] = test_on_haar_random(
             agent,
             args.num_qubits,

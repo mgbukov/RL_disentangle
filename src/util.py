@@ -62,7 +62,7 @@ def str2state(string_descr):
     zero = np.array([1, 0]).astype(np.complex64)
     one = np.array([0, 1]).astype(np.complex64)
     nqubits = 0
-    chars = "abcdefghijklmn"
+    chars = "abcdefghijklmnopqrstuvwxyz"
 
     for pair in string_descr.split('-'):
         if pair == "B":
