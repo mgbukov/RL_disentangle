@@ -1,4 +1,4 @@
-name: disent
+
 channels:
   - conda-forge
   - pytorch
@@ -13,3 +13,4 @@ dependencies:
   - ipywidgets=8.1.3
   - notebook=7.2.0
   - tqdm=4.66.4
+  - yacs=0.1.8
