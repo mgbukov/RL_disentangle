@@ -36,6 +36,8 @@ class StagedTrainingLevel:
     # Minimum number of iterations to be spent on current level, before
     # transitioning to next one
     min_iterations: int = 1
+    test_min_eta: float = 10.0
+    test_max_eta: float = 10.0
 
 class StagedTrainingTrigger:
 
@@ -60,7 +62,7 @@ class StagedTrainingTrigger:
         if not self.levels:
             return
 
-        logging.info(f"\n\n[StagedTrainingTrigger] Level {self.current_level}")
+        logging.info(f"\n[StagedTrainingTrigger] Level {self.current_level}")
 
         if self.condition():
             self.action()
@@ -81,9 +83,14 @@ class StagedTrainingTrigger:
                 max_subsystem_size=level.test_max_subsystem_size,
             )
         )
-        logging.info("\tInitialized state sampler with parameters:\n"
-                     f"\t\tmin_subsystem_size = {level.test_min_subsystem_size}\n"
-                     f"\t\tmax_subsystem_size = {level.test_max_subsystem_size}")
+        if "min_eta" in test_sampler.sample_params:
+            test_sampler.sample_params.update(dict(min_eta=level.test_min_eta))
+        if "max_eta" in test_sampler.sample_params:
+            test_sampler.sample_params.update(dict(max_eta=level.test_max_eta))
+
+        logging.info("\tInitialized state sampler with parameters:")
+        for k, v in test_sampler.sample_params.items():
+            logging.info(f"\t\t{k} = {v}")
 
         # Test the agent
         logging.info(f"\tTesting agent with maximum rollout steps = {level.test_max_steps}")
@@ -190,17 +197,7 @@ class StagedTrainingTrigger:
             logging.error("Error: No levels were successfully parsed!")
             return []
 
-        allowed_keys = {
-            "min_iterations",
-            "test_max_steps",
-            "test_min_subsystem_size",
-            "test_max_subsystem_size",
-            "threshold_average_length",
-            "threshold_ratio_terminated",
-            "env_parameters",
-            "sgen_parameters",
-            "agent_parameters"
-        }
+        allowed_keys = set(field.name for field in dataclasses.fields(StagedTrainingLevel))
 
         parsed_levels = []
         for level in levels:

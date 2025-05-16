@@ -251,7 +251,11 @@ def sample_haar_generalized(num_qubits: int, min_subsystem_size: int,
     chipar = chivec[bonds]
 
     # Create a Haar random state and decompose it as MPS
-    psi = sample_haar_full(num_qubits)
+    # psi = sample_haar_full(num_qubits)
+    psi = np.array([1.0], dtype=np.complex64)
+    for subsize in subsystem_sizes:
+        psi = np.kron(psi.ravel(), sample_haar_full(subsize).ravel())
+
     Gammas, Lambdas = state_to_MPS(psi, chivec, num_qubits)
 
     # Now modify entanglement structure only at partitions / cuts

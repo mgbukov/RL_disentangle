@@ -2,6 +2,7 @@ import copy
 import itertools
 import logging
 import os
+import time
 import warnings
 from collections import defaultdict
 
@@ -64,6 +65,9 @@ def environment_loop(agent, env, num_iters, steps, start_iter=1,
     run_ret, run_len = np.nan, np.nan
     for i in tqdm(range(start_iter, start_iter + num_iters)):
 
+        # Measure elapsed time
+        tic = time.time()
+
         # Perform parallel step-by-step rollout along multiple trajectories.
         episode_returns, episode_lengths = [], []
         terminated = 0
@@ -109,6 +113,9 @@ def environment_loop(agent, env, num_iters, steps, start_iter=1,
         agent.update(torch_obs, torch_actions, torch_rewards, torch_done,
                      torch_logprobs)
 
+        # Measure elapsed time
+        elapsed = time.time() - tic
+
         # Bookkeeping
         assert len(episode_returns) == len(episode_lengths), "lengths must match"
         total_ep = len(episode_returns)
@@ -137,7 +144,7 @@ def environment_loop(agent, env, num_iters, steps, start_iter=1,
 
         # Log results
         if i % config.log_every == 0:
-            logging.info(f"\nIteration ({i} / {start_iter + num_iters}):")
+            logging.info(f"\nIteration ({i} / {start_iter + num_iters}) [{elapsed:.1f} sec]:")
             for name in tracker.get_names():
                 j, val, std = tracker.get_last_scalar(name)
                 if j == i:
