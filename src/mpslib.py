@@ -189,6 +189,7 @@ def to_right_canonical(Gammas,Lambdas):
 	return Bs
 
 
+
 def to_canonical(Tensors,Lambdas,chi_vec,L,canonical=-1):
 	"""
 	Transforms state frolm left/right canonical to canonical form:

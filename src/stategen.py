@@ -3,7 +3,8 @@ import copy
 
 import numpy as np
 
-from .mpslib import MPS_to_state, generate_random_MPS, state_to_MPS
+from .mpslib import *
+from scipy.stats import unitary_group
 
 
 # Choice of state distribution from which states are drawn on
@@ -239,6 +240,7 @@ def sample_haar_generalized(num_qubits: int, min_subsystem_size: int,
     #   Example: (2, 3, 5, 2)
     subsystem_sizes = sample_subsystem_sizes(num_qubits, min_subsystem_size, max_subsystem_size)
 
+
     # Initialize bond positions array. Bond positions include `0` and `num_qubits`
     #   Example: [0, 2, 5, 10, 12]
     bonds = np.cumsum((0,) + subsystem_sizes)
@@ -256,31 +258,71 @@ def sample_haar_generalized(num_qubits: int, min_subsystem_size: int,
     for subsize in subsystem_sizes:
         psi = np.kron(psi.ravel(), sample_haar_full(subsize).ravel())
 
-    Gammas, Lambdas = state_to_MPS(psi, chivec, num_qubits)
 
-    # Now modify entanglement structure only at partitions / cuts
-    for b, chi in zip(bonds[1:-1], chipar[1:-1]):
+    try:
+        # initiate tensors in left-caninical form
+        Tensors=[]
+        # 
+        Theta=psi.copy()
 
-        # Define new `$\Lambda$` matrix. Since `$\Lambda` is a diagonal matrix,
-        # we generate only the diagonal vector from uniform distribution and
-        # then exponentiate it component-wise. Lambda values define a probability
-        # distribution, so they must sum to 1.
-        eta = np.random.uniform(min_eta, max_eta)
-        lambdaM = eta * np.exp(-eta * np.arange(chi))
-        lambdaM /= np.linalg.norm(lambdaM)
+        for j in range(num_qubits):
+                 
+            # decompose Theta using SVD
+            A,Lambda,B = np.linalg.svd( Theta.reshape(chivec[j]*2, -1), full_matrices=False)
 
-        # Replace corresponding Lambda matrix
-        Lambdas[b] = lambdaM
+            # identify diagonal tensor Lambda
+            if any(b==j+1 for b in bonds[1:-1]): # check if Lambda is to be replaced on bond j
 
-        # Recalculate tensors
-        try:
-            psi = MPS_to_state(Gammas, Lambdas, canonical=0)
-            Gammas, Lambdas = state_to_MPS(psi, chivec, num_qubits, 2)
-        except Exception as ex:
+                # Define new `$\Lambda$` matrix. Since `$\Lambda` is a diagonal matrix,
+                # we generate only the diagonal vector from uniform distribution and
+                # then exponentiate it component-wise. Lambda values define a probability
+                # distribution, so they must sum to 1.
+                eta = np.random.uniform(min_eta, max_eta)
+                Lambda = eta * np.exp(-eta * np.arange(chivec[j+1]))
+                Lambda /= np.linalg.norm(Lambda)
+                
+                # print(j)
+                # print('Lambdas', Lambda)
+                print('norm', Lambda@Lambda)
+                print('Sent', -Lambda@np.log(Lambda)/4) # in units of log(2)
+                print()
+
+            else:
+                Lambda = Lambda[:chivec[j+1]]/np.sqrt(np.sum(np.abs(Lambda[:chivec[j+1]])**2))
+
+            # identify left-canonical tensor A, and right-canonical tensor B
+            A = A[:,:chivec[j+1]].reshape(chivec[j]  ,2,chivec[j+1]) 
+            B = B[:chivec[j+1],:]
+
+            # construct new tensor Theta
+            Theta = np.einsum('a,as->as',Lambda,B)
+
+            # store tensors in left-canonical form
+            Tensors.append(A)
+
+    except Exception as ex:
             print("`eta`:", eta)
             print("`lambdaM`:", eta * np.exp(-eta * np.arange(chi)))
             print("normed `lambdaM`:", lambdaM)
             raise ex
 
-    state = MPS_to_state(Gammas, Lambdas, canonical=0).reshape((2,) * num_qubits)
+    state = MPS_to_state(Tensors, None, canonical=-1).reshape((2,) * num_qubits)
+
+    # print('norm', np.linalg.norm(state))
+
+    # Gammas, Lambdas = state_to_MPS(state, chivec, num_qubits)
+    # # As = to_left_canonical(Gammas,Lambdas)
+
+    # # print(Lambdas[2])
+    # # print(Lambdas[4])
+    # # print(Lambdas[6])
+    # # print(Lambdas[8])
+    # # print(Lambdas[10])
+
+    # # exit()
+
+
     return state if not permute else permute_qubits(state)
+
+
+
