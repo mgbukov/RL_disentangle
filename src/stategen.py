@@ -1,5 +1,5 @@
 """Quantum State Generators"""
-import copy
+from typing import *
 
 import numpy as np
 
@@ -262,11 +262,11 @@ def sample_haar_generalized(num_qubits: int, min_subsystem_size: int,
     try:
         # initiate tensors in left-caninical form
         Tensors=[]
-        # 
+        #
         Theta=psi.copy()
 
         for j in range(num_qubits):
-                 
+
             # decompose Theta using SVD
             A,Lambda,B = np.linalg.svd( Theta.reshape(chivec[j]*2, -1), full_matrices=False)
 
@@ -280,18 +280,18 @@ def sample_haar_generalized(num_qubits: int, min_subsystem_size: int,
                 eta = np.random.uniform(min_eta, max_eta)
                 Lambda = eta * np.exp(-eta * np.arange(chivec[j+1]))
                 Lambda /= np.linalg.norm(Lambda)
-                
+
                 # print(j)
                 # print('Lambdas', Lambda)
-                print('norm', Lambda@Lambda)
-                print('Sent', -Lambda@np.log(Lambda)/4) # in units of log(2)
-                print()
+                # print('norm', Lambda@Lambda)
+                # print('Sent', -Lambda@np.log(Lambda)/4) # in units of log(2)
+                # print()
 
             else:
                 Lambda = Lambda[:chivec[j+1]]/np.sqrt(np.sum(np.abs(Lambda[:chivec[j+1]])**2))
 
             # identify left-canonical tensor A, and right-canonical tensor B
-            A = A[:,:chivec[j+1]].reshape(chivec[j]  ,2,chivec[j+1]) 
+            A = A[:,:chivec[j+1]].reshape(chivec[j]  ,2,chivec[j+1])
             B = B[:chivec[j+1],:]
 
             # construct new tensor Theta
@@ -301,9 +301,9 @@ def sample_haar_generalized(num_qubits: int, min_subsystem_size: int,
             Tensors.append(A)
 
     except Exception as ex:
-            print("`eta`:", eta)
-            print("`lambdaM`:", eta * np.exp(-eta * np.arange(chi)))
-            print("normed `lambdaM`:", lambdaM)
+            # print("`eta`:", eta)
+            # print("`lambdaM`:", eta * np.exp(-eta * np.arange(chi)))
+            # print("normed `lambdaM`:", lambdaM)
             raise ex
 
     state = MPS_to_state(Tensors, None, canonical=-1).reshape((2,) * num_qubits)
@@ -325,4 +325,31 @@ def sample_haar_generalized(num_qubits: int, min_subsystem_size: int,
     return state if not permute else permute_qubits(state)
 
 
+# Global varible to keep track of the offset for each memory mapped file.
+# Used by `sample_from_mmap`
+MMAP_OFFSETS = {}
+MMAP_ARRAYS = {}
 
+
+def sample_from_mmap(num_qubits: int, filepaths: List[str], num_states: List[int]):
+    global MMAP_ARRAYS
+    global MMAP_OFFSETS
+    assert len(filepaths) == len(num_states)
+
+    # Pick file
+    j = np.random.choice(len(filepaths))
+    fpath = filepaths[j]
+    N = num_states[j]
+
+    # If not initialized...
+    if fpath not in MMAP_ARRAYS:
+        shape = (N,) + (2,) * num_qubits
+        memmap_array = np.memmap(fpath, dtype=np.complex64, shape=shape, mode="readonly")
+        MMAP_ARRAYS[fpath] = memmap_array
+        MMAP_OFFSETS[fpath] = 0
+
+    i = MMAP_OFFSETS[fpath]
+    state = MMAP_ARRAYS[fpath][i]
+    MMAP_OFFSETS[fpath] = (i + 1) % N
+
+    return state

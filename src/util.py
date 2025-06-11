@@ -213,7 +213,7 @@ def sse(states: np.ndarray, subsystem: Iterable, batched=True):
         subsys_B = [i for i in range(L) if i not in subsystem]
 
     system = subsys_A + subsys_B
-    subsys_A_size = len(subsystem)
+    subsys_A_size = len(list(subsystem))
     subsys_B_size = L - subsys_A_size
 
     tindices = system if batched == False else (0,) + tuple(i+1 for i in system)

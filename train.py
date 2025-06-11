@@ -36,9 +36,6 @@ def init_triggers(config, agent, env, checkpointed_state=None):
     triggers_list = []
     for name in config.triggers:
         match name:
-            case "StagedStateGeneratorTrigger":
-                x = triggers.StagedStateGeneratorTrigger(config, agent, env)
-                triggers_list.append(x)
             case "StagedTrainingTrigger":
                 x = triggers.StagedTrainingTrigger(config, agent, env)
                 triggers_list.append(x)
