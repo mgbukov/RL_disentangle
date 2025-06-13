@@ -240,88 +240,53 @@ def sample_haar_generalized(num_qubits: int, min_subsystem_size: int,
     #   Example: (2, 3, 5, 2)
     subsystem_sizes = sample_subsystem_sizes(num_qubits, min_subsystem_size, max_subsystem_size)
 
-
     # Initialize bond positions array. Bond positions include `0` and `num_qubits`
     #   Example: [0, 2, 5, 10, 12]
-    bonds = np.cumsum((0,) + subsystem_sizes)
+    bonds = np.asarray(np.cumsum((0,) + subsystem_sizes))
 
     # Initialize bond dimensions
     #   Example: [1, 2, 4, 8, 16, 32, 64, 32, 16, 8, 4, 2, 1]
     chivec = np.array([2 ** min(j, num_qubits - j) for j in range(num_qubits+1)])
 
-    # Initialize partitions
-    chipar = chivec[bonds]
+    # Keep sampling until SVD converges. Usually it takes only 1 iteration.
+    while True:
+        # Sample a Haar random state (left-canonical form)
+        Theta = np.array([1.0], dtype=np.complex64)
+        for subsize in subsystem_sizes:
+            Theta = np.kron(Theta.ravel(), sample_haar_full(subsize).ravel())
 
-    # Create a Haar random state and decompose it as MPS
-    # psi = sample_haar_full(num_qubits)
-    psi = np.array([1.0], dtype=np.complex64)
-    for subsize in subsystem_sizes:
-        psi = np.kron(psi.ravel(), sample_haar_full(subsize).ravel())
+        # Decompose state using SVD
+        tensors = []
+        try:
+            for j in range(num_qubits):
+                A, Lambda, B = np.linalg.svd(Theta.reshape(chivec[j]*2, -1), full_matrices=False)
+                # Identify diagonal tensor Lambda and check if Lambda is to be replaced on bond j
+                if np.any(bonds[1:-1] == (j + 1)):
+                    # Define new `$\Lambda$` matrix. Since `$\Lambda` is a diagonal matrix,
+                    # we generate only the diagonal vector from uniform distribution and
+                    # then exponentiate it component-wise. Lambda values define a probability
+                    # distribution, so they must sum to 1.
+                    eta = np.random.uniform(min_eta, max_eta)
+                    Lambda = eta * np.exp(-eta * np.arange(chivec[j+1]))
+                    Lambda /= np.linalg.norm(Lambda)
+                else:
+                    Lambda = Lambda[:chivec[j+1]] / np.sqrt(np.sum(np.abs(Lambda[:chivec[j+1]])**2))
 
+                # identify left-canonical tensor A, and right-canonical tensor B
+                A = A[:,:chivec[j+1]].reshape(chivec[j], 2, chivec[j+1])
+                B = B[:chivec[j+1],:]
 
-    try:
-        # initiate tensors in left-caninical form
-        Tensors=[]
-        #
-        Theta=psi.copy()
+                # construct new tensor Theta
+                Theta = np.einsum('a,as->as', Lambda, B)
 
-        for j in range(num_qubits):
+                # store tensors in left-canonical form
+                tensors.append(A)
+            # Exit `while` statement
+            break
+        except Exception as ex:
+            pass
 
-            # decompose Theta using SVD
-            A,Lambda,B = np.linalg.svd( Theta.reshape(chivec[j]*2, -1), full_matrices=False)
-
-            # identify diagonal tensor Lambda
-            if any(b==j+1 for b in bonds[1:-1]): # check if Lambda is to be replaced on bond j
-
-                # Define new `$\Lambda$` matrix. Since `$\Lambda` is a diagonal matrix,
-                # we generate only the diagonal vector from uniform distribution and
-                # then exponentiate it component-wise. Lambda values define a probability
-                # distribution, so they must sum to 1.
-                eta = np.random.uniform(min_eta, max_eta)
-                Lambda = eta * np.exp(-eta * np.arange(chivec[j+1]))
-                Lambda /= np.linalg.norm(Lambda)
-
-                # print(j)
-                # print('Lambdas', Lambda)
-                # print('norm', Lambda@Lambda)
-                # print('Sent', -Lambda@np.log(Lambda)/4) # in units of log(2)
-                # print()
-
-            else:
-                Lambda = Lambda[:chivec[j+1]]/np.sqrt(np.sum(np.abs(Lambda[:chivec[j+1]])**2))
-
-            # identify left-canonical tensor A, and right-canonical tensor B
-            A = A[:,:chivec[j+1]].reshape(chivec[j]  ,2,chivec[j+1])
-            B = B[:chivec[j+1],:]
-
-            # construct new tensor Theta
-            Theta = np.einsum('a,as->as',Lambda,B)
-
-            # store tensors in left-canonical form
-            Tensors.append(A)
-
-    except Exception as ex:
-            # print("`eta`:", eta)
-            # print("`lambdaM`:", eta * np.exp(-eta * np.arange(chi)))
-            # print("normed `lambdaM`:", lambdaM)
-            raise ex
-
-    state = MPS_to_state(Tensors, None, canonical=-1).reshape((2,) * num_qubits)
-
-    # print('norm', np.linalg.norm(state))
-
-    # Gammas, Lambdas = state_to_MPS(state, chivec, num_qubits)
-    # # As = to_left_canonical(Gammas,Lambdas)
-
-    # # print(Lambdas[2])
-    # # print(Lambdas[4])
-    # # print(Lambdas[6])
-    # # print(Lambdas[8])
-    # # print(Lambdas[10])
-
-    # # exit()
-
-
+    state = MPS_to_state(tensors, None, canonical=-1).reshape((2,) * num_qubits)
     return state if not permute else permute_qubits(state)
 
 
@@ -344,7 +309,10 @@ def sample_from_mmap(num_qubits: int, filepaths: List[str], num_states: List[int
     # If not initialized...
     if fpath not in MMAP_ARRAYS:
         shape = (N,) + (2,) * num_qubits
-        memmap_array = np.memmap(fpath, dtype=np.complex64, shape=shape, mode="readonly")
+        # array = np.empty(shape, dtype=np.complex64)
+        memmap_array = np.memmap(fpath, dtype=np.complex64, shape=shape, mode="r")
+        # array[:] = memmap_array
+        # del memmap_array
         MMAP_ARRAYS[fpath] = memmap_array
         MMAP_OFFSETS[fpath] = 0
 
