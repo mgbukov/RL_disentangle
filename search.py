@@ -96,12 +96,11 @@ class BeamSearch:
             imincost = np.argmin(costs)
             mincost = costs[imincost]
             # Check if a goal state is reached
-            # if (qubit is not None and mincost < self.epsi) or (qubit is None and (env.entanglements[imincost] < self.epsi).all()):
-            if (qubit is not None and mincost < self.epsi) or (qubit is None and (env.entanglements[imincost].mean() < self.epsi)):
-                # assert env.Entropy(np.expand_dims(next_states[i], 0)) < env.epsi
-                path = fringe[imincost // env.num_actions].path
-                act = actions[imincost]
-                return BeamSearch.Node(next_states[imincost], path + (act,), mincost)
+            if (qubit is not None and mincost < self.epsi) or \
+                (qubit is None and (env.entanglements[imincost] <= self.epsi).all()):
+                    path = fringe[imincost // env.num_actions].path
+                    act = actions[imincost]
+                    return BeamSearch.Node(next_states[imincost], path + (act,), mincost)
             # Get the k-best successors and store them as the new fringe
             successors = []
             for i in range(len(next_states)):
@@ -227,20 +226,17 @@ class RandomAgent():
     def __init__(self, epsi=1e-3):
         self.epsi = epsi
 
-    def start(self, psi, env, num_iter=10_000, verbose=False):
+    def start(self, psi, env, num_iters=10_000, verbose=False):
         path = []
-        entanglements = []
         env.states = np.array([psi])
 
-        for _ in range(num_iter):
+        for _ in range(num_iters):
             act = np.random.randint(low=0, high=env.num_actions)
             _ = env.apply([act])
             path.append(act)
-            entanglements.append(env.entanglements.copy())
-            # if (env.entanglements < self.epsi).all():
-            if env.entanglements.mean() < self.epsi:
-                return path, entanglements
-        return None, None
+            if (env.entanglements <= self.epsi).all():
+                return path
+        return None
 
 
 class GreedyAgent():
@@ -250,7 +246,7 @@ class GreedyAgent():
 
     def start(self, psi, env, qubit=None, num_iter=10_000, verbose=False):
         path = []
-        entanglements = []
+        # entanglements = []
         env.states = np.array([psi])
 
         for _ in range(num_iter):
@@ -268,15 +264,16 @@ class GreedyAgent():
             imincost = np.argmin(costs)
             mincost = costs[imincost]
             path.append(acts[imincost])
-            entanglements.append(env.entanglements.copy())
+            # entanglements.append(env.entanglements.copy())
             env.states = np.array([env.states[imincost]])
 
             # Check if a goal state is reached.
             # if (qubit is not None and mincost < self.epsi) or (qubit is None and (env.entanglements < self.epsi).all()):
             if (qubit is not None and mincost < self.epsi) or (qubit is None and (env.entanglements.mean() < self.epsi)):
-                return path, entanglements
+                # return path, entanglements
+                return path
 
-        return None, None
+        return None
 
 
 if __name__ == "__main__":
@@ -345,11 +342,11 @@ if __name__ == "__main__":
                 },
             })
 
-    # with open("search_stats.json", "w") as f:
-    #     json.dump(results, f, indent="  ")
-    with open("search_stats_1000.pickle", "wb") as f:
-        pickle.dump(results, f)
-    
+    with open("search_stats_8q.json", "w") as f:
+        json.dump(results, f, indent="  ")
+    # with open("search_stats_8q_100.pickle", "wb") as f:
+    #     pickle.dump(results, f)
+
     exit()
 
     plt.style.use("ggplot")
