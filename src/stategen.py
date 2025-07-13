@@ -321,3 +321,45 @@ def sample_from_mmap(num_qubits: int, filepaths: List[str], num_states: List[int
     MMAP_OFFSETS[fpath] = (i + 1) % N
 
     return state
+
+
+def eta_perturb(psi: np.ndarray, eta: float, bonds: List[int]):
+    """Add slight entanglement to specified bonds."""
+    #       0   1   2   3   4   5
+    #       q - q - q - q - q - q
+    #   0     1   2   3   4   5      6
+    num_qubits = int(np.log2(psi.size))
+    chivec = np.array([2 ** min(j, num_qubits - j) for j in range(num_qubits + 1)])
+    bonds = np.asarray(bonds)
+
+    # Keep sampling until SVD converges. Usually it takes only 1 iteration.
+    while True:
+        Theta = psi.copy()
+
+        # Decompose state using SVD
+        tensors = []
+        try:
+            for j in range(num_qubits):
+                A, Lambda, B = np.linalg.svd(Theta.reshape(chivec[j]*2, -1), full_matrices=False)
+                # Identify diagonal tensor Lambda and check if Lambda is to be replaced on bond j
+                if np.any(bonds[1:-1] == (j + 1)):
+                    Lambda = eta * np.exp(-eta * np.arange(chivec[j+1]))
+                    Lambda /= np.linalg.norm(Lambda)
+                else:
+                    Lambda = Lambda[:chivec[j+1]] / np.sqrt(np.sum(np.abs(Lambda[:chivec[j+1]])**2))
+
+                # identify left-canonical tensor A, and right-canonical tensor B
+                A = A[:,:chivec[j+1]].reshape(chivec[j], 2, chivec[j+1])
+                B = B[:chivec[j+1],:]
+
+                # construct new tensor Theta
+                Theta = np.einsum('a,as->as', Lambda, B)
+
+                # store tensors in left-canonical form
+                tensors.append(A)
+            # Exit `while` statement
+            break
+        except Exception as ex:
+            pass
+
+    return MPS_to_state(tensors, None, canonical=-1).reshape((2,) * num_qubits)
