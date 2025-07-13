@@ -1,4 +1,5 @@
 from itertools import permutations, combinations
+from typing import *
 
 import numpy as np
 
@@ -11,26 +12,33 @@ class VectorQuantumState:
     All quantum states in the Vector system have the same number of qubits.
     """
 
-    def __init__(self, num_qubits, num_envs, act_space="reduced",
-                 state_generator=None):
+    def __init__(self, num_qubits: int, num_envs: int, act_space: Optional[str] = "reduced",
+                 state_generator: Optional[stategen.StateGenerator] = None, swaps: bool =True):
         """
         Initialize a vector representation of a quantum system
 
         Args:
-            num_qubits: int
+            num_qubits (int):
                 Number of qubits in each of the quantum states.
-            num_envs: int
+            num_envs (int):
                 Number of quantum states in the vectorized environment.
-            act_space: str, optional
+            act_space (Optional[str]):
                 Whether to use the full or the reduced action space.
                 One of ["full", "reduced"]. Default is "reduced".
-            state_generator: StateGenerator, optional
+            state_generator (Optional[StateGenerator]):
                 Instance of `StateGenerator`. Defaults to `StateGenerator` with
                 `haar_full` sampling function.
+            swaps (bool):
+                If `True` qubit swaps are performed to preserve entanglement relations.
+                Let's say that current state is `s_t`, and action is `(q_i, q_j)`.
+                If S_ent(q_i) < S_ent(q_j), then q_i and q_j will be temporarily swapped before
+                multiplying with U. Denote the next state with s_{t+1}. The relation of single qubit
+                entanglements between q_i and q_j in s_{t+1} will be the same as in s_t.
         """
         assert num_qubits >= 2
         self.num_qubits = num_qubits
         self.num_envs = num_envs
+        self.swaps = swaps
 
         # The action space consists of all possible pairs of qubits.
         if act_space == "full":
@@ -97,18 +105,22 @@ class VectorQuantumState:
         N, Q = self.num_envs, self.num_qubits
         EPS = np.finfo(self.entanglements.dtype).eps
         batch = self._states
-        ax0 = np.arange(N)
 
-        # Move qubits which are modified by `acts` at indices (0, 1).
-        # We will apply the action so that the leading quibt is the one that
-        # has more entanglement entropy.
-        _qubit_indices = np.array([self.actions[a] for a in acts])
-        _ent_relation = (self.entanglements[ax0, _qubit_indices[:, 0]] >= \
-                         self.entanglements[ax0, _qubit_indices[:, 1]] + EPS)
-        qubit_indices = np.where(
-            _ent_relation[:, None], _qubit_indices, _qubit_indices[:,::-1])
-        self.preswaps_ = ~_ent_relation
-        permute_qubits(batch, qubit_indices, Q, inverse=False)
+        ax0 = np.arange(N)
+        if self.swaps:
+            # Move qubits which are modified by `acts` at indices (0, 1).
+            # We will apply the action so that the leading quibt is the one that
+            # has more entanglement entropy.
+            _qubit_indices = np.array([self.actions[a] for a in acts])
+            _ent_relation = (self.entanglements[ax0, _qubit_indices[:, 0]] >= \
+                            self.entanglements[ax0, _qubit_indices[:, 1]] + EPS)
+            qubit_indices = np.where(
+                _ent_relation[:, None], _qubit_indices, _qubit_indices[:,::-1])
+            self.preswaps_ = ~_ent_relation
+            permute_qubits(batch, qubit_indices, Q, inverse=False)
+        else:
+            qubit_indices = np.array([self.actions[a] for a in acts])
+            self.preswaps_ = np.zeros((N,), dtype=bool)
 
         # Compute 4x4 reduced density matrices
         batch = batch.reshape(N, 4, 2 ** (Q - 2))
@@ -140,19 +152,22 @@ class VectorQuantumState:
         self.entanglements = entropy(self._states)
 
         # Do postswaps
-        _post_ent_relation = (self.entanglements[ax0, _qubit_indices[:, 0]] >= \
-                              self.entanglements[ax0, _qubit_indices[:, 1]] + EPS)
-        postswaps_ = []
-        for n in range(N):
-            if _post_ent_relation[n] ^ _ent_relation[n]:
-                i, j = _qubit_indices[n]
-                self._states[n] = np.swapaxes(self._states[n], i, j)
-                self.entanglements[n,i], self.entanglements[n,j] = \
-                self.entanglements[n,j], self.entanglements[n,i]
-                postswaps_.append(True)
-            else:
-                postswaps_.append(False)
-        self.postswaps_ = np.array(postswaps_)
+        if self.swaps:
+            _post_ent_relation = (self.entanglements[ax0, _qubit_indices[:, 0]] >= \
+                                self.entanglements[ax0, _qubit_indices[:, 1]] + EPS)
+            postswaps_ = []
+            for n in range(N):
+                if _post_ent_relation[n] ^ _ent_relation[n]:
+                    i, j = _qubit_indices[n]
+                    self._states[n] = np.swapaxes(self._states[n], i, j)
+                    self.entanglements[n,i], self.entanglements[n,j] = \
+                    self.entanglements[n,j], self.entanglements[n,i]
+                    postswaps_.append(True)
+                else:
+                    postswaps_.append(False)
+            self.postswaps_ = np.array(postswaps_)
+        else:
+            self.postswaps_ = np.zeros_like(self.preswaps_)
 
     def reset_sub_environment_(self, k):
         x = self.state_generator()

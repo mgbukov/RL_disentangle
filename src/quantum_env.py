@@ -21,7 +21,7 @@ class QuantumEnv():
 
     def __init__(self, num_qubits, num_envs, epsi=1e-3, max_episode_steps=1000,
                  reward_fn="sparse", obs_fn="phase_norm", state_generator=None,
-                 fast_obs=False):
+                 fast_obs=False, swaps=True):
         """Init a Quantum environment.
 
         Args:
@@ -52,6 +52,8 @@ class QuantumEnv():
                 This can speed up RDM observations, because RDMs can be
                 calculated only for the subset of qubit pairs which the actions
                 touches.
+            swaps (bool, default=True):
+                See VectorQuantumState.__init__()
         """
         # Private
         self.num_qubits = num_qubits
@@ -59,7 +61,7 @@ class QuantumEnv():
         self.max_episode_steps = max_episode_steps
         act_space = "reduced"
         self.simulator = VectorQuantumState(
-            num_qubits, num_envs, act_space, state_generator)
+            num_qubits, num_envs, act_space, state_generator, swaps=swaps)
         self.reward_fn = getattr(sys.modules[__name__], reward_fn)  # get from this module
         self.obs_fn = getattr(sys.modules[__name__], obs_fn)        # get from this module
         self.obs_dtype = self.obs_fn(self.simulator.states).dtype

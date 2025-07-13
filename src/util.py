@@ -130,7 +130,7 @@ def str2latex(string_descr):
 
 
 
-def srollout(qstate: np.ndarray, agent: PGAgent, max_steps: int = 30):
+def srollout(qstate: np.ndarray, agent: PGAgent, max_steps: int = 30, epsi=1e-3, swaps=True):
     """
     Performs a single rollout with `agent` for `qstate`.
 
@@ -141,7 +141,7 @@ def srollout(qstate: np.ndarray, agent: PGAgent, max_steps: int = 30):
     num_qubits = int(np.log2(qstate.size))
     shape = (2,) * num_qubits
     qstate = qstate.reshape(shape)
-    env = QuantumEnv(num_qubits, 1, obs_fn='rdm_2q_mean_real')
+    env = QuantumEnv(num_qubits, 1, obs_fn='rdm_2q_mean_real', epsi=epsi, swaps=swaps)
     env.reset()
     env.simulator.states = np.expand_dims(qstate, 0)
 
@@ -353,3 +353,14 @@ def load_checkpoint(config):
         checkpoint_dict = pickle.load(f)
 
     return checkpoint_dict
+
+
+def bond_entanglement(state):
+    L = state.ndim
+    res = []
+    for i in range(1, L):
+        e = sse(state, list(range(i)), batched=False) / np.log(2)
+        res.append(e)
+    return np.array(res)
+
+
