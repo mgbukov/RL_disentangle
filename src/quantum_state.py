@@ -41,6 +41,7 @@ class VectorQuantumState:
         self.swaps = swaps
 
         # The action space consists of all possible pairs of qubits.
+        self.act_space = act_space
         if act_space == "full":
             self.actions = dict(enumerate(permutations(range(num_qubits), 2)))
         elif act_space == "reduced":

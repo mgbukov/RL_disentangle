@@ -1,6 +1,8 @@
 import heapq
 import numpy as np
 
+from src.quantum_state import VectorQuantumState
+
 
 class BeamSearch:
     """Beam search works by limiting the size of the fringe to a fixed size k, called the
@@ -284,20 +286,21 @@ class UBSearch():
 
     def start(self, psi, env, num_iters=10_000, verbose=False):
         path = []
-        env.states = np.array([psi])
+        # Clone environment
+        env = VectorQuantumState(env.num_qubits, self.trials, env.act_space, env.state_generator)
+        env.states = np.array([psi] * self.trials)
 
-        minium_steps = np.inf
-        best_path = []
-        for _ in range(self.trials):
-            for _ in range(num_iters):
-                act = np.random.randint(low=0, high=env.num_actions)
-                _ = env.apply([act])
-                path.append(act)
-                if (env.entanglements <= self.epsi).all():
-                    if len(path) < minium_steps:
-                        minium_steps = len(path)
-                        best_path = path
-        return best_path if best_path else None
+        paths = []
+        for _ in range(num_iters):
+            actions = np.random.randint(low=0, high=env.num_actions, size=self.trials)
+            _ = env.apply(actions)
+            paths.append(actions)
+            disentangled = (env.entanglements <= self.epsi).all(axis=1)
+            if np.any(disentangled):
+                k = np.argmax(disentangled)
+                path = [paths[i][k] for i in range(len(paths))]
+                return path
+        return None
 
 
 if __name__ == "__main__":
