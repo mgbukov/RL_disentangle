@@ -276,6 +276,30 @@ class GreedyAgent():
         return None
 
 
+class UBSearch():
+
+    def __init__(self, epsi=1e-3, trials=100):
+        self.epsi = epsi
+        self.trials = trials
+
+    def start(self, psi, env, num_iters=10_000, verbose=False):
+        path = []
+        env.states = np.array([psi])
+
+        minium_steps = np.inf
+        best_path = []
+        for _ in range(self.trials):
+            for _ in range(num_iters):
+                act = np.random.randint(low=0, high=env.num_actions)
+                _ = env.apply([act])
+                path.append(act)
+                if (env.entanglements <= self.epsi).all():
+                    if len(path) < minium_steps:
+                        minium_steps = len(path)
+                        best_path = path
+        return best_path if best_path else None
+
+
 if __name__ == "__main__":
     import json
     import pickle
