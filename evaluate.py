@@ -9,7 +9,7 @@ import numpy as np
 import torch
 
 from src.quantum_env import QuantumEnv
-from src.stategen import sample_mps
+from src.stategen import sample_mps, sample_haar_full, sample_haar_generalized
 from src.util import str2state
 
 
@@ -20,11 +20,12 @@ TEST_HAAR_PRODUCT_STATES = {
     6: ["RR-R-R-R-R", "RR-RR-R-R", "RR-RR-RR", "RRR-R-R-R", "RRR-RR-R",
         "RRRR-R-R", "RRRR-RR", "RRRRR-R", "RRRRRR"],
     7: ["RR-RR-RR-R", "RRR-RRR-R", "RRRR-RRR", "RRRRR-RR", "RRRRRR-R"],
-    8: ["RRR-RRR-RR", "RRRR-RRRR", "RRRRR-RRR", "RRRRRR-RR", "RRRRRR-R", "RRRRRRRR"],
-    10: ["RRR-RRR-RRR-R", "RRR-RRRR-RRR", "RRRR-RRRR-RR", "RRRRR-RRRRR",
-         "RRRRRR-RRRR", "RRRRRRRR-RR", "RRRRRRRRR-R", "RRRRRRRRRR"],
-    12: ["RR-RR-RR-RR-RR-RR", "RRR-RRR-RRR-RRR", "RRRR-RRRR-RRRR", "RRRR-RRRRR-R",
-         "RRRRRR-RRRRRR"],
+    8: ["RR-RR-RR-RR", "RRR-RRR-RR", "RRRR-RRRR", "RRRRR-RRR", "RRRRRR-RR", "RRRRRR-R", "RRRRRRRR"],
+    10: ["RR-RR-RR-RR-RR", "RRR-RRR-RRR-R", "RRRR-RRR-RRR", "RRRR-RRRR-RR",
+         "RRRRR-RRRRR", "RRRRRR-RRRR"],
+         # ["RRRRRRRR-RR", "RRRRRRRRR-R" "RRRRRRRRRR"],
+    12: ["RR-RR-RR-RR-RR-RR", "RRR-RRR-RRR-RRR", "RRRR-RRRR-RRRR",
+         "RRRRR-RRRRR-RR", "RRRRRR-RRRRRR"],
     15: ["RR-RR-RR-RR-RR-RR-RR-R", "RRR-RRR-RRR-RRR-RRR", "RRRR-RRRR-RRRR-RRR",
          "RRRRR-RRRRR-RRRRR"],
     16: ["RR-RR-RR-RR-RR-RR-RR-RR", "RRR-RRR-RRR-RRR-RRR-R", "RRRR-RRRR-RRRR-RRRR"]
@@ -111,6 +112,29 @@ def test_on_mps(agent, num_qubits, chi_max, n_tests=128, **env_kwargs):
     return results
 
 
+def test_on_weakly_entangled(agent, num_qubits, subsystem_size, eta, n_tests=128, **env_kwargs):
+
+    if not isinstance(num_qubits, abc.Iterable):
+        num_qubits = (num_qubits,)
+
+    if not isinstance(subsystem_size, abc.Iterable):
+        subsystem_size = (subsystem_size,)
+
+    if not isinstance(eta, abc.Iterable):
+        eta = (eta,)
+
+    results = {}
+
+    for L in num_qubits:
+        results[L] = {}
+        for ssize in subsystem_size:
+            for e in eta:
+                states = np.array([sample_haar_generalized(L, ssize, ssize, e, e) for _ in range(n_tests)])
+                results[L][f"subsystem_size={ssize},eta={e}"] = test_agent(agent, states, **env_kwargs)
+
+    return results
+
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -124,7 +148,10 @@ if __name__ == "__main__":
     parser.add_argument("--chi_max", nargs='+', type=int, default=[4])
     parser.add_argument("--mps", action="store_true")
     parser.add_argument("--haar_random", action="store_true")
+    parser.add_argument("--weakly_entangled", action="store_true")
     parser.add_argument("--cuda", action="store_true")
+    parser.add_argument("--eta", action="extend", nargs="+", type=float)
+    parser.add_argument("--subsystem_size", action="extend", nargs="+", type=int)
 
     args = parser.parse_args()
 
@@ -150,7 +177,7 @@ if __name__ == "__main__":
     results["n_tests"] = args.n_tests
 
     if args.haar_random:
-        print("Testing on Haar product states...")
+        print("Testing on Haar product states...", flush=True)
         results["haar_random"] = test_on_haar_random(
             agent,
             args.num_qubits,
@@ -159,7 +186,7 @@ if __name__ == "__main__":
         )
 
     if args.mps:
-        print("Testing on Matrix product states...")
+        print("Testing on Matrix product states...", flush=True)
         results["mps"] = test_on_mps(
             agent,
             max(args.num_qubits),
@@ -168,7 +195,17 @@ if __name__ == "__main__":
             **env_kwargs
         )
 
-    print("Testing completed! Writing results...")
+    if args.weakly_entangled:
+        print("Testing on weakly entangled subsystems...", flush=True)
+        results["weakly_entangled_subsystems"] = test_on_weakly_entangled(
+            agent,
+            args.num_qubits,
+            args.subsystem_size,
+            args.eta,
+            **env_kwargs
+        )
+
+    print("Testing completed! Writing results...", flush=True)
     with open(args.output, mode='wt') as f:
         json.dump(results, f, indent=2)
-    print("Done!")
+    print("Done!", flush=True)

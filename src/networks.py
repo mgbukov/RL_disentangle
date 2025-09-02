@@ -24,6 +24,7 @@ class MLP(nn.Module):
         self.out_size = out_size
 
         # Initialize the model architecture.
+        fan_out = self.in_size
         layers = []
         sizes = [self.in_size] + hidden_sizes
         layers.append(nn.Flatten())

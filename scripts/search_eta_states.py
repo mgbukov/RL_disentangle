@@ -12,7 +12,7 @@ from search import RandomAgent, BeamSearch, UBSearch
 
 EPSI = 1e-3
 BEAM_SIZE = 50
-UB_TRIALS = 25
+UB_TRIALS = 20
 
 
 if __name__ == "__main__":
