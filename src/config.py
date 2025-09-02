@@ -83,6 +83,8 @@ DEFAULT.device = "cpu"
 # Seed
 DEFAULT.seed = 0
 
+DEFAULT.logging = True
+
 DEFAULT.log_every = 100
 
 DEFAULT.checkpoint_every = 100

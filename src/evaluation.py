@@ -1,14 +1,14 @@
 import numpy as np
 import torch
 
-from .quantum_env import QuantumEnv
+from .qenv import QEnv
 
 
-def test_lengths(agent, state_sampler, max_steps, obs_fn="rdm_2q_mean_real",
+def test_lengths(agent, state_sampler, max_steps, obs_fn="rdm2m",
                  num_tests=100, epsi=1e-3, greedy=True):
 
         # Initialize RL environment
-        env = QuantumEnv(
+        env = QEnv(
             num_qubits=         state_sampler.num_qubits,
             num_envs=           num_tests,
             epsi=               epsi,
@@ -23,8 +23,7 @@ def test_lengths(agent, state_sampler, max_steps, obs_fn="rdm_2q_mean_real",
 
         o = env.obs_fn(env.simulator.states)
         for i in range(1, max_steps + 1):
-            o = torch.from_numpy(o)
-            pi = agent.policy(o)    # uses torch.no_grad
+            pi = agent.policy(o)
 
             if greedy:
                 acts = torch.argmax(pi.probs, dim=1).cpu().numpy()
@@ -35,6 +34,6 @@ def test_lengths(agent, state_sampler, max_steps, obs_fn="rdm_2q_mean_real",
 
             # We'll update the subenv's entry in the `lengths` array,
             # only if a subenv has just just finished
-            lengths[np.isnan(lengths) & t] = i
+            lengths[np.isnan(lengths) & t.cpu().numpy()] = i
 
         return lengths

@@ -69,7 +69,12 @@ class VectorQuantumState:
         # Store the entanglement of every system for faster retrieval.
         self.entanglements = np.zeros((num_envs, num_qubits), dtype=np.float32)
 
+        # Order of qubits
+        self.qubits_order = np.tile(np.arange(num_qubits), (num_envs,1))
+
         # Dynamic attributes - assinged only after call to `self.apply()`:
+        #   RDMs
+        self.rdms_ = None
         #   Unitary gates applied in last action
         self.Us_ = None
         #   Boolean indicators of (i,j)->(j,i) swaps before U*|psi>
@@ -104,7 +109,7 @@ class VectorQuantumState:
         if len(acts) != self.num_envs:
             raise ValueError(f"Expected array with shape=({self.num_envs},)")
         N, Q = self.num_envs, self.num_qubits
-        EPS = np.finfo(self.entanglements.dtype).eps
+        EPS = 1e-3
         batch = self._states
 
         ax0 = np.arange(N)
@@ -118,28 +123,50 @@ class VectorQuantumState:
             qubit_indices = np.where(
                 _ent_relation[:, None], _qubit_indices, _qubit_indices[:,::-1])
             self.preswaps_ = ~_ent_relation
+            # print("pre _ent_relation:", _ent_relation)
             permute_qubits(batch, qubit_indices, Q, inverse=False)
         else:
             qubit_indices = np.array([self.actions[a] for a in acts])
+            # print("qubit indices:", qubit_indices)
+            permute_qubits(batch, qubit_indices, Q, inverse=False)
             self.preswaps_ = np.zeros((N,), dtype=bool)
+
+        # Update the order of qubits
+        for n in range(self.num_envs):
+            is_swapped = self.preswaps_[n]
+            if is_swapped:
+                i, j = _qubit_indices[n]
+                _qi = self.qubits_order[n,i]
+                _qj = self.qubits_order[n,j]
+                self.qubits_order[n,i] = _qj
+                self.qubits_order[n,j] = _qi
 
         # Compute 4x4 reduced density matrices
         batch = batch.reshape(N, 4, 2 ** (Q - 2))
+        # print("batch:\n", batch.round(4))
         rdms = batch @ np.transpose(batch.conj(), [0, 2, 1])
+        # print("RDMs:\n", rdms.round(4))
         rdms += np.finfo(rdms.dtype).eps * np.diag([0.0, 1.0, 2.0, 4.0])
+        self.rdms_ = rdms
 
         # Compute single qubit entanglements.
         rhos, Us = np.linalg.eigh(rdms)
+        # print("rhos:\n", rhos.round(4))
+        # print("\n\n[np.linalg.eigh] Us:\n", Us.round(4), "\n\n")
         for n in range(N):
             max_col = np.abs(Us[n]).argmax(axis=0)
+            # print(max_col)
             for k in range(4):
+                # print(np.exp(-1j * np.angle(Us[n, max_col[k], k])))
+                # print(k, Us[n,:,k].round(4))
                 Us[n, :, k] *= np.exp(-1j * np.angle(Us[n, max_col[k], k]))
+                # print(k, Us[n,:,k].round(4))
         Us = np.swapaxes(Us.conj(), 1, 2)
         self.Us_ = Us
 
         # Apply unitary gates.
-        batch = (Us @ batch)
-        batch = batch.reshape(self.shape)
+        batch = (Us @ batch).reshape(self.shape)
+        # print("batch:", batch.round(4))
         # Undo qubit permutations
         permute_qubits(batch, qubit_indices, Q, inverse=True)
         self._states = phase_norm(batch)
@@ -150,13 +177,17 @@ class VectorQuantumState:
         q1_entanglement = np.where(self.preswaps_, Sent_q0, Sent_q1)
         self.entanglements[ax0, qubit_indices[:, 0]] = q0_entanglement
         self.entanglements[ax0, qubit_indices[:, 1]] = q1_entanglement
-        self.entanglements = entropy(self._states)
+        # self.entanglements = entropy(self._states)
+        # print("[VectorQuantumState.apply()] post entanglements:\n",
+            #   self.entanglements.round(4))
 
+        # print("_qubit_indices:", _qubit_indices)
         # Do postswaps
         if self.swaps:
             _post_ent_relation = (self.entanglements[ax0, _qubit_indices[:, 0]] >= \
                                 self.entanglements[ax0, _qubit_indices[:, 1]] + EPS)
             postswaps_ = []
+            # print("_post_ent_relation:", _post_ent_relation)
             for n in range(N):
                 if _post_ent_relation[n] ^ _ent_relation[n]:
                     i, j = _qubit_indices[n]
@@ -169,6 +200,16 @@ class VectorQuantumState:
             self.postswaps_ = np.array(postswaps_)
         else:
             self.postswaps_ = np.zeros_like(self.preswaps_)
+
+        # /DEBUG/ Update the order of qubits
+        for n in range(self.num_envs):
+            is_swapped = self.postswaps_[n]
+            if is_swapped:
+                i, j = _qubit_indices[n]
+                _qi = self.qubits_order[n,i]
+                _qj = self.qubits_order[n,j]
+                self.qubits_order[n,i] = _qj
+                self.qubits_order[n,j] = _qi
 
     def reset_sub_environment_(self, k):
         x = self.state_generator()
@@ -186,7 +227,7 @@ def random_quantum_state(q, prob=0.95):
             Number of qubits in the quantum state. Must be non-negative.
         prob: float, optional
             Probability for drawing the state from the full Hilbert space, i.e.
-            all the qubits are entangled. (prob \in (0, 1]). Default 0.95.
+            all the qubits are entangled. (prob \\in (0, 1]). Default 0.95.
 
     Returns:
         psi: np.Array

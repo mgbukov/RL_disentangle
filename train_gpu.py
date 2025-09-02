@@ -12,6 +12,7 @@ python3 train.py -c config.yaml
 """
 import argparse
 import json
+import logging.handlers
 import os
 import logging
 import pickle
@@ -25,10 +26,10 @@ import src.stategen as stategen
 import src.triggers as triggers
 import src.util as util
 from src.config import get_default_config, get_logdir
-from src.environment_loop import environment_loop
+from src.envloop import envloop
 from src.networks import TransformerPE_2qRDM, PermutationInvariantMLP
 from src.ppo import PPOAgent
-from src.quantum_env import QuantumEnv
+from src.qenv import QEnv
 
 
 
@@ -76,7 +77,7 @@ def train_ppo(config):
         logging.debug(f"\t{name} = {val}")
 
     # Initialize RL environment
-    env = QuantumEnv(
+    env = QEnv(
         num_qubits=             config.num_qubits,
         num_envs=               config.num_envs,
         epsi=                   config.epsi,
@@ -175,8 +176,7 @@ def train_ppo(config):
 
     # Run the environment loop
     tic = time.time()
-    environment_loop(agent, env, config.num_iters, config.steps, start_iter,
-                     triggers_list, config)
+    envloop(agent, env, config.num_iters, config.steps, start_iter, triggers_list, config)
     toc = time.time()
     elapsed = time.strftime("%H:%M:%S", time.gmtime(int(toc - tic)))
     logging.info(f"\n\nTraining took {elapsed}")
@@ -202,6 +202,9 @@ def train_ppo(config):
 
 
 if __name__ == "__main__":
+
+    import torch.autograd
+    torch.autograd.set_detect_anomaly(True)
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", "-c", type=str, help="Path to YAML config file")
@@ -243,3 +246,4 @@ if __name__ == "__main__":
 
     # Start training
     train_ppo(config)
+

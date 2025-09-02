@@ -76,7 +76,7 @@ class StagedTrainingTrigger:
         level.min_iterations -= self.config["trigger_every"]
 
         # Initialize state sampler to test agent accuracy on the current level
-        test_sampler = copy.deepcopy(self.env.simulator.state_generator)
+        test_sampler = copy.deepcopy(self.env.state_generator)
         test_sampler.sample_params.update(
             dict(
                 min_subsystem_size=level.test_min_subsystem_size,
@@ -149,8 +149,8 @@ class StagedTrainingTrigger:
 
         # Update state generator & log
         for name, val in level.sgen_parameters.items():
-            setattr(self.env.simulator.state_generator, name, val)
-            newval = getattr(self.env.simulator.state_generator, name)
+            setattr(self.env.state_generator, name, val)
+            newval = getattr(self.env.state_generator, name)
             logging.info(f"\t\t[State Generator] {name} = {newval}")
 
         # Update and reset RL environment & log

@@ -174,10 +174,21 @@ def peek_policy(state):
     return probabilities[0]
 
 
+def fidelity(x: np.ndarray, y: np.ndarray, batched: bool = True):
+    assert x.shape == y.shape
+    if batched:
+        N = x.shape[0]
+    else:
+        N = 1
+    psi = x.reshape(N, -1)
+    phi = y.reshape(N, -1)
+    return np.abs(np.einsum("ij,ij->i", psi.conj(), phi)) ** 2
+
+
 def sqe(states, batched=False):
     """Calculates single qubit entanglements."""
-    L = states.ndim - 1
-    entropies = [sse(states, [i]) for i in range(L)]
+    L = states.ndim - 1 if batched else states.ndim
+    entropies = [sse(states, [i], batched) for i in range(L)]
     return np.stack(entropies).T
 
 
@@ -216,14 +227,14 @@ def sse(states: np.ndarray, subsystem: Iterable, batched=True):
     subsys_A_size = len(list(subsystem))
     subsys_B_size = L - subsys_A_size
 
-    tindices = system if batched == False else (0,) + tuple(i+1 for i in system)
+    tindices = system if batched == False else (0,) + tuple(system)
     states = np.transpose(states, tindices)
 
     states = states.reshape((-1, 2 ** subsys_A_size, 2 ** subsys_B_size))
     lmbda = np.linalg.svd(states, full_matrices=False, compute_uv=False)
     lmbda += np.finfo(lmbda.dtype).eps # shift lmbda to be positive within machine precision
     res = -2.0 * np.einsum('ai, ai->a', lmbda ** 2, np.log(lmbda))
-    return np.squeeze(res)
+    return np.squeeze(res) if not batched else res
 
 
 def ent_of_formation(rho_2):
@@ -364,3 +375,75 @@ def bond_entanglement(state):
     return np.array(res)
 
 
+
+def cuda_sqe(states: torch.Tensor, batched: bool = False):
+    """Calculates single qubit entanglements."""
+    L = states.ndim - 1
+    eps = torch.tensor([torch.finfo(torch.float32).eps]).to(device="cuda")
+
+    if batched:
+        B = states.shape[0]
+        L = states.ndim - 1
+        entanglements = torch.empty((B, L))
+        for i in range(L):
+            x = torch.movedim(states, i + 1, 1).reshape(B, 2, 2**(L-1))
+            _, S, _ = torch.linalg.svd(x, full_matrices=False)
+            # `S` has be positive
+            S = torch.maximum(S, eps)
+            ent = -2.0 * torch.einsum('ai, ai->a', S ** 2, torch.log(S))
+            entanglements[:, i] = ent
+    else:
+        entanglements = torch.empty(L)
+        for i in range(L):
+            x = torch.movedim(states, i, 0).reshape(2, 2**(L-1))
+            _, S, _ = torch.linalg.svd(x, full_matrices=False)
+            # `S` has be positive
+            S += eps
+            ent = -2.0 * torch.einsum('ai, ai->a', S ** 2, torch.log(S))
+            entanglements[i] = ent
+    return entanglements
+
+
+def cuda_sse(states: torch.Tensor, subsystem: Iterable[int], batched=True):
+    """Calculates subsystem entanglement between `subsystem` and rest of `states`.
+
+    Args:
+        states (np.array):
+            A numpy array of shape (B,2,2, ..., 2) if `batched` is `True`,
+            otherwise (2, 2, ..., 2).
+        subsystem (Iterable[int]):
+            A list of ints specifying the indices of the qubits to be considered
+            as a subsystem. The subsystem is the same for every state in the
+            batch.
+        batched (bool, default=True):
+            If `True`, then the first dimension of `states` is interpreted as
+            batch dimension.
+
+    Returns:
+        entanglements (np.Array):
+            A numpy array of shape (B,) if `batched == True` giving the entropy
+            of each state in the batch, or numpy array of shape (1,) if
+            `batched == False`
+    """
+    # Increment qubit indices by 1 if we have batch dimension
+    if batched:
+        L = states.ndim - 1
+        subsys_A = [1 + x for x in subsystem]
+        subsys_B = [1 + x for x in range(L) if x not in subsystem]
+    else:
+        L = states.ndim
+        subsys_A = list(subsystem)
+        subsys_B = [i for i in range(L) if i not in subsystem]
+
+    system = subsys_A + subsys_B
+    subsys_A_size = len(list(subsystem))
+    subsys_B_size = L - subsys_A_size
+
+    tindices = system if batched == False else (0,) + tuple(i+1 for i in system)
+    states = np.transpose(states, tindices)
+
+    states = states.reshape((-1, 2 ** subsys_A_size, 2 ** subsys_B_size))
+    lmbda = np.linalg.svd(states, full_matrices=False, compute_uv=False)
+    lmbda += np.finfo(lmbda.dtype).eps # shift lmbda to be positive within machine precision
+    res = -2.0 * np.einsum('ai, ai->a', lmbda ** 2, np.log(lmbda))
+    return np.squeeze(res)

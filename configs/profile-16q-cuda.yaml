@@ -1,0 +1,39 @@
+device: "cuda"
+seed: 10
+
+num_qubits: 16
+num_iters: 10
+num_envs: 32
+steps: 20
+steps_limit: 1000
+epsi: 1e-3
+obs_fn: rdm2m
+fast_obs: True
+reward_fn: relative_delta
+stategen_fn: sample_haar_generalized
+stategen_params: [
+  [min_subsystem_size, 2],
+  [max_subsystem_size, 4],
+  [min_eta, 3.8],
+  [max_eta, 3.8]
+]
+
+pi_lr: 1e-4
+vf_lr: 1e-4
+discount: 0.99
+batch_size: 256
+clip_grad: 1.0
+entropy_reg: 0.005
+embed_dim: 64
+dim_mlp: 256
+attn_heads: 4
+transformer_layers: 4
+
+logging: False
+log_every: 100
+checkpoint_every: 1000
+test_every: 100000
+num_tests: 100
+trigger_every: 100000
+triggers: []
+triggers_levels: []
