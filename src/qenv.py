@@ -253,8 +253,8 @@ class VectorizedQState:
             raise ValueError("Different number of qubits!")
         self.num_envs = x.shape[0]
         self.shape = x.shape
-        self._states = phase_norm(x).to(dtype=torch.complex64)
-        e = sqe(self._states, batched=True)
+        self._states = phase_norm(x).to(dtype=torch.complex64, device=self.device)
+        e = sqe(self._states.cpu().numpy(), batched=True)
         self.entanglements = torch.from_numpy(e)
 
     def apply(self, indices: List[Tuple[int,int]]):
@@ -305,7 +305,7 @@ class VectorizedQState:
         rdms = torch.einsum("...ik, ...jk-> ...ij", batch, batch.conj())
         # rdms = batch @ torch.permute(batch.resolve_conj(), [0,2,1])
         # print("RDMs:\n", rdms)
-        D = torch.diag(torch.tensor([0.0, 1.0, 2.0, 4.0]))
+        D = torch.diag(torch.tensor([1.0, 2.0, 4.0, 8.0], device=self.device))
         rdms += torch.finfo(rdms.dtype).eps * D
         self.rdms_ = rdms
 
@@ -315,7 +315,7 @@ class VectorizedQState:
         # Us = Us.to(dtype=torch.complex64)
         # print("rhos:\n", rhos)
         # print("\n\n[torch.linalg.eigh] Us:\n", Us, "\n\n")
-        j = torch.tensor([1.0j], dtype=torch.complex64)
+        j = torch.tensor([1.0j], dtype=torch.complex64, device=self.device)
         for n in range(N):
             max_col = torch.abs(Us[n]).argmax(dim=0)
             # print(max_col)
