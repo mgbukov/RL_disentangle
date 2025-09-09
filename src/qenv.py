@@ -9,7 +9,7 @@ from .stategen import StateGenerator, sample_haar_full
 from .quantum_state import VectorQuantumState
 from . import observations
 from . import rewards
-from .util import sqe, cuda_sqe
+from .util import sqe, torch_sqe
 
 
 observation_space   = namedtuple("observation_space", ["shape"])
@@ -22,8 +22,8 @@ class QEnv:
                  max_episode_steps: int = 1000, act_space: str = "reduced",
                  reward_fn: str = "sparse", obs_fn: str = "phase_norm",
                  state_generator: Optional[StateGenerator] = None,
-                 fast_obs: bool = False, swaps: bool = True,
-                 device: Union[str, torch.device] = "cpu"):
+                 fast_ents: bool = False, fast_obs: bool = False,
+                 swaps: bool = True, device: Union[str, torch.device] = "cpu"):
         self.device = device
         self.num_envs = num_envs
         self.num_qubits = num_qubits
@@ -54,8 +54,8 @@ class QEnv:
         self.single_action_space = action_space(n=self.num_actions)
 
         # Initialize state simulator
-        self.simulator = VectorizedQState(num_qubits, num_envs, swaps, device)
-        
+        self.simulator = VectorizedQState(num_qubits, num_envs, swaps, fast_ents, device)
+
         # Bind reward and observation functions
         self.reward_fn = getattr(rewards, reward_fn)
         self.obs_fn = getattr(observations, obs_fn)
@@ -202,12 +202,13 @@ class QEnv:
 class VectorizedQState:
 
     def __init__(self, num_qubits: int, num_envs: int, swaps: bool = True,
-                 device: str|torch.device = "cuda"):
+                 fast_ents: bool = True, device: str|torch.device = "cuda"):
         assert num_qubits > 1
         self.device = torch.device(device)
         self.num_qubits = num_qubits
         self.num_envs = num_envs
         self.swaps = swaps
+        self.fast_ents = fast_ents
 
         # Every system in the vectorized environment is represented as a
         # torch Tensor of complex numbers with shape (`num_envs`, 2, 2, ..., 2)
@@ -215,7 +216,7 @@ class VectorizedQState:
         self._states = torch.zeros(self.shape, dtype=torch.complex64, device=self.device)
 
         # Cache the single qubit entanglements of each system.
-        # Keep this tensor in host memory
+        # Keep this tensor in host memory.
         self.entanglements = torch.empty(
             (num_envs, num_qubits), dtype=torch.float32, device="cpu"
         )
@@ -239,10 +240,10 @@ class VectorizedQState:
     def __setitem__(self, i: int, x: torch.Tensor):
         assert x.ndim == self.num_qubits
         self._states[i] = x.to(device=self.device)
-        e = sqe(x.cpu().numpy(), batched=False)
+        e = torch_sqe(x, batched=False)
         # Update entanglements and qubit order
-        self.entanglements[i] = torch.from_numpy(e)
         self.qubits_order[i] = torch.arange(self.num_qubits)
+        self.entanglements[i] = e.cpu()
 
     @property
     def states(self): return self._states
@@ -254,8 +255,8 @@ class VectorizedQState:
         self.num_envs = x.shape[0]
         self.shape = x.shape
         self._states = phase_norm(x).to(dtype=torch.complex64, device=self.device)
-        e = sqe(self._states.cpu().numpy(), batched=True)
-        self.entanglements = torch.from_numpy(e)
+        e = torch_sqe(self._states, batched=True)
+        self.entanglements = e.cpu()
 
     def apply(self, indices: List[Tuple[int,int]]):
         # Check input
@@ -263,37 +264,43 @@ class VectorizedQState:
             raise ValueError(f"Expected list with length {self.num_envs}")
 
         N, Q = self.num_envs, self.num_qubits
-        eps = 1e-3
+        # eps = torch.tensor([np.finfo(np.float32).eps], dtype=torch.float32)
+        eps = torch.tensor([1e-3], dtype=torch.float32)
         batch = self._states
 
         ax0 = np.arange(N)
         input_indices = np.array(indices)
+
+        # Constuct an effective list of qubit pairs (i,j) to be moved to
+        # positions (0,1)
+        # The effective list is the one after appying preswap gate (maybe)
         if self.swaps:
-            # Move qubits which are modified by `acts` at indices (0, 1).
-            # We will apply the action so that the leading quibt is the one that
-            # has more entanglement entropy.
-            ent_relation = (self.entanglements[ax0, input_indices[:, 0]] >= \
-                            self.entanglements[ax0, input_indices[:, 1]] + eps)
-            np_qubit_indices = np.where(
+            # We will apply the action so that the leading quibt is the
+            # one that has more entanglement entropy.
+            ent_q0 = self.entanglements[ax0, input_indices[:, 0]]
+            ent_q1 = self.entanglements[ax0, input_indices[:, 1]]
+            ent_relation = ent_q0 >= (ent_q1 + eps)
+            assert ent_relation.dtype == torch.bool
+            indices_01 = np.where(
                 ent_relation.cpu().numpy()[:, None],
                 input_indices,
                 input_indices[:,::-1]
             )
-            indices = [tuple(x) for x in np_qubit_indices]
             self.preswaps_ = ~ent_relation
             # print("pre ent_relation:", ent_relation)
-            permute_qubits(batch, indices, inverse=False)
         else:
             ent_relation = torch.zeros(N, dtype=torch.bool)
-            np_qubit_indices = input_indices.copy()
-            permute_qubits(batch, indices, inverse=False)
+            indices_01 = input_indices.copy()
             self.preswaps_ = torch.zeros(N, dtype=torch.bool)
+
+        # Move qubits which are about to be multiplied with U at indices (0, 1)
+        permute_qubits(batch, indices_01, inverse=False)
 
         # /DEBUG/ Update the order of qubits
         for n in range(self.num_envs):
             is_swapped = self.preswaps_[n]
             if is_swapped:
-                i, j = np_qubit_indices[n]
+                i, j = indices_01[n]
                 _qi = self.qubits_order[n,i].clone()
                 _qj = self.qubits_order[n,j].clone()
                 self.qubits_order[n,i] = _qj
@@ -311,6 +318,7 @@ class VectorizedQState:
 
         # [CUDA] Compute unitary gates
         rhos, Us = torch.linalg.eigh(rdms)
+        self.Us_ = Us
         # rhos = rhos.to(dtype=torch.float32)
         # Us = Us.to(dtype=torch.complex64)
         # print("rhos:\n", rhos)
@@ -325,30 +333,35 @@ class VectorizedQState:
                 Us[n, :, k] *= torch.exp(-j * torch.angle(Us[n, max_col[k], k]))
                 # print(k, Us[n,:,k])
         Us = torch.swapaxes(Us.conj(), 1, 2)
-        self.Us_ = Us.resolve_conj()
+        # self.Us_ = Us.resolve_conj()
+        self.rhos_ = rhos
 
         # [CUDA] Apply unitary gates
         batch = torch.matmul(Us, batch).reshape(self.shape)
         # print("batch:", batch)
-        permute_qubits(batch, indices, inverse=True)
+
+        # Move qubits from (0,1) to (i,j)
+        permute_qubits(batch, indices_01, inverse=True)
         self._states = phase_norm(batch)
 
-        # [CPU] Recalculate entanglements only for q_0 and q_1
-        Sent_q0, Sent_q1 = calculate_sqe_from_rhos(rhos.cpu())
-        # [CUDA] Update entanglements for q_0 and q_1
-        q0_entanglement = torch.where(self.preswaps_, Sent_q1, Sent_q0)
-        q1_entanglement = torch.where(self.preswaps_, Sent_q0, Sent_q1)
-        self.entanglements[ax0, np_qubit_indices[:, 0]] = q0_entanglement
-        self.entanglements[ax0, np_qubit_indices[:, 1]] = q1_entanglement
+        # [CPU] Recalculate entanglements only for qubits (i,j) on which
+        # U was applied.
+        if self.fast_ents:
+            Sent_q0, Sent_q1 = calculate_sqe_from_rhos(rhos.cpu())
+            self.entanglements[ax0, indices_01[:, 0]] = Sent_q0
+            self.entanglements[ax0, indices_01[:, 1]] = Sent_q1
+        else:
+            self.entanglements = torch_sqe(self._states, batched=True)
         # print("[VectorizedQState.apply()] post entanglements:\n",
             #   self.entanglements.numpy().round(4))
 
         # print("input_indices:", input_indices)
+
         # Do postswaps
         if self.swaps:
-            post_ent_relation = (self.entanglements[ax0, input_indices[:, 0]] >= \
-                                 self.entanglements[ax0, input_indices[:, 1]] + eps)
-            # print("post_ent_relation", post_ent_relation)
+            ent_q0 = self.entanglements[ax0, input_indices[:, 0]]
+            ent_q1 = self.entanglements[ax0, input_indices[:, 1]]
+            post_ent_relation = ent_q0 >= (ent_q1 + eps)
             self.postswaps_ = torch.empty_like(self.preswaps_)
             for n in range(N):
                 if post_ent_relation[n] ^ ent_relation[n]:
@@ -371,7 +384,7 @@ class VectorizedQState:
         for n in range(self.num_envs):
             is_swapped = self.postswaps_[n]
             if is_swapped:
-                i, j = np_qubit_indices[n]
+                i, j = indices_01[n]
                 _qi = self.qubits_order[n,i].clone()
                 _qj = self.qubits_order[n,j].clone()
                 self.qubits_order[n,i] = _qj
@@ -406,6 +419,8 @@ def permute_qubits(
     # PyTorch does not allow assigning to tensor with itself
     x = batch.clone()
     for i, pair in enumerate(qubits_indices):
+        if not isinstance(pair, tuple):
+            pair = tuple(pair)
         if inverse:
             batch[i] = torch.movedim(x[i], (0,1), pair)
         else:

@@ -109,7 +109,7 @@ class VectorQuantumState:
         if len(acts) != self.num_envs:
             raise ValueError(f"Expected array with shape=({self.num_envs},)")
         N, Q = self.num_envs, self.num_qubits
-        EPS = 1e-3
+        EPS = 1e-3 #np.finfo(np.float32).eps
         batch = self._states
 
         ax0 = np.arange(N)
@@ -151,6 +151,7 @@ class VectorQuantumState:
 
         # Compute single qubit entanglements.
         rhos, Us = np.linalg.eigh(rdms)
+        self.Us_ = Us
         # print("rhos:\n", rhos.round(4))
         # print("\n\n[np.linalg.eigh] Us:\n", Us.round(4), "\n\n")
         for n in range(N):
@@ -162,7 +163,8 @@ class VectorQuantumState:
                 Us[n, :, k] *= np.exp(-1j * np.angle(Us[n, max_col[k], k]))
                 # print(k, Us[n,:,k].round(4))
         Us = np.swapaxes(Us.conj(), 1, 2)
-        self.Us_ = Us
+        # self.Us_ = Us
+        self.rhos_ = rhos
 
         # Apply unitary gates.
         batch = (Us @ batch).reshape(self.shape)
@@ -172,12 +174,10 @@ class VectorQuantumState:
         self._states = phase_norm(batch)
 
         # Recalculate entanglements only for q0 and q1.
-        Sent_q0, Sent_q1 = calculate_q0_q1_entropy_from_rhos(rhos)
-        q0_entanglement = np.where(self.preswaps_, Sent_q1, Sent_q0)
-        q1_entanglement = np.where(self.preswaps_, Sent_q0, Sent_q1)
-        self.entanglements[ax0, qubit_indices[:, 0]] = q0_entanglement
-        self.entanglements[ax0, qubit_indices[:, 1]] = q1_entanglement
-        # self.entanglements = entropy(self._states)
+        # Sent_q0, Sent_q1 = calculate_q0_q1_entropy_from_rhos(rhos)
+        # self.entanglements[ax0, qubit_indices[:, 0]] = Sent_q0
+        # self.entanglements[ax0, qubit_indices[:, 1]] = Sent_q1
+        self.entanglements = entropy(self._states)
         # print("[VectorQuantumState.apply()] post entanglements:\n",
             #   self.entanglements.round(4))
 
