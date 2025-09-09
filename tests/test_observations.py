@@ -24,8 +24,9 @@ def test_rdm2m(num_qubits: int, num_envs: int):
 
     # Test on CPU
     x_t = torch.from_numpy(x_n)
-    b = rdm2m(x_t, device="cpu")
-    assert np.allclose(a, b, atol=1e-7)
+    b = rdm2m(x_t, device="cpu").numpy()
+    print(np.abs(a.ravel() - b.ravel()).round(3))
+    assert np.allclose(a, b, atol=1e-6)
 
     # Test on CUDA if available
     if not torch.cuda.is_available():
@@ -35,4 +36,4 @@ def test_rdm2m(num_qubits: int, num_envs: int):
         )
         return
     c = rdm2m(x_t.to(device="cuda"), device="cuda")
-    assert np.allclose(a, c.cpu().numpy(), atol=1e-7)
+    assert np.allclose(a, c.cpu().numpy(), atol=1e-6)

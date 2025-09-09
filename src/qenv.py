@@ -202,7 +202,7 @@ class QEnv:
 class VectorizedQState:
 
     def __init__(self, num_qubits: int, num_envs: int, swaps: bool = True,
-                 fast_ents: bool = True, device: str|torch.device = "cuda"):
+                 fast_ents: bool = True, device: str|torch.device = "cpu"):
         assert num_qubits > 1
         self.device = torch.device(device)
         self.num_qubits = num_qubits

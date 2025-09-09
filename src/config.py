@@ -31,7 +31,11 @@ DEFAULT.obs_fn = "rdm_2q_mean_real"
 # If `True`, reuse previous RDM observations and re-compute new RDMs only
 # for qubit pairs (i,j) such that either `i` or `j` is modified by an action.
 # This option cuts the rollout time by half for 15-qubit systems.
-DEFAULT.fast_obs = False
+DEFAULT.fast_obs = True
+
+# If `True`, entanglements are recomputed only for qubits (i,j) which were
+# multiplied by U
+DEFAULT.fast_ents = True
 
 # Reward function used by the RL environment
 DEFAULT.reward_fn = "relative_delta"
@@ -78,7 +82,8 @@ DEFAULT.transformer_layers = 4
 
 # ===----------------- Other -----------------=== #
 
-DEFAULT.device = "cpu"
+DEFAULT.env_device = "cpu"
+DEFAULT.model_device = "cpu"
 
 # Seed
 DEFAULT.seed = 0

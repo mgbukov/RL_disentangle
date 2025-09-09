@@ -15,7 +15,6 @@ def test_lengths(agent, state_sampler, max_steps, obs_fn="rdm2m",
             max_episode_steps=  max_steps,
             obs_fn=             obs_fn,
             state_generator=    state_sampler,
-
         )
         env.reset()
 
@@ -29,9 +28,7 @@ def test_lengths(agent, state_sampler, max_steps, obs_fn="rdm2m",
                 acts = torch.argmax(pi.probs, dim=1).cpu().numpy()
             else:
                 acts = pi.sample().cpu().numpy()
-
-            o, r, t, tr, infos = env.step(acts)
-
+            o, r, t, tr, infos = env.step(acts, reset=False)
             # We'll update the subenv's entry in the `lengths` array,
             # only if a subenv has just just finished
             lengths[np.isnan(lengths) & t.cpu().numpy()] = i

@@ -85,13 +85,15 @@ def train_ppo(config):
         reward_fn=              config.reward_fn,
         obs_fn=                 config.obs_fn,
         state_generator=        state_generator,
-        fast_obs=               config.fast_obs
+        fast_obs=               config.fast_obs,
+        fast_ents=              config.fast_ents,
+        device=                 config.env_device
     )
     logging.debug("Initialized RL environment")
 
     # Initialize value function
     in_shape = env.single_observation_space.shape
-    value_network = PermutationInvariantMLP(in_shape[-1], [128, 256], 1).to(device)
+    value_network = PermutationInvariantMLP(in_shape[-1], [128, 256], 1).to(config.model_device)
     logging.debug("Initialized value network")
 
     # Initialize policy function
@@ -101,7 +103,7 @@ def train_ppo(config):
         dim_mlp=        config.dim_mlp,
         n_heads=        config.attn_heads,
         n_layers=       config.transformer_layers
-    ).to(device)
+    ).to(config.model_device)
     logging.debug("Initialized policy network")
 
     # Initialize RL agent
@@ -236,7 +238,7 @@ if __name__ == "__main__":
         logging.basicConfig(format="%(message)s", level=logging.INFO, handlers=[logging.NullHandler()])
 
     # Set device
-    device = torch.device(config.device)
+    device = torch.device(config.model_device)
 
     # Set random seeds
     seed = config.seed

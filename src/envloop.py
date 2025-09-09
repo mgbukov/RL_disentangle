@@ -50,7 +50,7 @@ def envloop(agent: PPOAgent, env: QEnv, num_iters: int, steps: int,
     if config is None:
         config = get_default_config()
 
-    device = torch.device(config.device)
+    device = torch.device(config.model_device)
     num_envs = env.num_envs
     env.reset()
 
