@@ -27,7 +27,8 @@ class MLP(nn.Module):
         layers = []
         sizes = [self.in_size] + hidden_sizes
         layers.append(nn.Flatten())
-        for fan_in ,fan_out in zip(sizes[:-1], sizes[1:]):
+        fan_out = self.in_size
+        for fan_in, fan_out in zip(sizes[:-1], sizes[1:]):
             layers.extend([
                 nn.Linear(fan_in, fan_out),
                 nn.ReLU(),

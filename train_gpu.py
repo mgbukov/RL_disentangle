@@ -27,7 +27,7 @@ import src.triggers as triggers
 import src.util as util
 from src.config import get_default_config, get_logdir
 from src.envloop import envloop
-from src.networks import TransformerPE_2qRDM, PermutationInvariantMLP
+from src.networks import TransformerPE_2qRDM, MLP
 from src.ppo import PPOAgent
 from src.qenv import QEnv
 
@@ -93,7 +93,7 @@ def train_ppo(config):
 
     # Initialize value function
     in_shape = env.single_observation_space.shape
-    value_network = PermutationInvariantMLP(in_shape[-1], [128, 256], 1).to(config.model_device)
+    value_network = MLP(in_shape, [128, 256], 1).to(device)
     logging.debug("Initialized value network")
 
     # Initialize policy function
