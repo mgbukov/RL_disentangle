@@ -123,15 +123,13 @@ class VectorQuantumState:
             qubit_indices = np.where(
                 _ent_relation[:, None], _qubit_indices, _qubit_indices[:,::-1])
             self.preswaps_ = ~_ent_relation
-            # print("pre _ent_relation:", _ent_relation)
             permute_qubits(batch, qubit_indices, Q, inverse=False)
         else:
             qubit_indices = np.array([self.actions[a] for a in acts])
-            # print("qubit indices:", qubit_indices)
             permute_qubits(batch, qubit_indices, Q, inverse=False)
             self.preswaps_ = np.zeros((N,), dtype=bool)
 
-        # Update the order of qubits
+        # /DEBUG/ Update the order of qubits
         for n in range(self.num_envs):
             is_swapped = self.preswaps_[n]
             if is_swapped:
@@ -143,51 +141,36 @@ class VectorQuantumState:
 
         # Compute 4x4 reduced density matrices
         batch = batch.reshape(N, 4, 2 ** (Q - 2))
-        # print("batch:\n", batch.round(4))
         rdms = batch @ np.transpose(batch.conj(), [0, 2, 1])
-        # print("RDMs:\n", rdms.round(4))
         rdms += np.finfo(rdms.dtype).eps * np.diag([0.0, 1.0, 2.0, 4.0])
         self.rdms_ = rdms
 
         # Compute single qubit entanglements.
         rhos, Us = np.linalg.eigh(rdms)
-        self.Us_ = Us
-        # print("rhos:\n", rhos.round(4))
-        # print("\n\n[np.linalg.eigh] Us:\n", Us.round(4), "\n\n")
         for n in range(N):
             max_col = np.abs(Us[n]).argmax(axis=0)
-            # print(max_col)
             for k in range(4):
-                # print(np.exp(-1j * np.angle(Us[n, max_col[k], k])))
-                # print(k, Us[n,:,k].round(4))
                 Us[n, :, k] *= np.exp(-1j * np.angle(Us[n, max_col[k], k]))
-                # print(k, Us[n,:,k].round(4))
         Us = np.swapaxes(Us.conj(), 1, 2)
-        # self.Us_ = Us
+        self.Us_ = Us
         self.rhos_ = rhos
 
         # Apply unitary gates.
         batch = (Us @ batch).reshape(self.shape)
-        # print("batch:", batch.round(4))
         # Undo qubit permutations
         permute_qubits(batch, qubit_indices, Q, inverse=True)
         self._states = phase_norm(batch)
 
         # Recalculate entanglements only for q0 and q1.
-        # Sent_q0, Sent_q1 = calculate_q0_q1_entropy_from_rhos(rhos)
-        # self.entanglements[ax0, qubit_indices[:, 0]] = Sent_q0
-        # self.entanglements[ax0, qubit_indices[:, 1]] = Sent_q1
-        self.entanglements = entropy(self._states)
-        # print("[VectorQuantumState.apply()] post entanglements:\n",
-            #   self.entanglements.round(4))
+        Sent_q0, Sent_q1 = calculate_q0_q1_entropy_from_rhos(rhos)
+        self.entanglements[ax0, qubit_indices[:, 0]] = Sent_q0
+        self.entanglements[ax0, qubit_indices[:, 1]] = Sent_q1
 
-        # print("_qubit_indices:", _qubit_indices)
         # Do postswaps
         if self.swaps:
             _post_ent_relation = (self.entanglements[ax0, _qubit_indices[:, 0]] >= \
                                 self.entanglements[ax0, _qubit_indices[:, 1]] + EPS)
             postswaps_ = []
-            # print("_post_ent_relation:", _post_ent_relation)
             for n in range(N):
                 if _post_ent_relation[n] ^ _ent_relation[n]:
                     i, j = _qubit_indices[n]

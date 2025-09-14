@@ -1,15 +1,14 @@
 from itertools import combinations, permutations
 from collections import namedtuple
-from typing import Iterable, List, Tuple, Optional, Union
+from typing import List, Tuple, Optional, Union
 
 import numpy as np
 import torch
 
 from .stategen import StateGenerator, sample_haar_full
-from .quantum_state import VectorQuantumState
 from . import observations
 from . import rewards
-from .util import sqe, torch_sqe
+from .util import torch_sqe
 
 
 observation_space   = namedtuple("observation_space", ["shape"])

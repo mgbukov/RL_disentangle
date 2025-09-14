@@ -144,10 +144,18 @@ class Tracker:
         ys = np.asarray(ys)
         errs = np.asarray(errs)
 
-        if np.any(errs != 0.0):
-            below = ys - 0.5 * errs
-            above = ys + 0.5 * errs
-            ax.fill_between(xs, below, above, color="tab:blue", alpha=0.2)
-        ax.plot(xs, ys, **plotargs)
+        # If more than 1000 points are about to be plot,
+        # do a scatter plot with rolling mean line
+        if len(ys) <= 10:
+            if np.any(errs != 0.0):
+                below = ys - 0.5 * errs
+                above = ys + 0.5 * errs
+                ax.fill_between(xs, below, above, color="tab:blue", alpha=0.2)
+            ax.plot(xs, ys, **plotargs)
+        else:
+            ax.scatter(xs, ys, s=40, marker='o', c="tab:blue", ec=None, alpha=0.2)
+            m = np.convolve(np.pad(ys, 5, mode="edge"), np.ones(11), 'valid') / 11
+            plotargs.pop("color", None)
+            ax.plot(xs, m, color="tab:red", **plotargs)
         ax.grid(True, which="both", axis="both", color="gray", linewidth=0.25)
 
