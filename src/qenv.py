@@ -248,7 +248,9 @@ class VectorizedQState:
     def states(self): return self._states
 
     @states.setter
-    def states(self, x: torch.Tensor):
+    def states(self, x: torch.Tensor | np.ndarray):
+        if isinstance(x, np.ndarray):
+            x = torch.from_numpy(x)
         if x.ndim != self._states.ndim:
             raise ValueError("Different number of qubits!")
         self.num_envs = x.shape[0]
@@ -286,7 +288,6 @@ class VectorizedQState:
                 input_indices[:,::-1]
             )
             self.preswaps_ = ~ent_relation
-            # print("pre ent_relation:", ent_relation)
         else:
             ent_relation = torch.zeros(N, dtype=torch.bool)
             indices_01 = input_indices.copy()
@@ -307,54 +308,37 @@ class VectorizedQState:
 
         # [CUDA] Compute 4x4 reduced density matrices
         batch = batch.reshape(N, 4, 2 ** (Q - 2))
-        # print("batch:\n", batch)
         rdms = torch.einsum("...ik, ...jk-> ...ij", batch, batch.conj())
-        # rdms = batch @ torch.permute(batch.resolve_conj(), [0,2,1])
-        # print("RDMs:\n", rdms)
         D = torch.diag(torch.tensor([1.0, 2.0, 4.0, 8.0], device=self.device))
         rdms += torch.finfo(rdms.dtype).eps * D
         self.rdms_ = rdms
 
         # [CUDA] Compute unitary gates
         rhos, Us = torch.linalg.eigh(rdms)
-        self.Us_ = Us
-        # rhos = rhos.to(dtype=torch.float32)
-        # Us = Us.to(dtype=torch.complex64)
-        # print("rhos:\n", rhos)
-        # print("\n\n[torch.linalg.eigh] Us:\n", Us, "\n\n")
         j = torch.tensor([1.0j], dtype=torch.complex64, device=self.device)
         for n in range(N):
             max_col = torch.abs(Us[n]).argmax(dim=0)
-            # print(max_col)
             for k in range(4):
-                # print(torch.exp(j * torch.angle(Us[n, max_col[k], k])))
-                # print(k, Us[n, :, k])
                 Us[n, :, k] *= torch.exp(-j * torch.angle(Us[n, max_col[k], k]))
-                # print(k, Us[n,:,k])
         Us = torch.swapaxes(Us.conj(), 1, 2)
-        # self.Us_ = Us.resolve_conj()
+        self.Us_ = Us.resolve_conj()
         self.rhos_ = rhos
 
         # [CUDA] Apply unitary gates
         batch = torch.matmul(Us, batch).reshape(self.shape)
-        # print("batch:", batch)
 
         # Move qubits from (0,1) to (i,j)
         permute_qubits(batch, indices_01, inverse=True)
         self._states = phase_norm(batch)
 
         # [CPU] Recalculate entanglements only for qubits (i,j) on which
-        # U was applied.
+        # U was applied
         if self.fast_ents:
             Sent_q0, Sent_q1 = calculate_sqe_from_rhos(rhos.cpu())
             self.entanglements[ax0, indices_01[:, 0]] = Sent_q0
             self.entanglements[ax0, indices_01[:, 1]] = Sent_q1
         else:
             self.entanglements = torch_sqe(self._states, batched=True)
-        # print("[VectorizedQState.apply()] post entanglements:\n",
-            #   self.entanglements.numpy().round(4))
-
-        # print("input_indices:", input_indices)
 
         # Do postswaps
         if self.swaps:
@@ -368,11 +352,8 @@ class VectorizedQState:
                     self._states[n] = torch.swapaxes(self._states[n].clone(), i, j)
                     ent_i = self.entanglements[n,i].clone()
                     ent_j = self.entanglements[n,j].clone()
-                    # print("postswap", n, i, j, ent_i, ent_j)
-                    # print("postswap before:", self.entanglements[n])
                     self.entanglements[n,i] = ent_j
                     self.entanglements[n,j] = ent_i
-                    # print("postswap after:", self.entanglements[n])
                     self.postswaps_[n] = True
                 else:
                     self.postswaps_[n] = False
