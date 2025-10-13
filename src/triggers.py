@@ -1,12 +1,18 @@
 import copy
 import dataclasses
 import logging
-import numpy as np
+import os
 from typing import *
+
+import numpy as np
+import matplotlib
+import matplotlib.pyplot as plt
 
 from . import metrics
 from . import stategen
+from .config import get_logdir
 from .evaluation import test_lengths
+from .qenv import QEnv
 
 
 @dataclasses.dataclass
@@ -219,3 +225,93 @@ class StagedTrainingTrigger:
             parsed_levels.append(StagedTrainingLevel(**attrs))
 
         return parsed_levels
+
+
+
+class TestEtaStatesTrigger:
+
+    def __init__(self, config, agent, env: QEnv):
+        self.config = config
+        self.agent = agent
+        self.env = env
+        self._parse_etas(config)
+
+    def __call__(self, iter: int, *args, **kwargs):
+        logging.info(f"\n[TestEtaStatesTrigger]")
+
+        for ss in self.subsystem_sizes:
+            pool = {}
+            logging.info(f"\n\tSubsystem size = {ss}")
+            for eta in self.etas:
+                logging.info(f"\n\t\tEta = {eta:.3f}")
+                ents = self.get_entanglements(eta, ss)
+                entlist = ", ".join(f"{x:.3f}" for x in ents)
+                logging.info("\t\t\t[" + entlist + "]")
+                pool[eta] = ents
+
+            fig, ax = plt.subplots(figsize=(6, 6))
+            xs = sorted(pool.keys())
+
+            Y = []
+            for x in xs:
+                ys = np.max(pool[x], axis=1)
+                ax.scatter(np.full(len(ys), x), ys, color="tab:blue", s=10, alpha=0.3, ec=None)
+                Y.append(ys)
+            Y = np.array(Y)
+            envelope = np.max(Y, axis=0)
+
+            ax.plot(xs, envelope, color="tab:red", ls='--', label="maximum")
+            ax.plot(xs, np.percentile(Y, 34, axis=1), color="tab:orange", lw=0.8, label=r"$\sigma$")
+            ax.plot(xs, np.percentile(Y, 68, axis=1), color="tab:orange", lw=0.8)
+            ax.plot(xs, np.median(Y, axis=1), color="tab:red", lw=2.0, label=r"median")
+            ax.set_yscale("log")
+            ax.xaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(0.1))
+            ax.axhline(1e-3, ls='--', lw=1, color='k', label=r"$\epsilon$")
+            ax.grid(which="both", alpha=0.3)
+            ax.legend()
+            ax.set_title(f"TestEtaStatesTrigger, subsystem size = {ss}\niteration {iter}")
+            savedir = get_logdir(self.config)
+            fig.savefig(os.path.join(savedir, f"TestEtaStatesTrigger-{iter}-{ss}.pdf"))
+
+    def get_entanglements(self, eta: float, subsystem_size: int, num_steps: int = 30):
+        sgen = stategen.StateGenerator(
+            stategen.sample_haar_generalized,
+            self.env.num_qubits,
+            sample_params=dict(
+                min_subsystem_size=subsystem_size,
+                max_subsystem_size=subsystem_size,
+                min_eta=eta,
+                max_eta=eta
+            )
+        )
+        env = QEnv(
+            num_qubits=         self.env.num_qubits,
+            num_envs=           self.env.num_envs,
+            epsi=               self.env.epsi,
+            max_episode_steps=  1000,
+            reward_fn=          self.env.reward_fn,
+            obs_fn=             self.env.obs_fn,
+            state_generator=    sgen,
+            fast_ents=          self.env.fast_ents,
+            fast_obs=           self.env.fast_obs,
+            swaps=              self.env.swaps,
+            device=             self.env.device
+        )
+        env.reset()
+
+        o = env.obs_fn(env.simulator.states)
+        for _ in range(num_steps):
+            p = self.agent.policy(o.to(device=self.config.device))
+            acts = p.sample()
+            env.step(acts, reset=False)
+        return np.max(env.simulator.entanglements.numpy(), axis=1)
+
+    def _parse_etas(self, config):
+        for item in config.triggers_levels:
+            if item[0] == "TestEtaStatesTrigger":
+                self.etas = item[1].etas
+                self.subsystem_sizes = item[1].subsystem_sizes
+                return
+        logging.error("Error: Unable to parse `TestEtaStatesTrigger` config")
+        self.etas = []
+        self.subsystem_sizes = []
