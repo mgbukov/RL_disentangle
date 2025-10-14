@@ -2,6 +2,7 @@ data/
 logs/
 jobs/
 figures/
+configs/
 .vscode/
 # data files
 *.dat
@@ -11,6 +12,8 @@ figures/
 *.txt
 *.pickle
 .DS_Store
+slurm.*
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
