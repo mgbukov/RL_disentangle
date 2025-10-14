@@ -8,9 +8,14 @@ import collections.abc as abc
 import numpy as np
 import torch
 
+from src.config import get_default_config
 from src.quantum_env import QuantumEnv
 from src.stategen import sample_mps
-from src.util import str2state
+from src.util import str2state, load_checkpoint
+from src.ppo import PPOAgent
+from src.qenv import QEnv
+from src.networks import TransformerPE_2qRDM, MLP
+
 
 
 # Define the initial states on which we want to test the agent.
@@ -115,6 +120,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--agent", type=str)
+    parser.add_argument("--checkpoint", type=str, default=None)
+    parser.add_argument("--config", type=str, default=None)
     parser.add_argument("--num_qubits", nargs='+', type=int)
     parser.add_argument("--output", type=str)
     parser.add_argument("--max_steps", type=int)
@@ -128,11 +135,56 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    print(f"Loading agent from \"{args.agent}\"...")
-    agent = torch.load(args.agent, map_location="cpu")
-    print(f"Agent loaded successfuly!")
-    agent.policy_network.eval()
-    agent.value_network.eval()
+    # Load agent directly or reinitialize from checkpoint
+    if args.agent:
+        print(f"Loading agent from \"{args.agent}\"...")
+        agent = torch.load(args.agent, map_location="cpu")
+        print(f"Agent loaded successfuly!")
+        agent.policy_network.eval()
+        agent.value_network.eval()
+    elif args.checkpoint and args.config:
+        # Load config
+        config = get_default_config()
+        config.merge_from_file(args.config)
+        config.freeze()
+        # Initialize RL environment
+        env = QEnv(config.num_qubits, config.num_envs)
+        # Initialize policy network
+        in_shape = env.single_observation_space.shape
+        policy_network = TransformerPE_2qRDM(
+            in_shape[1],
+            embed_dim=      config.embed_dim,
+            dim_mlp=        config.dim_mlp,
+            n_heads=        config.attn_heads,
+            n_layers=       config.transformer_layers
+        ).to(config.model_device)
+        print("Initialized policy network")
+        # Initialize value network
+        value_network = MLP(in_shape, [128, 256], 1).to(config.model_device)
+        # Initialize PPOAgent
+        agent = PPOAgent(policy_network, value_network, config={
+            "pi_lr":        config.pi_lr,
+            "vf_lr":        config.vf_lr,
+            "discount":     config.discount,
+            "batch_size":   config.batch_size,
+            "clip_grad":    config.clip_grad,
+            "entropy_reg":  config.entropy_reg,
+
+            # PPO-specific
+            "pi_clip":      0.2,
+            "vf_clip":      10.0,
+            "tgt_KL":       0.01,
+            "n_epochs":     3,
+            "lamb":         0.95
+        })
+        print("Initialized RL agent")
+        # Load parameters from checkpoint
+        checkpointed_state = load_checkpoint(args.checkpoint)
+        agent.policy_network.load_state_dict(checkpointed_state["policy_fn"])
+        print("Loaded parameters from checkpoint")
+    else:
+        exit(1)
+
 
     if args.cuda:
         agent.policy_network.cuda()
