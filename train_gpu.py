@@ -40,8 +40,11 @@ def init_triggers(config, agent, env, checkpointed_state=None):
             case "StagedTrainingTrigger":
                 x = triggers.StagedTrainingTrigger(config, agent, env)
                 triggers_list.append(x)
+            case "TestEtaStatesTrigger":
+                x = triggers.TestEtaStatesTrigger(config, agent, env)
+                triggers_list.append(x)
             case _:
-                logging.error("Trigger \"{name}\" is not defined. Ignorring...")
+                logging.error(f"Trigger \"{name}\" is not defined. Ignoring...")
 
     # Load checkpoints if any
     if checkpointed_state is not None and config.checkpoint.use_triggers:

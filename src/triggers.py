@@ -241,12 +241,10 @@ class TestEtaStatesTrigger:
 
         for ss in self.subsystem_sizes:
             pool = {}
-            logging.info(f"\n\tSubsystem size = {ss}")
+            logging.info(f"\tSubsystem size = {ss}")
             for eta in self.etas:
-                logging.info(f"\n\t\tEta = {eta:.3f}")
+                logging.info(f"\t\tEta = {eta:.3f}")
                 ents = self.get_entanglements(eta, ss)
-                entlist = ", ".join(f"{x:.3f}" for x in ents)
-                logging.info("\t\t\t[" + entlist + "]")
                 pool[eta] = ents
 
             fig, ax = plt.subplots(figsize=(6, 6))
@@ -257,8 +255,8 @@ class TestEtaStatesTrigger:
                 ys = np.max(pool[x], axis=1)
                 ax.scatter(np.full(len(ys), x), ys, color="tab:blue", s=10, alpha=0.3, ec=None)
                 Y.append(ys)
-            Y = np.array(Y)
-            envelope = np.max(Y, axis=0)
+            Y = np.atleast_2d(np.array(Y))
+            envelope = np.max(Y, axis=1)
 
             ax.plot(xs, envelope, color="tab:red", ls='--', label="maximum")
             ax.plot(xs, np.percentile(Y, 34, axis=1), color="tab:orange", lw=0.8, label=r"$\sigma$")
@@ -271,7 +269,7 @@ class TestEtaStatesTrigger:
             ax.legend()
             ax.set_title(f"TestEtaStatesTrigger, subsystem size = {ss}\niteration {iter}")
             savedir = get_logdir(self.config)
-            fig.savefig(os.path.join(savedir, f"TestEtaStatesTrigger-{iter}-{ss}.pdf"))
+            fig.savefig(os.path.join(savedir, f"TestEtaStatesTrigger-{iter}-{ss}.png"), dpi=240)
 
     def get_entanglements(self, eta: float, subsystem_size: int, num_steps: int = 30):
         sgen = stategen.StateGenerator(
@@ -289,28 +287,28 @@ class TestEtaStatesTrigger:
             num_envs=           self.env.num_envs,
             epsi=               self.env.epsi,
             max_episode_steps=  1000,
-            reward_fn=          self.env.reward_fn,
-            obs_fn=             self.env.obs_fn,
+            reward_fn=          self.config.reward_fn,
+            obs_fn=             self.config.obs_fn,
             state_generator=    sgen,
-            fast_ents=          self.env.fast_ents,
+            fast_ents=          self.env.simulator.fast_ents,
             fast_obs=           self.env.fast_obs,
-            swaps=              self.env.swaps,
+            swaps=              self.env.simulator.swaps,
             device=             self.env.device
         )
         env.reset()
 
         o = env.obs_fn(env.simulator.states)
         for _ in range(num_steps):
-            p = self.agent.policy(o.to(device=self.config.device))
-            acts = p.sample()
-            env.step(acts, reset=False)
-        return np.max(env.simulator.entanglements.numpy(), axis=1)
+            p = self.agent.policy(o.to(device=self.config.model_device))
+            acts = p.sample().cpu().numpy()
+            o, _, _, _, _ = env.step(acts, reset=False)
+        return env.simulator.entanglements.numpy()
 
     def _parse_etas(self, config):
         for item in config.triggers_levels:
             if item[0] == "TestEtaStatesTrigger":
-                self.etas = item[1].etas
-                self.subsystem_sizes = item[1].subsystem_sizes
+                self.etas = item[1]["etas"]
+                self.subsystem_sizes = item[1]["subsystem_sizes"]
                 return
         logging.error("Error: Unable to parse `TestEtaStatesTrigger` config")
         self.etas = []
