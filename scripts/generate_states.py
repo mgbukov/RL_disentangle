@@ -27,7 +27,7 @@ if __name__ == "__main__":
         filename_data = basename if basename.endswith(".npmm") else basename + ".npmm"
     else:
         filename_data = basename if basename.endswith(".npy") else basename + ".npy"
-    filename_sidecard = os.path.splitext(basename)[0] + ".sidecard"
+    filename_sidecard = os.path.splitext(filename_data)[0] + ".sidecard"
     path_data = os.path.join(savepath, filename_data)
     path_sidecard = os.path.join(savepath, filename_sidecard)
 
