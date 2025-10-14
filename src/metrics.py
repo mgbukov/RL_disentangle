@@ -146,7 +146,7 @@ class Tracker:
 
         # If more than 1000 points are about to be plot,
         # do a scatter plot with rolling mean line
-        if len(ys) <= 10:
+        if len(ys) <= 1000:
             if np.any(errs != 0.0):
                 below = ys - 0.5 * errs
                 above = ys + 0.5 * errs

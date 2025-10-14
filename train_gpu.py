@@ -93,7 +93,7 @@ def train_ppo(config):
 
     # Initialize value function
     in_shape = env.single_observation_space.shape
-    value_network = MLP(in_shape, [128, 256], 1).to(device)
+    value_network = MLP(in_shape, [128, 256], 1).to(config.model_device)
     logging.debug("Initialized value network")
 
     # Initialize policy function

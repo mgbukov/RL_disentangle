@@ -12,7 +12,7 @@ from search import RandomAgent, BeamSearch, UBSearch
 
 EPSI = 1e-3
 BEAM_SIZE = 50
-UB_TRIALS = 25
+UB_TRIALS = 20
 
 
 if __name__ == "__main__":
@@ -45,8 +45,11 @@ if __name__ == "__main__":
         raise ValueError("Unknown agent")
 
     # Initialize eta values
-    etas = np.arange(args.min_eta, args.max_eta + args.eta_increment, args.eta_increment)
-    etas = np.round(etas, 3)[::-1]
+    if args.min_eta == args.max_eta:
+        etas = np.array([args.min_eta])
+    else:
+        etas = np.arange(args.min_eta, args.max_eta + args.eta_increment, args.eta_increment)
+        etas = np.round(etas, 3)[::-1]
     print("Initialized etas:", etas)
 
     # Initialize Quantum State simmulator
@@ -55,7 +58,7 @@ if __name__ == "__main__":
     # Calculate bond locations
     temp = np.full(args.qubits, False, dtype=bool)
     temp[::args.subsystem_size] = True
-    bonds = list(np.nonzero(temp)[0]) + [args.qubits]
+    bonds = [int(x) for x in np.nonzero(temp)[0]] + [args.qubits]
     print("Bond locations:", bonds)
 
     search_stats = {}
