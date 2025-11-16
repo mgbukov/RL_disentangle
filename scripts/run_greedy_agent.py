@@ -81,9 +81,9 @@ if __name__ == "__main__":
         toc = time.time()
 
         if path is None:
-            print("F", end="")
+            print("F", end="", flush=True)
         else:
-            print(".", end="")
+            print(".", end="", flush=True)
             results["results"].append({
                 "steps":    len(path),
                 "actions":  path,
