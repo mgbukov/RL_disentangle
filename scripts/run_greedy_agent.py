@@ -71,7 +71,7 @@ if __name__ == "__main__":
         "results":          []
     }
 
-    print("Staring GreedyAgent")
+    print("Starting Greedy Agent")
     for _ in tqdm(range(args.num_tests)):
         env.reset()
         psi = env.simulator.states[0]

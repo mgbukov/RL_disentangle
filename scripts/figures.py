@@ -12,7 +12,7 @@ from context import *
 from src.environment_loop import test_agent
 from src.quantum_env import QuantumEnv
 from src.quantum_state import random_quantum_state
-from src.util import str2state, str2latex, rollout
+from src.util import str2state, str2latex, srollout
 from search import GreedyAgent, RandomAgent
 
 mpl.rcParams['text.usetex'] = True
@@ -22,6 +22,9 @@ mpl.rcParams['font.family'] = 'serif'
 PATH_4Q_AGENT = os.path.join(project_dir, "agents/4q-agent.pt")
 PATH_5Q_AGENT = os.path.join(project_dir, "agents/5q-agent.pt")
 PATH_6Q_AGENT = os.path.join(project_dir, "agents/6q-agent.pt")
+PATH_BENCHMARKS = os.path.join(project_dir, "data/results/")
+PATH_FIGURES = os.path.join(project_dir, "figures")
+os.makedirs(PATH_FIGURES, exist_ok=True)
 
 
 def figure1a():
@@ -344,7 +347,7 @@ def figure_5q_protocol(initial_state, selected_actions=None):
     max_steps = 30 if selected_actions is None else len(selected_actions)
 
     # Rollout a trajectory
-    actions, entanglements, _probabilities = rollout(initial_state, max_steps)
+    actions, entanglements, _probabilities = srollout(initial_state, max_steps)
     if selected_actions is not None:
         probabilities = []
         for i, a in enumerate(selected_actions):
@@ -743,7 +746,7 @@ def figure_4q_protocol(initial_state, state_name=''):
 
     num_qubits = int(np.log2(initial_state.size))
     # Rollout
-    actions, _, probabilities = rollout(initial_state)
+    actions, _, probabilities = srollout(initial_state)
     nsteps = len(actions)
 
     # Select actions that are to be shown in right subfigure
@@ -1371,8 +1374,65 @@ def figure_embeddings_projection(nsamples=1000, method="pca"):
     return fig
 
 
+def figure_rl_train_scaling():
+
+    # Read data
+    with open(os.path.join(PATH_BENCHMARKS, "benchmark-10iterations-cpu.json")) as f:
+        data_cpu = json.load(f)
+    with open(os.path.join(PATH_BENCHMARKS, "benchmark-10iterations-cuda.json")) as f:
+        data_cuda = json.load(f)
+    with open(os.path.join(PATH_BENCHMARKS, "benchmark-10iterations-fast-cpu.json")) as f:
+        data_cpu_fast = json.load(f)
+    with open(os.path.join(PATH_BENCHMARKS, "benchmark-10iterations-fast-cuda.json")) as f:
+        data_cuda_fast = json.load(f)
+
+    # Plot
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.plot(
+        data_cpu["timings"].keys(),
+        data_cpu["timings"].values(),
+        label="CPU",
+        marker="o",
+        color="tab:blue"
+    )
+    ax.plot(
+        data_cuda["timings"].keys(),
+        data_cuda["timings"].values(),
+        label="GPU",
+        marker="^",
+        color="tab:green"
+    )
+    ax.plot(
+        data_cpu_fast["timings"].keys(),
+        data_cpu_fast["timings"].values(),
+        label="CPU optimized",
+        marker="P",
+        color="tab:blue",
+        ls="--"
+    )
+    ax.plot(
+        data_cuda_fast["timings"].keys(),
+        data_cuda_fast["timings"].values(),
+        label="GPU optimized",
+        marker="s",
+        color="tab:green",
+        ls="--"
+    )
+
+    # Layout
+    ax.legend(loc="upper left")
+    ax.set_yscale("log")
+    ax.set_xlabel("number of qubits")
+    ax.set_ylabel("elapsed time for 10 train iterations")
+    ax.set_title("Time Complexity of RL Training")
+
+    return fig
+
 
 if __name__ == '__main__':
+
+    fig_rl = figure_rl_train_scaling()
+    fig_rl.savefig(os.path.join(PATH_FIGURES, "rl-scaling-log.pdf"))
 
     # # Benchmark agents
     # results = benchmark_agents(1000)
