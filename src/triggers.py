@@ -300,8 +300,10 @@ class TestEtaStatesTrigger:
         o = env.obs_fn(env.simulator.states)
         for _ in range(num_steps):
             p = self.agent.policy(o.to(device=self.config.model_device))
-            acts = p.sample().cpu().numpy()
-            o, _, _, _, _ = env.step(acts, reset=False)
+            # acts = p.probs().cpu().numpy()
+            probs = p.probs.cpu().numpy()
+            a = np.argmax(probs, axis=1)
+            o, _, _, _, _ = env.step(a, reset=False)
         return env.simulator.entanglements.numpy()
 
     def _parse_etas(self, config):
