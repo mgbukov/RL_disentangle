@@ -10,7 +10,7 @@ import torch
 
 from src.config import get_default_config
 from src.quantum_env import QuantumEnv
-from src.stategen import sample_mps
+from src.stategen import sample_mps, sample_haar_generalized
 from src.util import str2state, load_checkpoint
 from src.ppo import PPOAgent
 from src.qenv import QEnv
@@ -116,6 +116,29 @@ def test_on_mps(agent, num_qubits, chi_max, n_tests=128, **env_kwargs):
     return results
 
 
+def test_on_weakly_entangled(agent, num_qubits, subsystem_size, eta, n_tests=128, **env_kwargs):
+
+    if not isinstance(num_qubits, abc.Iterable):
+        num_qubits = (num_qubits,)
+
+    if not isinstance(subsystem_size, abc.Iterable):
+        subsystem_size = (subsystem_size,)
+
+    if not isinstance(eta, abc.Iterable):
+        eta = (eta,)
+
+    results = {}
+
+    for L in num_qubits:
+        results[L] = {}
+        for S in subsystem_size:
+            for E in eta:
+                states = np.array([sample_haar_generalized(L, S, S, E, E) for _ in range(n_tests)])
+                results[L][f"subsystem_size={S},eta={E}"] = test_agent(agent, states, **env_kwargs)
+
+    return results
+
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -131,6 +154,7 @@ if __name__ == "__main__":
     parser.add_argument("--chi_max", nargs='+', type=int, default=[4])
     parser.add_argument("--mps", action="store_true")
     parser.add_argument("--haar_random", action="store_true")
+    parser.add_argument("--weakly_entangled", action="store_true")
     parser.add_argument("--cuda", action="store_true")
 
     args = parser.parse_args()
@@ -216,6 +240,17 @@ if __name__ == "__main__":
             agent,
             max(args.num_qubits),
             args.chi_max,
+            args.n_tests,
+            **env_kwargs
+        )
+
+    if args.weakly_entangled:
+        print("Testing on weakly entangled states...")
+        results["weakly_entangled"] = test_on_weakly_entangled(
+            agent,
+            args.num_qubits,
+            args.subsystem_size,
+            args.eta,
             args.n_tests,
             **env_kwargs
         )
