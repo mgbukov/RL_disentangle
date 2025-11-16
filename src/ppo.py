@@ -177,6 +177,7 @@ class PPOAgent(PGAgent):
                     torch.stack([torch.norm(p.grad) for p in self.policy_network.parameters()]))
                 torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), self.clip_grad)
                 self.policy_optim.step()
+                self.pi_lr_scheduler.step()
 
                 # Bookkeeping.
                 n_updates += 1
@@ -254,6 +255,7 @@ class PPOAgent(PGAgent):
                     [torch.norm(p.grad) for p in self.value_network.parameters()]))
                 torch.nn.utils.clip_grad_norm_(self.value_network.parameters(), self.clip_grad)
                 self.value_optim.step()
+                self.vf_lr_scheduler.step()
 
                 # Bookkeeping.
                 vf_losses.append(vf_loss.item())

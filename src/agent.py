@@ -1,4 +1,5 @@
 import os
+import warnings
 from typing import *
 
 import torch
@@ -49,7 +50,13 @@ class PGAgent:
 
         # Unpack the config parameters to configure the agent for training.
         pi_lr = config.get("pi_lr", 3e-4)
+        pi_lr_milestones = config.get("pi_lr_milestones", None)
+        pi_lr_gamma = config.get("pi_lr_gamma", None)
+
         vf_lr = config.get("vf_lr", 3e-4)
+        vf_lr_milestones = config.get("vf_lr_milestones", None)
+        vf_lr_gamma = config.get("vf_lr_gamma", None)
+
         self.discount = config.get("discount", 1.)
         self.batch_size = config.get("batch_size", 128)
         self.clip_grad = config.get("clip_grad", 1.)
@@ -59,6 +66,37 @@ class PGAgent:
         self.policy_optim = torch.optim.Adam(self.policy_network.parameters(), lr=pi_lr)
         if self.value_network is not None:
             self.value_optim = torch.optim.Adam(self.value_network.parameters(), lr=vf_lr)
+
+        # Initialize LR schedulers
+        if pi_lr_milestones is not None and pi_lr_gamma is not None:
+            self.pi_lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+                self.policy_optim,
+                pi_lr_milestones,
+                pi_lr_gamma
+            )
+        elif pi_lr_milestones is None and pi_lr_gamma is None:
+            self.pi_lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
+                self.policy_optim,
+                lambda i: 1.0,
+            )
+        else:
+            warnings.warn("Invalid Policy function LR scheduler config. "
+                          "No LR scheduling will be used.")
+        if vf_lr_milestones is not None and vf_lr_gamma is not None:
+            self.vf_lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+                self.value_optim,
+                vf_lr_milestones,
+                vf_lr_gamma
+            )
+        elif pi_lr_milestones is None and pi_lr_gamma is None:
+            self.vf_lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
+                self.value_optim,
+                lambda i: 1.0
+            )
+        else:
+            warnings.warn("Invalid Value function LR scheduler config. "
+                          "No LR scheduling will be used.")
+
 
     @torch.no_grad()
     def policy(self, obs) -> Categorical:
@@ -89,6 +127,8 @@ class PGAgent:
             "policy_optim": self.policy_optim.state_dict(),
             "value_optim":  self.value_optim.state_dict() \
                                 if self.value_network is not None else {},
+            "pi_lr_scheduler": self.pi_lr_scheduler,
+            "vf_lr_scheduler": self.vf_lr_scheduler,
             "discount":     self.discount,
             "batch_size":   self.batch_size,
             "clip_grad":    self.clip_grad,
@@ -101,6 +141,14 @@ class PGAgent:
         if self.value_network is not None:
             self.value_network.load_state_dict(state_dict["value_fn"])
             self.value_optim.load_state_dict(state_dict["value_optim"])
+        try:
+            self.pi_lr_scheduler.load_state_dict(state_dict["pi_lr_scheduler"])
+        except:
+            warnings.warn("Cannot load LR scheduler state for policy function")
+        try:
+            self.vf_lr_scheduler.load_state_dict(state_dict["vf_lr_scheduler"])
+        except:
+            warnings.warn("Cannot load LR scheduler state for value function.")
         self.discount = state_dict["discount"]
         self.batch_size = state_dict["batch_size"]
         self.clip_grad = state_dict["clip_grad"]

@@ -51,9 +51,13 @@ DEFAULT.stategen_params = [("min_subsystem_size", 2), ("max_subsystem_size", 4)]
 
 # Policy network learning rate
 DEFAULT.pi_lr = 2e-4
+DEFAULT.pi_lr_milestones = None
+DEFAULT.pi_lr_gamma = None
 
 # Value network learning rate
 DEFAULT.vf_lr = 3e-4
+DEFAULT.vf_lr_milestones = None
+DEFAULT.vf_lr_gamma = None
 
 # Discount factor
 DEFAULT.discount = 1.0
