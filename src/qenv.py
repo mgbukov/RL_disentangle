@@ -19,7 +19,7 @@ class QEnv:
 
     def __init__(self, num_qubits: int, num_envs: int, epsi: float = 1e-3,
                  max_episode_steps: int = 1000, act_space: str = "reduced",
-                 reward_fn: str = "sparse", obs_fn: str = "phase_norm",
+                 reward_fn: str = "relative_delta", obs_fn: str = "rdm2m",
                  state_generator: Optional[StateGenerator] = None,
                  fast_ents: bool = False, fast_obs: bool = False,
                  swaps: bool = True, device: Union[str, torch.device] = "cpu"):
