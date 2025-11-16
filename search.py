@@ -2,7 +2,7 @@ import heapq
 import numpy as np
 
 from src.quantum_state import VectorQuantumState
-
+from src.qenv import QEnv
 
 class BeamSearch:
     """Beam search works by limiting the size of the fringe to a fixed size k, called the
@@ -246,34 +246,34 @@ class GreedyAgent():
     def __init__(self, epsi=1e-3):
         self.epsi = epsi
 
-    def start(self, psi, env, qubit=None, num_iter=10_000, verbose=False):
+    def start(self, psi: np.ndarray, env: QEnv, qubit=None, num_iter=10_000, verbose=False):
         path = []
-        # entanglements = []
-        env.states = np.array([psi])
+        simulator = env.simulator
+        num_actions = env.num_actions
+        acts = list(env.actions.values())
+
+        simulator.states = psi[None, ...]   # Insert batch dimension
 
         for _ in range(num_iter):
-            acts = np.arange(env.num_actions)
-            env.states = np.repeat(env.states, env.num_actions, axis=0)
-            _ = env.apply(acts)
+            simulator.states = np.repeat(simulator.states, num_actions, axis=0)
+            _ = env.simulator.apply(acts)
 
             # Compute costs.
             if qubit is None:
-                costs = env.entanglements.mean(axis=-1)
+                costs = simulator.entanglements.mean(dim=-1).cpu().numpy()
             else:
-                costs = env.entanglements[:, qubit]
+                costs = simulator.entanglements[:, qubit].cpu().numpy()
 
             # Select the action greedily.
             imincost = np.argmin(costs)
             mincost = costs[imincost]
             path.append(acts[imincost])
-            # entanglements.append(env.entanglements.copy())
-            env.states = np.array([env.states[imincost]])
+            simulator.states = simulator.states[imincost][None, ...]
 
             # Check if a goal state is reached.
-            # if (qubit is not None and mincost < self.epsi) or (qubit is None and (env.entanglements < self.epsi).all()):
-            if (qubit is not None and mincost < self.epsi) or (qubit is None and (env.entanglements.mean() < self.epsi)):
-                # return path, entanglements
-                return path
+            if ((qubit is not None and mincost <= self.epsi) or
+                (qubit is None and (simulator.entanglements <= self.epsi).all())):
+                    return path
 
         return None
 
