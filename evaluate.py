@@ -155,6 +155,8 @@ if __name__ == "__main__":
     parser.add_argument("--mps", action="store_true")
     parser.add_argument("--haar_random", action="store_true")
     parser.add_argument("--weakly_entangled", action="store_true")
+    parser.add_argument("--eta", nargs="+", type=float)
+    parser.add_argument("--subsystem_size", nargs="+", type=int)
     parser.add_argument("--cuda", action="store_true")
 
     args = parser.parse_args()
