@@ -720,6 +720,94 @@ def figure_stats(benchmark_results):
     return fig
 
 
+def figure_stats_large_systems():
+
+    # Save old fontsize
+    old_fontsize = mpl.rcParams['font.size']
+    mpl.rcParams['font.size'] = 14
+
+    # /// User Constants
+    BWI = 0.5              # Bar width
+    BOF = 0.6              # Bar offset
+
+    # Initialize figure and create axes
+    fig = plt.figure(figsize=(12, 6), layout='tight')
+    ax12 = fig.add_axes((0.1, 0.6, 0.8, 0.3))
+    ax16 = fig.add_axes((0.1, 0.1, 0.8, 0.3))
+    axs = (ax12, ax16)
+
+    # deep slate blue #3D405B medium blue #0077B6 light blue #90E0EF, pale blue #CAF0F8
+    colors = ['#7abacc', '#0077B6', '#3D405B']
+
+    # /// 12q results
+    # Read data
+    #   - Greedy agent
+    greedy_stats = {}
+    with open(os.path.join(PATH_BENCHMARKS, "greedy-12q-3x4-weakly_entangled.json"), mode="rt") as f:
+        data = json.load(f)
+        greedy_stats["3x4"] = np.array([x["steps"] for x in data["results"]]).mean()
+    with open(os.path.join(PATH_BENCHMARKS, "greedy-12q-4x3-weakly_entangled.json"), mode="rt") as f:
+        data = json.load(f)
+        greedy_stats["4x3"] = np.array([x["steps"] for x in data["results"]]).mean()
+    with open(os.path.join(PATH_BENCHMARKS, "greedy-12q-6x2-weakly_entangled.json"), mode="rt") as f:
+        data = json.load(f)
+        greedy_stats["6x2"] = np.array([x["steps"] for x in data["results"]]).mean()
+
+    # -- RL agent
+    rl_stats = {}
+    with open(os.path.join(PATH_BENCHMARKS, "agent-weakly-entangled(mixed6)-12q.json"), mode="rt") as f:
+        data = json.load(f)
+        rl_stats["3x4"] = data["weakly_entangled"]["12"]["subsystem_size=4,eta=4.1"]["avg_len"]
+        rl_stats["4x3"] = data["weakly_entangled"]["12"]["subsystem_size=3,eta=4.1"]["avg_len"]
+        rl_stats["6x2"] = data["weakly_entangled"]["12"]["subsystem_size=2,eta=4.1"]["avg_len"]
+
+
+    keys = reversed(rl_stats.keys())
+
+    offset = 0
+    xticks = []
+    xticklabels = []
+    for k in keys:
+        xs = [offset, offset + BWI]
+        heights = [rl_stats[k], greedy_stats[k]]
+        # TODO Add standard deviation
+        xticks.append(offset + BWI)
+        xticklabels.append(k)
+        rects = ax12.bar(xs, heights, BWI, color=colors, ecolor='red', capsize=5, label=["RL", "Greedy"])
+        # labels = [f'{int(h)} ±{int(s)}' for h, s in zip(heights, stds)]
+        labels = [int(np.round(h,0)) for h in heights]
+        ax12.bar_label(rects, labels, rotation=45)
+        offset += 3 * BWI + BOF
+
+    ax12.set_xticks(xticks, xticklabels, rotation=0)
+    # ax12.set_yticks([1, 5, 10, 15, 20])
+    ax12.set_title("$L = 12$")
+    # ax12.text(s="$L = 12$", x=0.1, y=0.95, transform=ax12.transAxes)
+
+
+    handles, labels = ax12.get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    # ax16.text(s="$L = 16$", x=0.035, y=0.95, transform=ax12.transAxes)
+
+    ax12.legend(by_label.values(), by_label.keys(), loc=(0.6, -0.5), ncols=2, frameon=False)
+
+    # Configure axes
+    for ax in axs:
+        ax.set_ylabel('$M$')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+
+    # # Add (a), (b), (c) panel titles
+    # ax4.text(-0.09/0.3, 1, "(a)", fontsize=14, transform=ax4.transAxes)
+    # ax5.text(-0.09/0.4, 1, "(b)", fontsize=14, transform=ax5.transAxes)
+    # ax6.text(-0.09/0.85, 1, "(c)", fontsize=14, transform=ax6.transAxes)
+
+    # Restore old font size
+    mpl.rcParams['font.size'] = old_fontsize
+    fig.tight_layout()
+    return fig
+
+
 def figure_4q_protocol(initial_state, state_name=''):
     #
     # Figure contains only 1 ax and almost everything drawn with
@@ -1375,220 +1463,201 @@ def figure_embeddings_projection(nsamples=1000, method="pca"):
 
 
 def figure_rl_train_scaling():
-
     # Read data
-    with open(os.path.join(PATH_BENCHMARKS, "benchmark-10iterations-cpu.json")) as f:
-        data_cpu = json.load(f)
-    with open(os.path.join(PATH_BENCHMARKS, "benchmark-10iterations-cuda.json")) as f:
+    # with open(os.path.join(PATH_BENCHMARKS, "benchmark-RL-training-fast-cpu.json")) as f:
+    #     data_cpu = json.load(f)
+    with open(os.path.join(PATH_BENCHMARKS, "benchmark-RL-training-fast-cuda.json")) as f:
         data_cuda = json.load(f)
-    with open(os.path.join(PATH_BENCHMARKS, "benchmark-10iterations-fast-cpu.json")) as f:
-        data_cpu_fast = json.load(f)
-    with open(os.path.join(PATH_BENCHMARKS, "benchmark-10iterations-fast-cuda.json")) as f:
-        data_cuda_fast = json.load(f)
+
+    xs = data_cuda["timings"].keys()
+    env_timings = np.array([data_cuda["timings"][x]["env"] for x in xs])
+    agent_timings = np.array([data_cuda["timings"][x]["agent"] for x in xs])
+    xs = np.array([int(x) for x in xs])
+
+    env_mean = env_timings.mean(axis=1)
+    env_err = env_timings.std(axis=1)
+    agent_mean = agent_timings.mean(axis=1)
+    agent_err = agent_timings.std(axis=1)
 
     # Plot
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.plot(
-        data_cpu["timings"].keys(),
-        data_cpu["timings"].values(),
-        label="CPU",
-        marker="o",
-        color="tab:blue"
-    )
-    ax.plot(
-        data_cuda["timings"].keys(),
-        data_cuda["timings"].values(),
-        label="GPU",
-        marker="^",
-        color="tab:green"
-    )
-    ax.plot(
-        data_cpu_fast["timings"].keys(),
-        data_cpu_fast["timings"].values(),
-        label="CPU optimized",
-        marker="P",
-        color="tab:blue",
-        ls="--"
-    )
-    ax.plot(
-        data_cuda_fast["timings"].keys(),
-        data_cuda_fast["timings"].values(),
-        label="GPU optimized",
-        marker="s",
-        color="tab:green",
-        ls="--"
-    )
+    fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+    ax.plot(xs, env_timings.mean(axis=1), label="environment simulator", color="tab:blue")
+    ax.plot(xs, agent_timings.mean(axis=1), label="RL agent", color="tab:green")
+    ax.fill_between(xs, env_mean - env_err, env_mean + env_err, color="tab:blue", alpha=0.4, ec=None)
+    ax.fill_between(xs, agent_mean - agent_err, agent_mean + agent_err, color="tab:green", alpha=0.4, ec=None)
 
     # Layout
     ax.legend(loc="upper left")
-    ax.set_yscale("log")
+    # ax.set_yscale("log")
     ax.set_xlabel("number of qubits")
-    ax.set_ylabel("elapsed time for 10 train iterations")
-    ax.set_title("Time Complexity of RL Training")
+    ax.set_ylabel("elapsed time in seconds")
 
     return fig
 
 
 if __name__ == '__main__':
 
-    fig_rl = figure_rl_train_scaling()
-    fig_rl.savefig(os.path.join(PATH_FIGURES, "rl-scaling-log.pdf"))
+    # fig_rl = figure_rl_train_scaling()
+    # fig_rl.savefig(os.path.join(PATH_FIGURES, "rl-scaling.pdf"))
+
+    fig_12q = figure_stats_large_systems()
+    fig_12q.savefig(os.path.join(PATH_FIGURES, "results-12q.pdf"))
 
     # # Benchmark agents
     # results = benchmark_agents(1000)
     # with open("../data/agents-benchmark-final.json", mode='w') as f:
     #     json.dump(results, f, indent=2)
 
-    # Figure 1
-    fig1a = figure1a()
-    fig1a.savefig('../figures/circuit-3q.pdf')
-    plt.close(fig1a)
-    fig1bd = figure1bd()
-    fig1bd.savefig('../figures/circuit-4q.pdf')
-    plt.close(fig1bd)
+    # # Figure 1
+    # fig1a = figure1a()
+    # fig1a.savefig('../figures/circuit-3q.pdf')
+    # plt.close(fig1a)
+    # fig1bd = figure1bd()
+    # fig1bd.savefig('../figures/circuit-4q.pdf')
+    # plt.close(fig1bd)
 
-    # Figure 2
-    fig2 = figure_difficulty('../data/random-greedy-stats.pickle')
-    fig2.savefig('../figures/exponential-difficulty-both.pdf')
-    plt.close(fig2)
+    # # Figure 2
+    # fig2 = figure_difficulty('../data/random-greedy-stats.pickle')
+    # fig2.savefig('../figures/exponential-difficulty-both.pdf')
+    # plt.close(fig2)
 
-    # Figure 4a
-    bell =  np.array([1.0, 0.0, 0.0, 1.0], dtype=np.complex64) / np.sqrt(2)
-    bb = np.einsum("ij,kl -> ijkl", bell.reshape(2,2), bell.reshape(2,2))
-    fig4a = figure_4q_protocol(bb, r"$\mathrm{|Bell_{1,2}\rangle|Bell_{3,4}\rangle}$")
-    fig4a.savefig('../figures/circuit-bell-bell.pdf')
-    plt.close(fig4a)
+    # # Figure 4a
+    # bell =  np.array([1.0, 0.0, 0.0, 1.0], dtype=np.complex64) / np.sqrt(2)
+    # bb = np.einsum("ij,kl -> ijkl", bell.reshape(2,2), bell.reshape(2,2))
+    # fig4a = figure_4q_protocol(bb, r"$\mathrm{|Bell_{1,2}\rangle|Bell_{3,4}\rangle}$")
+    # fig4a.savefig('../figures/circuit-bell-bell.pdf')
+    # plt.close(fig4a)
 
-    # Figure 4b
-    w = np.array([0, 1, 1, 0, 1, 0, 0, 0], dtype=np.complex64) / np.sqrt(3)
-    zero = np.array([1, 0], dtype=np.complex64)
-    zero_ghz = np.einsum("i,jkl -> ijkl", zero, w.reshape(2,2,2))
-    fig4b = figure_4q_protocol(zero_ghz, r"$\mathrm{|0\rangle|GHZ_{2,3,4}\rangle}$")
-    fig4b.savefig('../figures/circuit-ghz.pdf')
-    plt.close(fig4b)
+    # # Figure 4b
+    # w = np.array([0, 1, 1, 0, 1, 0, 0, 0], dtype=np.complex64) / np.sqrt(3)
+    # zero = np.array([1, 0], dtype=np.complex64)
+    # zero_ghz = np.einsum("i,jkl -> ijkl", zero, w.reshape(2,2,2))
+    # fig4b = figure_4q_protocol(zero_ghz, r"$\mathrm{|0\rangle|GHZ_{2,3,4}\rangle}$")
+    # fig4b.savefig('../figures/circuit-ghz.pdf')
+    # plt.close(fig4b)
 
-    # Figure 4c
-    np.random.seed(23)
-    s = np.einsum("ijk,l -> ijkl", random_quantum_state(3, 1.0), random_quantum_state(1, 1.0))
-    fig4c = figure_4q_protocol(s, r"$\mathrm{|R_{1,2,3}\rangle|R_4\rangle}$")
-    fig4c.savefig('../figures/circuit-RRR-R.pdf')
-    plt.close(fig4c)
+    # # Figure 4c
+    # np.random.seed(23)
+    # s = np.einsum("ijk,l -> ijkl", random_quantum_state(3, 1.0), random_quantum_state(1, 1.0))
+    # fig4c = figure_4q_protocol(s, r"$\mathrm{|R_{1,2,3}\rangle|R_4\rangle}$")
+    # fig4c.savefig('../figures/circuit-RRR-R.pdf')
+    # plt.close(fig4c)
 
-    # Figure 4d
-    np.random.seed(45)
-    fig4d = figure_4q_protocol(random_quantum_state(4, 1.0), r"$\mathrm{|R_{1,2,3,4}\rangle}$")
-    fig4d.savefig('../figures/circuit-RRRR.pdf')
-    plt.close(fig4d)
+    # # Figure 4d
+    # np.random.seed(45)
+    # fig4d = figure_4q_protocol(random_quantum_state(4, 1.0), r"$\mathrm{|R_{1,2,3,4}\rangle}$")
+    # fig4d.savefig('../figures/circuit-RRRR.pdf')
+    # plt.close(fig4d)
 
-    # Figure showing 5 qubit protocols
-    #
-    #   seed in [0,281]: ends with 3q protocol
-    #   seed in [2,4,5,6,10,22,23,188,189,212,254]: ends with less than 5 gates
-    #   seed in [240, 86, 126]: ends with 4q- protocol
+    # # Figure showing 5 qubit protocols
+    # #
+    # #   seed in [0,281]: ends with 3q protocol
+    # #   seed in [2,4,5,6,10,22,23,188,189,212,254]: ends with less than 5 gates
+    # #   seed in [240, 86, 126]: ends with 4q- protocol
 
-    for s in (4, 240, 281):
-        np.random.seed(s)
-        try:
-            fig5 = figure_5q_protocol(random_quantum_state(5, 1.0))
-            fig5.savefig(f'../figures/5q/5q-trajectory-seed={s}.pdf')
-            plt.close(fig5)
-        except AssertionError:
-            pass
+    # for s in (4, 240, 281):
+    #     np.random.seed(s)
+    #     try:
+    #         fig5 = figure_5q_protocol(random_quantum_state(5, 1.0))
+    #         fig5.savefig(f'../figures/5q/5q-trajectory-seed={s}.pdf')
+    #         plt.close(fig5)
+    #     except AssertionError:
+    #         pass
 
-    # Figure, statistical properties of 4-, 5-, 6-qubit agents
-    with open('../data/agents-benchmark-final.json') as f:
-        results = json.load(f)
-        fig6 = figure_stats(results)
-        fig6.savefig('../figures/456q-agents-final.pdf')
-        plt.close(fig6)
+    # # Figure, statistical properties of 4-, 5-, 6-qubit agents
+    # with open('../data/agents-benchmark-final.json') as f:
+    #     results = json.load(f)
+    #     fig6 = figure_stats(results)
+    #     fig6.savefig('../figures/456q-agents-final.pdf')
+    #     plt.close(fig6)
 
-    # Figure CNOT counts
-    fig11 = figure_cnot_counts('../data/cnot-counts/')
-    fig11.savefig('../figures/cnot-counts.pdf')
-    plt.close(fig11)
+    # # Figure CNOT counts
+    # fig11 = figure_cnot_counts('../data/cnot-counts/')
+    # fig11.savefig('../figures/cnot-counts.pdf')
+    # plt.close(fig11)
 
-    # Figure CNOT counts (fully entangled)
-    fig12 = figure_cnot_counts('../data/cnot-counts-fully-entangled/')
-    fig12.savefig('../figures/cnot-counts-fully-entangled.pdf')
-    plt.close(fig12)
+    # # Figure CNOT counts (fully entangled)
+    # fig12 = figure_cnot_counts('../data/cnot-counts-fully-entangled/')
+    # fig12.savefig('../figures/cnot-counts-fully-entangled.pdf')
+    # plt.close(fig12)
 
-    # Figure Accuracy & Episode Length
-    fig13 = figure_accuracy()
-    fig13.savefig('../figures/accuracy-episode-length-final-all-test.pdf')
-    plt.close(fig13)
+    # # Figure Accuracy & Episode Length
+    # fig13 = figure_accuracy()
+    # fig13.savefig('../figures/accuracy-episode-length-final-all-test.pdf')
+    # plt.close(fig13)
 
-    fig22 = figure_search_scalability("../data/search-stats.json")
-    fig22.savefig("../figures/search-scalability.pdf")
-    plt.close(fig22)
+    # fig22 = figure_search_scalability("../data/search-stats.json")
+    # fig22.savefig("../figures/search-scalability.pdf")
+    # plt.close(fig22)
 
-    # Figure for Attention Head Scores
-    #   |R>|R>|RR>
-    np.random.seed(21)
-    psi = str2state("R-R-RR")
-    fig30 = figure_attention_scores(psi)
-    fig30.savefig("../figures/attention-scores-R-R-RR.pdf")
-    plt.close(fig30)
+    # # Figure for Attention Head Scores
+    # #   |R>|R>|RR>
+    # np.random.seed(21)
+    # psi = str2state("R-R-RR")
+    # fig30 = figure_attention_scores(psi)
+    # fig30.savefig("../figures/attention-scores-R-R-RR.pdf")
+    # plt.close(fig30)
 
-    #   |0>|Bell>|0>
-    bell = np.array([1.0, 0.0, 0.0, 1.0], dtype=np.complex64) / np.sqrt(2)
-    bell = bell.reshape(2,2)
-    zero = np.array([1, 0], dtype=np.complex64)
-    bell_zero = np.einsum("ij,k->ijk", bell, zero)
-    zero_bell_zero = np.einsum("i,jkl->ijkl", zero, bell_zero)
-    fig31 = figure_attention_scores(zero_bell_zero)
-    fig31.savefig("../figures/attention-scores-0-Bell-0.pdf")
-    plt.close(fig31)
+    # #   |0>|Bell>|0>
+    # bell = np.array([1.0, 0.0, 0.0, 1.0], dtype=np.complex64) / np.sqrt(2)
+    # bell = bell.reshape(2,2)
+    # zero = np.array([1, 0], dtype=np.complex64)
+    # bell_zero = np.einsum("ij,k->ijk", bell, zero)
+    # zero_bell_zero = np.einsum("i,jkl->ijkl", zero, bell_zero)
+    # fig31 = figure_attention_scores(zero_bell_zero)
+    # fig31.savefig("../figures/attention-scores-0-Bell-0.pdf")
+    # plt.close(fig31)
 
-    #   |RR>|Bell>
-    haar_rnd = random_quantum_state(2, 1.0).reshape(2,2)
-    haar_bell = np.einsum("ij,kl->ijkl", haar_rnd, bell)
-    fig32 = figure_attention_scores(haar_bell)
-    fig32.savefig("../figures/attention-scores-RR-Bell.pdf")
-    plt.close(fig32)
+    # #   |RR>|Bell>
+    # haar_rnd = random_quantum_state(2, 1.0).reshape(2,2)
+    # haar_bell = np.einsum("ij,kl->ijkl", haar_rnd, bell)
+    # fig32 = figure_attention_scores(haar_bell)
+    # fig32.savefig("../figures/attention-scores-RR-Bell.pdf")
+    # plt.close(fig32)
 
-    # #   |R>|R>|Bell>
-    # haar1 = random_quantum_state(1, 1.0)
-    # haar2 = random_quantum_state(1, 1.0)
-    # haar_subsys = np.einsum("i,j->ij", haar1, haar2)
-    # haar_bell = np.einsum("ij,kl->ijkl", haar_subsys, bell)
-    # fig33 = figure_attention_scores(haar_bell)
-    # fig33.savefig("../figures/attention-scores-R-R-Bell.pdf")
-    # plt.close(fig33)
+    # # #   |R>|R>|Bell>
+    # # haar1 = random_quantum_state(1, 1.0)
+    # # haar2 = random_quantum_state(1, 1.0)
+    # # haar_subsys = np.einsum("i,j->ij", haar1, haar2)
+    # # haar_bell = np.einsum("ij,kl->ijkl", haar_subsys, bell)
+    # # fig33 = figure_attention_scores(haar_bell)
+    # # fig33.savefig("../figures/attention-scores-R-R-Bell.pdf")
+    # # plt.close(fig33)
 
-    # #   |1>|1>|RR>
-    # np.random.seed(7)
-    # one = np.array([0.0, 1.0], dtype=np.complex64)
-    # oneone = np.einsum("i,j->ij", one, one)
-    # one_RR = np.einsum("ij,kl->ijkl", oneone, random_quantum_state(2, 1.0).reshape(2,2))
-    # fig34 = figure_attention_scores(one_RR)
-    # fig34.savefig("../figures/attention-scores-1-1-RR.pdf")
-    # plt.close(fig34)
+    # # #   |1>|1>|RR>
+    # # np.random.seed(7)
+    # # one = np.array([0.0, 1.0], dtype=np.complex64)
+    # # oneone = np.einsum("i,j->ij", one, one)
+    # # one_RR = np.einsum("ij,kl->ijkl", oneone, random_quantum_state(2, 1.0).reshape(2,2))
+    # # fig34 = figure_attention_scores(one_RR)
+    # # fig34.savefig("../figures/attention-scores-1-1-RR.pdf")
+    # # plt.close(fig34)
 
-    #   |RR>|RR>
-    np.random.seed(1)
-    subsysA = random_quantum_state(2, 1.0)
-    subsysB = random_quantum_state(2, 1.0)
-    RR_RR = np.einsum("ij,kl->ijkl", subsysA, subsysB)
-    fig35 = figure_attention_scores(RR_RR)
-    fig35.savefig("../figures/attention-scores-RR-RR.pdf")
-    plt.close(fig35)
+    # #   |RR>|RR>
+    # np.random.seed(1)
+    # subsysA = random_quantum_state(2, 1.0)
+    # subsysB = random_quantum_state(2, 1.0)
+    # RR_RR = np.einsum("ij,kl->ijkl", subsysA, subsysB)
+    # fig35 = figure_attention_scores(RR_RR)
+    # fig35.savefig("../figures/attention-scores-RR-RR.pdf")
+    # plt.close(fig35)
 
-    #   Colorbar
-    fig36 = figure_attention_colorbar()
-    fig36.savefig("../figures/attention-colorbar.pdf")
-    plt.close(fig36)
+    # #   Colorbar
+    # fig36 = figure_attention_colorbar()
+    # fig36.savefig("../figures/attention-colorbar.pdf")
+    # plt.close(fig36)
 
-    # # Figure showing Attention distributions averaged over many inputs
-    # np.random.seed(777)
-    # fig40 = figure_attention_heads_average(1000)
-    # fig40.savefig("../figures/attention-matrix-mean-reduction.pdf")
-    # plt.close(fig40)
+    # # # Figure showing Attention distributions averaged over many inputs
+    # # np.random.seed(777)
+    # # fig40 = figure_attention_heads_average(1000)
+    # # fig40.savefig("../figures/attention-matrix-mean-reduction.pdf")
+    # # plt.close(fig40)
 
-    # # Figure showing embeddgins manifold projected on 2D
-    # np.random.seed(10)
-    # fig50 = figure_embeddings_projection(100, "pca")
-    # fig50.savefig("../figures/figure-embeddings-projection-PCA.pdf")
-    # plt.close(fig50)
-    # fig51 = figure_embeddings_projection(100, "tsne")
-    # fig51.savefig("../figures/figure-embeddings-projection-tSNE.pdf")
-    # plt.close(fig51)
+    # # # Figure showing embeddgins manifold projected on 2D
+    # # np.random.seed(10)
+    # # fig50 = figure_embeddings_projection(100, "pca")
+    # # fig50.savefig("../figures/figure-embeddings-projection-PCA.pdf")
+    # # plt.close(fig50)
+    # # fig51 = figure_embeddings_projection(100, "tsne")
+    # # fig51.savefig("../figures/figure-embeddings-projection-tSNE.pdf")
+    # # plt.close(fig51)
