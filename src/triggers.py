@@ -315,3 +315,41 @@ class TestEtaStatesTrigger:
         logging.error("Error: Unable to parse `TestEtaStatesTrigger` config")
         self.etas = []
         self.subsystem_sizes = []
+
+    def state_dict(self):
+        return {"type": str(type(self))}
+
+    def load_state_dict(self):
+        pass
+
+
+class UnfreezePolicy:
+
+    def __init__(self, config, agent, env):
+        self.config = config
+        self.agent = agent
+        self.env = env
+        self.milestone = config.pi_freeze
+        self.iteration = 0
+        self.frozen = True
+        logging.info("Initialized UnfreezePolicy trigger")
+
+    def __call__(self, iter: int, *args, **kwargs):
+        if iter >= self.milestone:
+            self.agent.freeze_pf = False
+            self.frozen = False
+            logging.info(f"\n[UnfreezePolicy] Policy function unfrozen.")
+        else:
+            logging.info(f"\n[UnfreezePolicy] Policy function still frozen.")
+
+    def state_dict(self):
+        return dict(
+            type =              str(type(self)),
+            milestone =         self.milestone,
+            frozen =            self.frozen
+        )
+
+    def load_state_dict(self, state_dict):
+        self.frozen = state_dict["frozen"]
+        self.milestone = state_dict["milestone"]
+        self.current_level = state_dict["current_level"]

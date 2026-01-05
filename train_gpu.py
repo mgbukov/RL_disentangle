@@ -43,6 +43,9 @@ def init_triggers(config, agent, env, checkpointed_state=None):
             case "TestEtaStatesTrigger":
                 x = triggers.TestEtaStatesTrigger(config, agent, env)
                 triggers_list.append(x)
+            case "UnfreezePolicy":
+                x = triggers.UnfreezePolicy(config, agent, env)
+                triggers_list.append(x)
             case _:
                 logging.error(f"Trigger \"{name}\" is not defined. Ignoring...")
 

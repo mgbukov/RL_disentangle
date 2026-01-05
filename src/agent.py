@@ -56,6 +56,7 @@ class PGAgent:
         vf_lr = config.get("vf_lr", 3e-4)
         vf_lr_milestones = config.get("vf_lr_milestones", None)
         vf_lr_gamma = config.get("vf_lr_gamma", None)
+        vf_warmup_iters = config.get("vf_warmup_iters", 0)
 
         self.discount = config.get("discount", 1.)
         self.batch_size = config.get("batch_size", 128)
@@ -68,35 +69,43 @@ class PGAgent:
             self.value_optim = torch.optim.Adam(self.value_network.parameters(), lr=vf_lr)
 
         # Initialize LR schedulers
+        # * Policy function scheduler
         if pi_lr_milestones is not None and pi_lr_gamma is not None:
             self.pi_lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
                 self.policy_optim,
                 pi_lr_milestones,
                 pi_lr_gamma
             )
-        elif pi_lr_milestones is None and pi_lr_gamma is None:
+        else:
             self.pi_lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
                 self.policy_optim,
                 lambda i: 1.0,
             )
-        else:
-            warnings.warn("Invalid Policy function LR scheduler config. "
-                          "No LR scheduling will be used.")
+        # * Value function base scheduler
         if vf_lr_milestones is not None and vf_lr_gamma is not None:
-            self.vf_lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+            vf_scheduler = torch.optim.lr_scheduler.MultiStepLR(
                 self.value_optim,
                 vf_lr_milestones,
                 vf_lr_gamma
             )
-        elif pi_lr_milestones is None and pi_lr_gamma is None:
-            self.vf_lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
+        else:
+            vf_scheduler = torch.optim.lr_scheduler.LambdaLR(
                 self.value_optim,
                 lambda i: 1.0
             )
+        if vf_warmup_iters > 0:
+            # * Value function warmup scheduler
+            vf_warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
+                self.value_optim,
+                start_factor=1e-2,
+                total_iters=vf_warmup_iters
+            )
+            self.vf_lr_scheduler = torch.optim.lr_scheduler.SequentialLR(
+                [vf_warmup_scheduler, vf_scheduler],
+                milestones=[vf_warmup_iters]
+            )
         else:
-            warnings.warn("Invalid Value function LR scheduler config. "
-                          "No LR scheduling will be used.")
-
+            self.vf_lr_scheduler = vf_scheduler
 
     @torch.no_grad()
     def policy(self, obs) -> Categorical:

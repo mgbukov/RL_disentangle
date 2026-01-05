@@ -49,6 +49,10 @@ DEFAULT.stategen_params = [("min_subsystem_size", 2), ("max_subsystem_size", 4)]
 
 # ===----------------- Agent related -----------------=== #
 
+# Keep Policy function frozen (don't update it) for that many iterations
+DEFAULT.pi_freeze = 0
+DEFAULT.vf_freeze = 0
+
 # Policy network learning rate
 DEFAULT.pi_lr = 2e-4
 DEFAULT.pi_lr_milestones = None
@@ -58,6 +62,7 @@ DEFAULT.pi_lr_gamma = None
 DEFAULT.vf_lr = 3e-4
 DEFAULT.vf_lr_milestones = None
 DEFAULT.vf_lr_gamma = None
+DEFAULT.vf_warmup_iters = 0
 
 # Discount factor
 DEFAULT.discount = 1.0

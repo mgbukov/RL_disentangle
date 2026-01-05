@@ -57,6 +57,8 @@ class PPOAgent(PGAgent):
                     Advantage estimation discounting factor. Default: 0.95
         """
         super().__init__(policy_network, value_network, config)
+        self.freeze_pf = config.get("freeze_pf", False)
+        self.freeze_vf = config.get("freeze_vf", False)
 
         # PPO-specific args.
         self.pi_clip = config.get("pi_clip", 0.02)
@@ -111,10 +113,12 @@ class PPOAgent(PGAgent):
 
         # Update value network.
         returns = adv + values
-        self.update_value(obs, returns)
+        if not self.freeze_vf:
+            self.update_value(obs, returns)
 
         # Update the policy network.
-        self.update_policy(obs, acts, adv, logprobs)
+        if not self.freeze_pf:
+            self.update_policy(obs, acts, adv, logprobs)
 
     def update_policy(self, obs: torch.Tensor, acts: torch.Tensor,
                       adv: torch.Tensor, logp: torch.Tensor):
@@ -209,6 +213,7 @@ class PPOAgent(PGAgent):
         tracker.add_scalar("Policy Grad Norm",
                             np.mean(pi_norms).item(0),
                             np.std(pi_norms).item(0))
+        tracker.add_scalar("Policy LR", self.policy_optim.param_groups[0]["lr"])
         tracker.add_scalar("Num PPO Updates",
                             n_updates)
 
@@ -269,6 +274,7 @@ class PPOAgent(PGAgent):
         tracker.add_scalar("Value Grad Norm",
                             np.mean(vf_norms).item(0),
                             np.std(vf_norms).item(0))
+        tracker.add_scalar("Value LR", self.value_optim.param_groups[0]["lr"])
 
     def state_dict(self):
         state_dict = super().state_dict()

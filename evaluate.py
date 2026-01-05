@@ -29,7 +29,7 @@ TEST_HAAR_PRODUCT_STATES = {
     10: ["RRR-RRR-RRR-R", "RRR-RRRR-RRR", "RRRR-RRRR-RR", "RRRRR-RRRRR",
          "RRRRRR-RRRR", "RRRRRRRR-RR", "RRRRRRRRR-R", "RRRRRRRRRR"],
     12: ["RR-RR-RR-RR-RR-RR", "RRR-RRR-RRR-RRR", "RRRR-RRRR-RRRR", "RRRR-RRRRR-R",
-         "RRRRRR-RRRRRR"],
+         "RRRRRR-RRRRRR", "RRRR-RRRRRRRR", "RR-RRRRRRRRRR"],
     15: ["RR-RR-RR-RR-RR-RR-RR-R", "RRR-RRR-RRR-RRR-RRR", "RRRR-RRRR-RRRR-RRR",
          "RRRRR-RRRRR-RRRRR"],
     16: ["RR-RR-RR-RR-RR-RR-RR-RR", "RRR-RRR-RRR-RRR-RRR-R", "RRRR-RRRR-RRRR-RRRR"]
@@ -161,10 +161,12 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    device = "cpu" if args.cuda is False else "cuda"
+
     # Load agent directly or reinitialize from checkpoint
     if args.agent:
         print(f"Loading agent from \"{args.agent}\"...")
-        agent = torch.load(args.agent, map_location="cpu")
+        agent = torch.load(args.agent, map_location=device)
         print(f"Agent loaded successfuly!")
         agent.policy_network.eval()
         agent.value_network.eval()

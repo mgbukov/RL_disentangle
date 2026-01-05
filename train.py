@@ -39,6 +39,9 @@ def init_triggers(config, agent, env, checkpointed_state=None):
             case "StagedTrainingTrigger":
                 x = triggers.StagedTrainingTrigger(config, agent, env)
                 triggers_list.append(x)
+            case "UnfreezePolicy":
+                x = triggers.UnfreezePolicy(config, agent, env)
+                triggers_list.append(x)
             case _:
                 logging.error("Trigger \"{name}\" is not defined. Ignorring...")
 
@@ -105,6 +108,10 @@ def train_ppo(config):
 
     # Initialize RL agent
     agent = PPOAgent(policy_network, value_network, config={
+        "freeze_pf":        False if config.pi_freeze == 0 else True,
+        "freeze_vf":        False if config.vf_freeze == 0 else True,
+        "vf_warmup_iters":  config.vf_warmup_iters,
+
         "pi_lr":        config.pi_lr,
         "vf_lr":        config.vf_lr,
         "discount":     config.discount,

@@ -90,8 +90,8 @@ if __name__ == "__main__":
                 "elapsed":  toc - tic,
             })
 
-    print("\n\nSaving JSON")
-    with open(args.output, mode="w") as f:
-        json.dump(results, f, indent="  ")
+            print("\n\nSaving JSON")
+            with open(args.output, mode="w") as f:
+                json.dump(results, f, indent="  ")
 
-    print("Done")
+            print("Done")
