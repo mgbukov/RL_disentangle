@@ -72,6 +72,7 @@ def test_agent(agent, states, **env_kwargs):
 
     return {
         "avg_len": float(np.nanmean(lengths)),
+        "std": float(np.nanstd(lengths)),
         "95_percentile": float(np.nanpercentile(lengths, 95.)),
         "max_len": float(np.nanmax(lengths)),
         "ratio_solved": float(solved / num_envs),
@@ -143,6 +144,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--agent", type=str)
+    # TODO
+    # parser.add_argument("--greedy", type=str)
     parser.add_argument("--checkpoint", type=str, default=None)
     parser.add_argument("--config", type=str, default=None)
     parser.add_argument("--num_qubits", nargs='+', type=int)
@@ -207,7 +210,7 @@ if __name__ == "__main__":
         })
         print("Initialized RL agent")
         # Load parameters from checkpoint
-        checkpointed_state = load_checkpoint(args.checkpoint)
+        checkpointed_state = load_checkpoint(config)
         agent.policy_network.load_state_dict(checkpointed_state["policy_fn"])
         print("Loaded parameters from checkpoint")
     else:
