@@ -1,0 +1,47 @@
+env_device: "cuda"
+model_device: "cuda"
+seed: 17
+
+num_qubits: 16
+num_iters: 4000
+num_envs: 128
+steps: 30
+steps_limit: 200
+epsi: 1e-3
+obs_fn: rdm2m
+fast_obs: True
+fast_ents: True
+reward_fn: relative_delta
+stategen_fn: sample_haar_generalized
+stategen_params: [
+  [min_subsystem_size, 2],
+  [max_subsystem_size, 4],
+  [min_eta, 4.1],
+  [max_eta, 4.1],
+]
+
+pi_lr: 1e-4
+vf_lr: 1e-4
+
+discount: 0.99
+batch_size: 64
+clip_grad: 10.0
+entropy_reg: 0.005
+
+# Policy network parameters
+transformer_layers: 8
+attn_heads: 4
+embed_dim: 256
+dim_mlp: 1024
+
+log_every: 100
+checkpoint_every: 1000
+test_every: 500
+test_min_subsystem_size: 2
+test_max_subsystem_size: 4
+num_tests: 20
+trigger_every: 100000
+triggers: []
+triggers_levels: []
+logdir_prefix: "direct_"
+logdir_suffix: "_XL_eta4.1_128envs_30steps"
