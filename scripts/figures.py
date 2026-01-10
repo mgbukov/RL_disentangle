@@ -7,6 +7,7 @@ import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import os
 import pickle
+from collections import defaultdict
 
 from context import *
 from src.environment_loop import test_agent
@@ -731,65 +732,100 @@ def figure_stats_large_systems():
     BOF = 0.6              # Bar offset
 
     # Initialize figure and create axes
-    fig = plt.figure(figsize=(12, 6), layout='tight')
-    ax12 = fig.add_axes((0.1, 0.6, 0.8, 0.3))
-    ax16 = fig.add_axes((0.1, 0.1, 0.8, 0.3))
+    fig = plt.figure(figsize=(12, 6))
+    ax12 = fig.add_axes((0.1, 0.6, 0.8, 0.2))
+    ax16 = fig.add_axes((0.1, 0.1, 0.8, 0.2))
     axs = (ax12, ax16)
 
     # deep slate blue #3D405B medium blue #0077B6 light blue #90E0EF, pale blue #CAF0F8
     colors = ['#7abacc', '#0077B6', '#3D405B']
 
+    greedy_stats = {}
+    rl_stats = {}
     # /// 12q results
     # Read data
     #   - Greedy agent
-    greedy_stats = {}
     with open(os.path.join(PATH_BENCHMARKS, "greedy-12q-3x4-weakly_entangled.json"), mode="rt") as f:
         data = json.load(f)
-        greedy_stats["3x4"] = np.array([x["steps"] for x in data["results"]]).mean()
+        results = np.array([x["steps"] for x in data["results"]])
+        greedy_stats["3x4"] = (results.mean(), results.std())
     with open(os.path.join(PATH_BENCHMARKS, "greedy-12q-4x3-weakly_entangled.json"), mode="rt") as f:
         data = json.load(f)
-        greedy_stats["4x3"] = np.array([x["steps"] for x in data["results"]]).mean()
+        results = np.array([x["steps"] for x in data["results"]])
+        greedy_stats["4x3"] = (results.mean(), results.std())
     with open(os.path.join(PATH_BENCHMARKS, "greedy-12q-6x2-weakly_entangled.json"), mode="rt") as f:
         data = json.load(f)
-        greedy_stats["6x2"] = np.array([x["steps"] for x in data["results"]]).mean()
+        results = np.array([x["steps"] for x in data["results"]])
+        greedy_stats["6x2"] = (results.mean(), results.std())
 
     # -- RL agent
-    rl_stats = {}
-    with open(os.path.join(PATH_BENCHMARKS, "agent-weakly-entangled(mixed6)-12q.json"), mode="rt") as f:
+    with open(os.path.join(PATH_BENCHMARKS, "agent-12q-eta4.1.json"), mode="rt") as f:
         data = json.load(f)
-        rl_stats["3x4"] = data["weakly_entangled"]["12"]["subsystem_size=4,eta=4.1"]["avg_len"]
-        rl_stats["4x3"] = data["weakly_entangled"]["12"]["subsystem_size=3,eta=4.1"]["avg_len"]
-        rl_stats["6x2"] = data["weakly_entangled"]["12"]["subsystem_size=2,eta=4.1"]["avg_len"]
+        data3x4 = data["weakly_entangled"]["12"]["subsystem_size=4,eta=4.1"]
+        rl_stats["3x4"] = (data3x4["avg_len"], data3x4["std"])
+        data4x3 = data["weakly_entangled"]["12"]["subsystem_size=3,eta=4.1"]
+        rl_stats["4x3"] = (data4x3["avg_len"], data4x3["std"])
+        data6x2 = data["weakly_entangled"]["12"]["subsystem_size=2,eta=4.1"]
+        rl_stats["6x2"] = (data6x2["avg_len"], data6x2["std"])
 
+    # /// 16q results
+    # Read data
+    #   - Greedy agent
+    with open(os.path.join(PATH_BENCHMARKS, "greedy-16q-4x4-weakly_entangled.json"), mode="rt") as f:
+        data = json.load(f)
+        results = np.array([x["steps"] for x in data["results"]])
+        greedy_stats["4x4"] = (results.mean(), results.std())
+    with open(os.path.join(PATH_BENCHMARKS, "greedy-16q-5x3-weakly_entangled.json"), mode="rt") as f:
+        data = json.load(f)
+        results = np.array([x["steps"] for x in data["results"]])
+        greedy_stats["5x3"] = (results.mean(), results.std())
+    with open(os.path.join(PATH_BENCHMARKS, "greedy-16q-8x2-weakly_entangled.json"), mode="rt") as f:
+        data = json.load(f)
+        results = np.array([x["steps"] for x in data["results"]])
+        greedy_stats["8x2"] = (results.mean(), results.std())
+    #   - RL agent
+    with open(os.path.join(PATH_BENCHMARKS, "agent-16q.json"), mode="rt") as f:
+        data = json.load(f)
+        data4x4 = data["weakly_entangled"]["16"]["subsystem_size=4,eta=4.1"]
+        rl_stats["4x4"] = (data4x4["avg_len"], data4x4["std"])
+        data5x3 = data["weakly_entangled"]["16"]["subsystem_size=3,eta=4.1"]
+        rl_stats["5x3"] = (data5x3["avg_len"], data5x3["std"])
+        data8x2 = data["weakly_entangled"]["16"]["subsystem_size=2,eta=4.1"]
+        rl_stats["8x2"] = (data8x2["avg_len"], data8x2["std"])
 
-    keys = reversed(rl_stats.keys())
+    keys_12q = ["6x2", "4x3", "3x4"]
+    keys_16q = ["8x2", "5x3", "4x4"]
 
     offset = 0
-    xticks = []
-    xticklabels = []
-    for k in keys:
+    xticks = defaultdict(list)
+    xticklabels = defaultdict(list)
+    for k in (keys_12q + keys_16q):
+        ax = ax12 if k in keys_12q else ax16
+        size = 12 if k in keys_12q else 16
         xs = [offset, offset + BWI]
-        heights = [rl_stats[k], greedy_stats[k]]
+        heights = [rl_stats[k][0], greedy_stats[k][0]]
+        stds = [rl_stats[k][1], greedy_stats[k][1]]
         # TODO Add standard deviation
-        xticks.append(offset + BWI)
-        xticklabels.append(k)
-        rects = ax12.bar(xs, heights, BWI, color=colors, ecolor='red', capsize=5, label=["RL", "Greedy"])
-        # labels = [f'{int(h)} ±{int(s)}' for h, s in zip(heights, stds)]
-        labels = [int(np.round(h,0)) for h in heights]
-        ax12.bar_label(rects, labels, rotation=45)
+        xticks[size].append(offset + BWI)
+        xticklabels[size].append(k)
+        rects = ax.bar(xs, heights, BWI, color=colors, ecolor='red', capsize=5, label=["RL", "Greedy"])
+        labels = [f'{int(h)} ±{int(s)}' for h, s in zip(heights, stds)]
+        # labels = [int(np.round(h,0)) for h in heights]
+        ax.bar_label(rects, labels, rotation=45)
         offset += 3 * BWI + BOF
 
-    ax12.set_xticks(xticks, xticklabels, rotation=0)
+    ax12.set_xticks(xticks[12], xticklabels[12], rotation=0)
+    ax16.set_xticks(xticks[16], xticklabels[16], rotation=0)
     # ax12.set_yticks([1, 5, 10, 15, 20])
     ax12.set_title("$L = 12$")
+    ax16.set_title("$L = 16$")
     # ax12.text(s="$L = 12$", x=0.1, y=0.95, transform=ax12.transAxes)
 
 
-    handles, labels = ax12.get_legend_handles_labels()
+    handles, labels = ax16.get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
     # ax16.text(s="$L = 16$", x=0.035, y=0.95, transform=ax12.transAxes)
-
-    ax12.legend(by_label.values(), by_label.keys(), loc=(0.6, -0.5), ncols=2, frameon=False)
+    ax16.legend(by_label.values(), by_label.keys(), loc=(0.7, -0.5), ncols=2, frameon=False)
 
     # Configure axes
     for ax in axs:
@@ -804,7 +840,7 @@ def figure_stats_large_systems():
 
     # Restore old font size
     mpl.rcParams['font.size'] = old_fontsize
-    fig.tight_layout()
+    # fig.tight_layout()
     return fig
 
 
@@ -1500,8 +1536,8 @@ if __name__ == '__main__':
     # fig_rl = figure_rl_train_scaling()
     # fig_rl.savefig(os.path.join(PATH_FIGURES, "rl-scaling.pdf"))
 
-    fig_12q = figure_stats_large_systems()
-    fig_12q.savefig(os.path.join(PATH_FIGURES, "results-12q.pdf"))
+    fig_large_systems = figure_stats_large_systems()
+    fig_large_systems.savefig(os.path.join(PATH_FIGURES, "results-12q16q.pdf"))
 
     # # Benchmark agents
     # results = benchmark_agents(1000)
