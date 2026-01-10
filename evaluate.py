@@ -240,6 +240,8 @@ if __name__ == "__main__":
             args.n_tests,
             **env_kwargs
         )
+        with open(args.output, mode='wt') as f:
+            json.dump(results, f, indent=2)
 
     if args.mps:
         print("Testing on Matrix product states...")
@@ -250,6 +252,8 @@ if __name__ == "__main__":
             args.n_tests,
             **env_kwargs
         )
+        with open(args.output, mode='wt') as f:
+            json.dump(results, f, indent=2)
 
     if args.weakly_entangled:
         print("Testing on weakly entangled states...")
@@ -261,6 +265,8 @@ if __name__ == "__main__":
             args.n_tests,
             **env_kwargs
         )
+        with open(args.output, mode='wt') as f:
+            json.dump(results, f, indent=2)
 
     print("Testing completed! Writing results...")
     with open(args.output, mode='wt') as f:

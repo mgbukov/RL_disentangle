@@ -42,7 +42,6 @@ DEFAULT.reward_fn = "relative_delta"
 
 # State generator / sampler function used by the RL environment
 DEFAULT.stategen_fn = "haar_product"
-
 # State generator paramaters
 DEFAULT.stategen_params = [("min_subsystem_size", 2), ("max_subsystem_size", 4)]
 
@@ -103,12 +102,6 @@ DEFAULT.log_every = 100
 
 DEFAULT.checkpoint_every = 100
 
-DEFAULT.test_every = 1000
-
-DEFAULT.num_tests = 100
-
-DEFAULT.test_states = []
-
 DEFAULT.trigger_every = 500
 
 DEFAULT.triggers = []
@@ -138,6 +131,12 @@ DEFAULT.checkpoint.use_tracker = True
 # If `True`, then action selection is performed using `argmax` over the RL agent's policy
 # If `False`, then action is sampled using the policy's probabilities
 DEFAULT.greedy_evaluation_policy = True
+
+# ===---------------- Testing during training ---------------=== #
+DEFAULT.test_every = 1000
+DEFAULT.num_tests = 100
+DEFAULT.test_min_subsystem_size = 2
+DEFAULT.test_max_subsystem_size = 4
 
 
 def get_default_config():

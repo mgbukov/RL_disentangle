@@ -16,8 +16,11 @@ from .qenv import QEnv
 from .evaluation import test_lengths
 from . import metrics
 from . import util
-from .stategen import StateGenerator
-
+from .stategen import (
+    StateGenerator,
+    sample_haar_product,
+    sample_haar_generalized
+)
 
 
 def envloop(agent: PPOAgent, env: QEnv, num_iters: int, steps: int,
@@ -135,7 +138,7 @@ def envloop(agent: PPOAgent, env: QEnv, num_iters: int, steps: int,
 
         # Test the agent
         if i > 0 and i % config.test_every == 0:
-            demo_agent(agent, env, config)
+            demo_single_subsystem_size(agent, env, config)
 
         # Log results
         if i % config.log_every == 0:
@@ -165,9 +168,8 @@ def envloop(agent: PPOAgent, env: QEnv, num_iters: int, steps: int,
         tracker.step()
 
 
-
 @torch.no_grad()
-def demo_agent(agent, env: QEnv, config):
+def demo_single_subsystem_size(agent: PPOAgent, env: QEnv, config):
 
     def log_results(lengths):
         ratio_terminated = np.sum(~np.isnan(lengths)) / lengths.size
@@ -186,112 +188,159 @@ def demo_agent(agent, env: QEnv, config):
         logging.info(f"\t\tAverage length:   {avg_length:.1f} ± {std_length:.1f}")
         logging.info(f"\t\tMinimum length:   {min_length:.1f}")
         logging.info(f"\t\tMaximum length:   {max_length:.1f}")
-        logging.info(f"\t\t90-th % length:   {p90_length:.1f}\n")
+        logging.info(f"\t\t90-th % length:   {p90_length:.1f}")
 
 
     logging.info('\n\n' + 75 * '-')
-    logging.info("Testing agent on predefined kinds of states...")
+    logging.info("Testing agent on various subsystem sizes...")
 
-    # Iterate trough list of states descriptions.
-    # Example: ["RR-RR-RR", "RRR-RRR", "RRRRRR"]
-    for sdescr in config.test_states:
-        states = itertools.cycle(util.str2state(sdescr) for _ in range(config.num_tests))
-        sample_fn = lambda x: next(states)
-        sampler = StateGenerator(sample_fn, env.num_qubits)
-
+    for size in range(config.test_min_subsystem_size, config.test_max_subsystem_size + 1):
+        logging.info(f"\n\tSubsystem size: {size}")
+        params = dict(min_subsystem_size=size, max_subsystem_size=size)
+        if config.stategen_fn == "sample_haar_product":
+            sampler = StateGenerator(sample_haar_product, env.num_qubits, params)
+        elif config.stategen_fn == "sample_haar_generalized":
+            # Get `min_eta` and `max_eta` from the environment object,
+            # because they may be changed during training with triggers
+            params["min_eta"] = env.state_generator.sample_params["min_eta"]
+            params["max_eta"] = env.state_generator.sample_params["max_eta"]
+            sampler = StateGenerator(sample_haar_generalized, env.num_qubits, params)
+        else:
+            raise ValueError("Unsupported `stategen_fn` in demo_single_subsystem_size()")
         lengths = test_lengths(agent, sampler,
                                max_steps=env.max_episode_steps,
                                obs_fn=config.obs_fn, num_tests=config.num_tests,
                                epsi=env.epsi, greedy=True)
-        logging.info(f"\n\tState description: {sdescr}")
         log_results(lengths)
-
-
-    max_subsystem_size = env.state_generator.sample_params.get("max_subsystem_size")
-    if max_subsystem_size is not None:
-
-        logging.info("\nTesting agent on various subsystem sizes using "
-                     "environment's state sampler...")
-
-        for subsystem_size in range(2, max_subsystem_size+1):
-            # Clone state generator and change `min` and `max_subsystem_size`
-            sampler = copy.deepcopy(env.state_generator)
-            sampler.update(**dict(min_subsystem_size=subsystem_size,
-                                  max_subsystem_size=subsystem_size))
-
-            lengths = test_lengths(agent, sampler,
-                                max_steps=env.max_episode_steps,
-                                obs_fn=config.obs_fn, num_tests=config.num_tests,
-                                epsi=env.epsi, greedy=True)
-            logging.info(f"\n\tSubsystem size: {subsystem_size}")
-            log_results(lengths)
-    else:
-        pass
     logging.info('\n' + 75 * '-' + '\n')
 
 
+# @torch.no_grad()
+# def demo_agent(agent: PPOAgent, env: QEnv, config):
 
-@torch.no_grad()
-def test_agent(agent, initial_states, **environment_kwargs):
-    """
-    Test the agent on batch of initial states.
+#     def log_results(lengths):
+#         ratio_terminated = np.sum(~np.isnan(lengths)) / lengths.size
+#         avg_length = np.nanmean(lengths)
+#         std_length = np.nanstd(lengths)
+#         min_length = np.nanmin(lengths)
+#         max_length = np.nanmax(lengths)
+#         p90_length = np.nanpercentile(lengths, 90)
+#         if np.isnan(avg_length):
+#             avg_length = np.inf
+#             std_length = np.inf
+#             min_length = np.inf
+#             max_length = np.inf
+#             p90_length = np.inf
+#         logging.info(f"\t\tRatio terminated: {ratio_terminated:.3f}")
+#         logging.info(f"\t\tAverage length:   {avg_length:.1f} ± {std_length:.1f}")
+#         logging.info(f"\t\tMinimum length:   {min_length:.1f}")
+#         logging.info(f"\t\tMaximum length:   {max_length:.1f}")
+#         logging.info(f"\t\t90-th % length:   {p90_length:.1f}\n")
 
-    Parameters:
-        agent (BaseAgent) :
-            The agent to test
-        initial_states (numpy.ndarray) :
-            Batch of initial states.
-        environment_kwargs (dict) :
-            Arguments passed to environment at initialization
 
-    Returns: dict
-        Dictionary with test results
-    """
+#     logging.info('\n\n' + 75 * '-')
+#     logging.info("Testing agent on various subsystem sizes...")
 
-    # Initialize the environment
-    num_qubits = initial_states.ndim - 1
-    environment_kwargs["num_qubits"] = num_qubits
-    n_states = len(initial_states)
-    num_envs = environment_kwargs.get('num_envs', -1)
-    if num_envs < 0:
-        num_envs = 32
-    if num_envs > n_states:
-        warnings.warn("`num_envs` is greater than the number of initial states."
-                      " `num_envs` will be changed to `len(initial_states)`.")
-        num_envs = n_states
-    environment_kwargs.pop("num_qubits", None)
-    environment_kwargs.pop("num_envs", None)
+#     # Iterate trough list of states descriptions.
+#     # Example: ["RR-RR-RR", "RRR-RRR", "RRRRRR"]
+#     for sdescr in config.test_states:
+#         states = itertools.cycle(util.str2state(sdescr) for _ in range(config.num_tests))
+#         sample_fn = lambda x: next(states)
+#         sampler = StateGenerator(sample_fn, env.num_qubits)
 
-    results = defaultdict(list)
-    for n in range(0, n_states, num_envs):
-        batch = initial_states[n:n+num_envs]
-        env = QEnv(num_qubits=num_qubits, num_envs=len(batch),
-                         **environment_kwargs)
-        env.reset()
-        env.set_states(batch)
-        o = env.obs_fn(env.simulator.states)
+#         lengths = test_lengths(agent, sampler,
+#                                max_steps=env.max_episode_steps,
+#                                obs_fn=config.obs_fn, num_tests=config.num_tests,
+#                                epsi=env.epsi, greedy=True)
+#         logging.info(f"\n\tState description: {sdescr}")
+#         log_results(lengths)
 
-        lengths = [None] * env.num_envs
-        done = [False for _ in range(env.num_envs)]
 
-        for _ in range(env.max_episode_steps - 1):
-            o = torch.from_numpy(o)
-            pi = agent.policy(o)    # uses torch.no_grad
-            acts = torch.argmax(pi.probs, dim=1).cpu().numpy() # greedy selection
+#     max_subsystem_size = env.state_generator.sample_params.get("max_subsystem_size")
+#     if max_subsystem_size is not None:
 
-            o, r, t, tr, infos = env.step(acts, reset=False)
-            if (t | tr).any():
-                for k in range(env.num_envs):
-                    if (t[k] | tr[k]) and (lengths[k] is None):
-                        lengths[k] = infos["episode"]["l"][k]
-                        done[k] = True
-            if np.all(done):
-                break
-        results["lengths"].extend(lengths)
-        results["done"].extend(done)
-        results["entanglements"].extend(env.simulator.entanglements)
+#         logging.info("\nTesting agent on various subsystem sizes using "
+#                      "environment's state sampler...")
 
-    results["lengths"] = np.array(results["lengths"])
-    results["done"] = np.array(results["done"])
-    results["entanglements"] = np.array(results["entanglements"])
-    return results
+#         for subsystem_size in range(2, max_subsystem_size+1):
+#             # Clone state generator and change `min` and `max_subsystem_size`
+#             sampler = copy.deepcopy(env.state_generator)
+#             sampler.update(**dict(min_subsystem_size=subsystem_size,
+#                                   max_subsystem_size=subsystem_size))
+
+#             lengths = test_lengths(agent, sampler,
+#                                 max_steps=env.max_episode_steps,
+#                                 obs_fn=config.obs_fn, num_tests=config.num_tests,
+#                                 epsi=env.epsi, greedy=True)
+#             logging.info(f"\n\tSubsystem size: {subsystem_size}")
+#             log_results(lengths)
+#     else:
+#         pass
+#     logging.info('\n' + 75 * '-' + '\n')
+
+
+
+# @torch.no_grad()
+# def test_agent(agent, initial_states, **environment_kwargs):
+#     """
+#     Test the agent on batch of initial states.
+
+#     Parameters:
+#         agent (BaseAgent) :
+#             The agent to test
+#         initial_states (numpy.ndarray) :
+#             Batch of initial states.
+#         environment_kwargs (dict) :
+#             Arguments passed to environment at initialization
+
+#     Returns: dict
+#         Dictionary with test results
+#     """
+
+#     # Initialize the environment
+#     num_qubits = initial_states.ndim - 1
+#     environment_kwargs["num_qubits"] = num_qubits
+#     n_states = len(initial_states)
+#     num_envs = environment_kwargs.get('num_envs', -1)
+#     if num_envs < 0:
+#         num_envs = 32
+#     if num_envs > n_states:
+#         warnings.warn("`num_envs` is greater than the number of initial states."
+#                       " `num_envs` will be changed to `len(initial_states)`.")
+#         num_envs = n_states
+#     environment_kwargs.pop("num_qubits", None)
+#     environment_kwargs.pop("num_envs", None)
+
+#     results = defaultdict(list)
+#     for n in range(0, n_states, num_envs):
+#         batch = initial_states[n:n+num_envs]
+#         env = QEnv(num_qubits=num_qubits, num_envs=len(batch),
+#                          **environment_kwargs)
+#         env.reset()
+#         env.set_states(batch)
+#         o = env.obs_fn(env.simulator.states)
+
+#         lengths = [None] * env.num_envs
+#         done = [False for _ in range(env.num_envs)]
+
+#         for _ in range(env.max_episode_steps - 1):
+#             o = torch.from_numpy(o)
+#             pi = agent.policy(o)    # uses torch.no_grad
+#             acts = torch.argmax(pi.probs, dim=1).cpu().numpy() # greedy selection
+
+#             o, r, t, tr, infos = env.step(acts, reset=False)
+#             if (t | tr).any():
+#                 for k in range(env.num_envs):
+#                     if (t[k] | tr[k]) and (lengths[k] is None):
+#                         lengths[k] = infos["episode"]["l"][k]
+#                         done[k] = True
+#             if np.all(done):
+#                 break
+#         results["lengths"].extend(lengths)
+#         results["done"].extend(done)
+#         results["entanglements"].extend(env.simulator.entanglements)
+
+#     results["lengths"] = np.array(results["lengths"])
+#     results["done"] = np.array(results["done"])
+#     results["entanglements"] = np.array(results["entanglements"])
+#     return results

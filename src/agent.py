@@ -77,9 +77,8 @@ class PGAgent:
                 pi_lr_gamma
             )
         else:
-            self.pi_lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
-                self.policy_optim,
-                lambda i: 1.0,
+            self.pi_lr_scheduler = torch.optim.lr_scheduler.ConstantLR(
+                self.policy_optim, factor=1.0,
             )
         # * Value function base scheduler
         if vf_lr_milestones is not None and vf_lr_gamma is not None:
@@ -89,9 +88,8 @@ class PGAgent:
                 vf_lr_gamma
             )
         else:
-            vf_scheduler = torch.optim.lr_scheduler.LambdaLR(
-                self.value_optim,
-                lambda i: 1.0
+            vf_scheduler = torch.optim.lr_scheduler.ConstantLR(
+                self.value_optim, factor=1.0
             )
         if vf_warmup_iters > 0:
             # * Value function warmup scheduler
