@@ -79,12 +79,8 @@ class QEnv:
         self.episode_len[:] = 0
         self.accumulated_return[:] = 0
         # Update observations
-        if self.fast_obs:
-            obs = self.obs_fn(self.simulator.states, None, None)
-            self.last_obs = obs
-        else:
-            obs = self.obs_fn(self.simulator.states)
-            self.last_obs = None
+        obs = self.obs_fn(self.simulator.states, device=self.device)
+        self.last_obs = obs if self.last_obs else None
         return obs, {}
 
     def reset_sub_environment(self, i: int):
@@ -105,12 +101,9 @@ class QEnv:
         self.episode_len[:] = 0.0
         self.accumulated_return[:] = 0.0
         # Update `last_obs`
+        obs = self.obs_fn(self.simulator.states, device=self.device)
         if self.fast_obs:
-            obs = self.obs_fn(self.simulator.states, None, None)
-            self.last_obs = obs
-        else:
-            obs = self.obs_fn(self.simulator.states)
-            self.last_obs = None
+            self.last_obs = obs if self.fast_obs else None
 
     def step(self, acts: List[int], reset=True):
         # Store the current entanglements before applying the actions.
@@ -156,8 +149,7 @@ class QEnv:
         # Note that we have to do this only after we check for done environments
         if self.fast_obs:
             if self.last_obs is None:
-                x = torch.from_numpy(self.simulator.states).to(self.device)
-                obs = self.obs_fn(x, None, None)
+                obs = self.obs_fn(self.simulator.states, device=self.device)
             else:
                 modified = []
                 for n in range(self.num_envs):
@@ -167,10 +159,10 @@ class QEnv:
                         m = self.actions[acts[n]]
                     modified.append(m)
                 x = self.simulator.states.to(self.device)
-                obs = self.obs_fn(x, self.last_obs, modified)
+                obs = self.obs_fn(x, self.last_obs, modified, self.device)
             self.last_obs = obs
         else:
-            obs = self.obs_fn(self.simulator.states).to(self.device)
+            obs = self.obs_fn(self.simulator.states, device=self.device)
 
         # NOTE: Take notice that if a sub-environment is done we are resetting
         # it and returning the observation for the new state. This means that
