@@ -1,0 +1,99 @@
+env_device: "cuda"
+model_device: "cuda"
+seed: 22
+
+num_qubits: 16
+num_iters: 4000
+num_envs: 64
+steps: 20
+steps_limit: 100
+epsi: 1e-3
+obs_fn: rdm2m
+fast_obs: True
+fast_ents: True
+reward_fn: relative_delta
+stategen_fn: sample_haar_product
+stategen_params: [
+  [min_subsystem_size, 2],
+  [max_subsystem_size, 2]
+]
+
+pi_lr: 1e-4
+vf_lr: 1e-4
+
+discount: 0.99
+batch_size: 512
+clip_grad: 10.0
+entropy_reg: 0.005
+
+# Policy network parameters
+transformer_layers: 8
+attn_heads: 4
+embed_dim: 256
+dim_mlp: 1024
+
+log_every: 100
+checkpoint_every: 1000
+test_every: 500
+test_min_subsystem_size: 2
+test_max_subsystem_size: 4
+num_tests: 20
+trigger_every: 100000
+triggers: []
+triggers: ["StagedTrainingTrigger"]
+triggers_levels: [
+  [
+    "StagedTrainingTrigger",
+    [
+      {
+        min_iterations: 100,
+        test_max_steps: 20,
+        test_min_subsystem_size: 2,
+        test_max_subsystem_size: 2,
+        threshold_average_length: 9.0,
+        threshold_ratio_terminated: 0.98,
+        env_parameters: { max_episode_steps: 20 },
+        sgen_parameters: { min_subsystem_size: 2, max_subsystem_size: 2},
+        agent_parameters: {}
+      },
+
+      {
+        min_iterations: 500,
+        test_max_steps: 20,
+        test_min_subsystem_size: 3,
+        test_max_subsystem_size: 3,
+        threshold_average_length: 11.5,
+        threshold_ratio_terminated: 0.98,
+        env_parameters: { max_episode_steps: 20 },
+        sgen_parameters: { min_subsystem_size: 2, max_subsystem_size: 3},
+        agent_parameters: {}
+      },
+
+      {
+        min_iterations: 100,
+        test_max_steps: 40,
+        test_min_subsystem_size: 4,
+        test_max_subsystem_size: 4,
+        threshold_average_length: 25.0,
+        threshold_ratio_terminated: 0.98,
+        env_parameters: { max_episode_steps: 40 },
+        sgen_parameters: { min_subsystem_size: 2, max_subsystem_size: 4},
+        agent_parameters: {}
+      },
+
+      {
+        min_iterations: 100,
+        test_max_steps: 40,
+        test_min_subsystem_size: 4,
+        test_max_subsystem_size: 4,
+        threshold_average_length: 22.0,
+        threshold_ratio_terminated: 0.98,
+        env_parameters: { max_episode_steps: 40 },
+        sgen_parameters: { min_subsystem_size: 2, max_subsystem_size: 4},
+        agent_parameters: {}
+      }
+    ]
+  ]
+]
+logdir_prefix: "staged_"
+logdir_suffix: "_XL_product"
