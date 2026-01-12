@@ -33,13 +33,12 @@ embed_dim: 256
 dim_mlp: 1024
 
 log_every: 100
-checkpoint_every: 1000
+checkpoint_every: 500
 test_every: 500
 test_min_subsystem_size: 2
 test_max_subsystem_size: 4
 num_tests: 20
-trigger_every: 100000
-triggers: []
+trigger_every: 200
 triggers: ["StagedTrainingTrigger"]
 triggers_levels: [
   [
