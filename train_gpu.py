@@ -122,11 +122,11 @@ def train_ppo(config):
         "entropy_reg":  config.entropy_reg,
 
         # PPO-specific
-        "pi_clip":      0.2,
-        "vf_clip":      10.0,
-        "tgt_KL":       0.01,
-        "n_epochs":     3,
-        "lamb":         0.95
+        "pi_clip":          0.2,
+        "vf_clip":          10.0,
+        "tgt_KL":           0.01,
+        "num_ppo_updates":  config.num_ppo_updates,
+        "lamb":             0.95
     })
     logging.debug("Initialized RL agent")
 
@@ -154,15 +154,15 @@ def train_ppo(config):
             tracker.load_state_dict(checkpointed_state["tracker"])
 
     # Log agent parameters
-    logging.debug(f"\tagent.discount =     {agent.discount}")
-    logging.debug(f"\tagent.batch_size =   {agent.batch_size}")
-    logging.debug(f"\tagent.clip_grad =    {agent.clip_grad}")
-    logging.debug(f"\tagent.entropy_reg =  {agent.entropy_reg}")
-    logging.debug(f"\tagent.pi_clip =      {agent.pi_clip}")
-    logging.debug(f"\tagent.vf_clip =      {agent.vf_clip}")
-    logging.debug(f"\tagent.tgt_KL =       {agent.tgt_KL}")
-    logging.debug(f"\tagent.n_epochs =     {agent.n_epochs}")
-    logging.debug(f"\tagent.lamb =         {agent.lamb}")
+    logging.debug(f"\tagent.discount =          {agent.discount}")
+    logging.debug(f"\tagent.batch_size =        {agent.batch_size}")
+    logging.debug(f"\tagent.clip_grad =         {agent.clip_grad}")
+    logging.debug(f"\tagent.entropy_reg =       {agent.entropy_reg}")
+    logging.debug(f"\tagent.pi_clip =           {agent.pi_clip}")
+    logging.debug(f"\tagent.vf_clip =           {agent.vf_clip}")
+    logging.debug(f"\tagent.tgt_KL =            {agent.tgt_KL}")
+    logging.debug(f"\tagent.num_ppo_updates =   {agent.num_ppo_updates}")
+    logging.debug(f"\tagent.lamb =              {agent.lamb}")
     policy_fn_descr = "\n\t\t".join(str(agent.policy_network).split('\n'))
     logging.debug(f"\tagent.policy_fn =\n\t{policy_fn_descr}\n")
     value_fn_descr = "\n\t\t".join(str(agent.value_network).split('\n'))
@@ -253,5 +253,6 @@ if __name__ == "__main__":
     torch.backends.cudnn.deterministic = True
 
     # Start training
+    torch.autograd.set_detect_anomaly(True)
     train_ppo(config)
 

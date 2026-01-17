@@ -19,7 +19,8 @@ from . import util
 from .stategen import (
     StateGenerator,
     sample_haar_product,
-    sample_haar_generalized
+    sample_haar_generalized,
+    sample_from_mmap
 )
 
 
@@ -74,7 +75,7 @@ def envloop(agent: PPOAgent, env: QEnv, num_iters: int, steps: int,
         # Perform parallel step-by-step rollout along multiple trajectories.
         episode_returns, episode_lengths = [], []
         terminated = 0
-        o = env.obs_fn(env.simulator.states)
+        o = env.obs_fn(env.simulator.states, device=device)
 
         for s in range(steps):
             # Store the current observation
@@ -204,6 +205,11 @@ def demo_single_subsystem_size(agent: PPOAgent, env: QEnv, config):
             # because they may be changed during training with triggers
             params["min_eta"] = env.state_generator.sample_params["min_eta"]
             params["max_eta"] = env.state_generator.sample_params["max_eta"]
+            sampler = StateGenerator(sample_haar_generalized, env.num_qubits, params)
+        elif config.stategen_fn == "sample_from_mmap":
+            # TODO: Fix somehow
+            params["min_eta"] = 4.1
+            params["max_eta"] = 4.1
             sampler = StateGenerator(sample_haar_generalized, env.num_qubits, params)
         else:
             raise ValueError("Unsupported `stategen_fn` in demo_single_subsystem_size()")

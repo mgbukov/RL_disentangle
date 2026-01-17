@@ -80,7 +80,7 @@ class QEnv:
         self.accumulated_return[:] = 0
         # Update observations
         obs = self.obs_fn(self.simulator.states, device=self.device)
-        self.last_obs = obs if self.last_obs else None
+        self.last_obs = obs if self.fast_obs else None
         return obs, {}
 
     def reset_sub_environment(self, i: int):
@@ -102,8 +102,7 @@ class QEnv:
         self.accumulated_return[:] = 0.0
         # Update `last_obs`
         obs = self.obs_fn(self.simulator.states, device=self.device)
-        if self.fast_obs:
-            self.last_obs = obs if self.fast_obs else None
+        self.last_obs = obs if self.fast_obs else None
 
     def step(self, acts: List[int], reset=True):
         # Store the current entanglements before applying the actions.

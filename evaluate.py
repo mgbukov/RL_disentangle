@@ -9,7 +9,6 @@ import numpy as np
 import torch
 
 from src.config import get_default_config
-from src.quantum_env import QuantumEnv
 from src.stategen import sample_mps, sample_haar_generalized
 from src.util import str2state, load_checkpoint
 from src.ppo import PPOAgent
@@ -36,17 +35,13 @@ TEST_HAAR_PRODUCT_STATES = {
 }
 
 
-def test_agent(agent, states, **env_kwargs):
-    """Test the agent on a set of specifically generated quantum states.
-    Note that this function will reset the numpy rng seed.
-    """
-
+def test_agent(agent, states, greedy=False, **env_kwargs):
     # Initialize the environment
     states = np.asarray(states)
     num_envs = env_kwargs.pop("num_envs", states.shape[0])
     num_qubits = env_kwargs.pop("num_qubits", states.ndim - 1)
     shape = (num_envs,) + (2,) * num_qubits
-    env = QuantumEnv(num_qubits=num_qubits, num_envs=num_envs, **env_kwargs)
+    env = QEnv(num_qubits=num_qubits, num_envs=num_envs, **env_kwargs)
     env.reset()
     env.simulator.states = states.reshape(shape)
 
@@ -55,10 +50,11 @@ def test_agent(agent, states, **env_kwargs):
     done = np.full(num_envs, False, dtype=bool)
     solved = 0
     for _ in range(env.max_episode_steps):
-        o = torch.from_numpy(o)
         pi = agent.policy(o)    # uses torch.no_grad
-        acts = torch.argmax(pi.probs, dim=1).cpu().numpy() # greedy selection
-
+        if greedy:
+            acts = torch.argmax(pi.probs, dim=1).cpu().numpy()
+        else:
+            acts = pi.sample().cpu().numpy()
         o, r, t, tr, infos = env.step(acts)
         if t.any():
             for k in range(env.num_envs):
@@ -66,7 +62,6 @@ def test_agent(agent, states, **env_kwargs):
                     lengths[k] = infos["episode"]["l"][k]
                     done[k] = True
                     solved += 1
-
         if np.all(done):
             break
 
@@ -79,7 +74,7 @@ def test_agent(agent, states, **env_kwargs):
     }
 
 
-def test_on_haar_random(agent, num_qubits, n_tests=128, **env_kwargs):
+def test_on_haar_random(agent, num_qubits, n_tests=128, greedy=True, **env_kwargs):
 
     results = {}
     if not isinstance(num_qubits, abc.Iterable):
@@ -93,12 +88,12 @@ def test_on_haar_random(agent, num_qubits, n_tests=128, **env_kwargs):
         results[L] = {}
         for name in names:
             states = np.array([str2state(name) for _ in range(n_tests)])
-            results[L][name] = test_agent(agent, states, **env_kwargs)
+            results[L][name] = test_agent(agent, states, greedy, **env_kwargs)
 
     return results
 
 
-def test_on_mps(agent, num_qubits, chi_max, n_tests=128, **env_kwargs):
+def test_on_mps(agent, num_qubits, chi_max, n_tests=128, greedy=True, **env_kwargs):
 
     if not isinstance(num_qubits, abc.Iterable):
         num_qubits = (num_qubits,)
@@ -112,12 +107,13 @@ def test_on_mps(agent, num_qubits, chi_max, n_tests=128, **env_kwargs):
         results[L] = {}
         for chi in chi_max:
             states = np.array([sample_mps(L, chi) for _ in range(n_tests)])
-            results[L][f"chimax={chi}"] = test_agent(agent, states, **env_kwargs)
+            results[L][f"chimax={chi}"] = test_agent(agent, states, greedy, **env_kwargs)
 
     return results
 
 
-def test_on_weakly_entangled(agent, num_qubits, subsystem_size, eta, n_tests=128, **env_kwargs):
+def test_on_weakly_entangled(agent, num_qubits, subsystem_size, eta,
+                             n_tests=128, greedy=True, **env_kwargs):
 
     if not isinstance(num_qubits, abc.Iterable):
         num_qubits = (num_qubits,)
@@ -135,7 +131,7 @@ def test_on_weakly_entangled(agent, num_qubits, subsystem_size, eta, n_tests=128
         for S in subsystem_size:
             for E in eta:
                 states = np.array([sample_haar_generalized(L, S, S, E, E) for _ in range(n_tests)])
-                results[L][f"subsystem_size={S},eta={E}"] = test_agent(agent, states, **env_kwargs)
+                results[L][f"subsystem_size={S},eta={E}"] = test_agent(agent, states, greedy, **env_kwargs)
 
     return results
 
@@ -152,7 +148,8 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str)
     parser.add_argument("--max_steps", type=int)
     parser.add_argument("--epsi", type=float, default=1e-3)
-    parser.add_argument("--obs_fn", type=str, default="rdm_2q_mean_real")
+    parser.add_argument("--sample", action="store_true")
+    parser.add_argument("--obs_fn", type=str, default="rdm2m")
     parser.add_argument("--n_tests", type=int, default=128)
     parser.add_argument("--chi_max", nargs='+', type=int, default=[4])
     parser.add_argument("--mps", action="store_true")
@@ -202,11 +199,11 @@ if __name__ == "__main__":
             "entropy_reg":  config.entropy_reg,
 
             # PPO-specific
-            "pi_clip":      0.2,
-            "vf_clip":      10.0,
-            "tgt_KL":       0.01,
-            "n_epochs":     3,
-            "lamb":         0.95
+            "pi_clip":              0.2,
+            "vf_clip":              10.0,
+            "tgt_KL":               0.01,
+            "num_ppo_updates":      96,
+            "lamb":                 0.95
         })
         print("Initialized RL agent")
         # Load parameters from checkpoint
@@ -238,6 +235,7 @@ if __name__ == "__main__":
             agent,
             args.num_qubits,
             args.n_tests,
+            not args.sample,
             **env_kwargs
         )
         with open(args.output, mode='wt') as f:
@@ -250,6 +248,7 @@ if __name__ == "__main__":
             max(args.num_qubits),
             args.chi_max,
             args.n_tests,
+            not args.sample,
             **env_kwargs
         )
         with open(args.output, mode='wt') as f:
@@ -263,6 +262,7 @@ if __name__ == "__main__":
             args.subsystem_size,
             args.eta,
             args.n_tests,
+            not args.sample,
             **env_kwargs
         )
         with open(args.output, mode='wt') as f:

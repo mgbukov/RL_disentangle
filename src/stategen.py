@@ -320,7 +320,7 @@ def sample_from_mmap(num_qubits: int, filepaths: List[str], num_states: List[int
     state = MMAP_ARRAYS[fpath][i]
     MMAP_OFFSETS[fpath] = (i + 1) % N
 
-    return state
+    return state.copy()
 
 
 def eta_perturb(psi: np.ndarray, eta: float, bonds: List[int]):

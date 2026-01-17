@@ -2,6 +2,7 @@ import argparse
 import os
 
 import numpy as np
+from tqdm import tqdm
 
 from context import *
 from src.stategen import sample_haar_generalized
@@ -47,7 +48,7 @@ if __name__ == "__main__":
     else:
         temp = []
 
-    for i in range(args.num_states):
+    for i in tqdm(range(args.num_states)):
         state = sample_haar_generalized(
             args.num_qubits,
             args.min_subsystem_size,

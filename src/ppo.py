@@ -51,8 +51,8 @@ class PPOAgent(PGAgent):
                     Clip value for clipping the value objective. Default: inf
                 tgt_KL: float, optional
                     Maximum KL divergence for early stopping. Default: 0.2
-                n_epochs: int, optional
-                    Number of epochs of policy updates. Default: 5.
+                num_ppo_updates: int, optional
+                    Number of PPO updates. Default: 96.
                 lamb: float, optional
                     Advantage estimation discounting factor. Default: 0.95
         """
@@ -64,7 +64,7 @@ class PPOAgent(PGAgent):
         self.pi_clip = config.get("pi_clip", 0.02)
         self.vf_clip = config.get("vf_clip", None)
         self.tgt_KL = config.get("tgt_KL", 0.2)
-        self.n_epochs = config.get("n_epochs", 5)
+        self.num_ppo_updates = config.get("num_ppo_updates", 96)
         self.lamb = config.get("lamb", 0.95)
 
     def update(self, obs: torch.Tensor, acts: torch.Tensor,
@@ -147,8 +147,8 @@ class PPOAgent(PGAgent):
         # Update the policy multiple times.
         n_updates = 0
         pi_losses, pi_norms, total_losses = [], [] , []
-        for _ in range(self.n_epochs):
-
+        while n_updates < self.num_ppo_updates:
+            early_stop = False
             # For each epoch run through the entire set of experiences and
             # update the policy by sampling mini-batches at random.
             # https://github.com/DLR-RM/stable-baselines3/blob/e5deeed16efb57c34ccdcb14692439154d970527/stable_baselines3/ppo/ppo.py#L196
@@ -189,11 +189,13 @@ class PPOAgent(PGAgent):
                 pi_norms.append(total_norm.item())
                 total_losses.append(loss.item())
 
-            # Check for early stopping.
-            logp = self.policy(obs).log_prob(acts)   # uses torch.no_grad
-            # KL(P,Q) = Sum(P log(Q/P)) = E_P[logQ-logP]
-            KL = logp_old - logp
-            if self.tgt_KL is not None and KL.mean() > 1.5 * self.tgt_KL:
+                # Check for early stopping.
+                logp = self.policy(obs).log_prob(acts)   # uses torch.no_grad
+                # KL(P,Q) = Sum(P log(Q/P)) = E_P[logQ-logP]
+                KL = logp_old - logp
+                if self.tgt_KL is not None and KL.mean() > 1.5 * self.tgt_KL:
+                    early_stop = True
+            if early_stop:
                 break
 
         # Track stats
@@ -236,8 +238,7 @@ class PPOAgent(PGAgent):
 
         # Iterate over the collected experiences and update the value network.
         vf_losses, vf_norms = [], []
-        for _ in range(self.n_epochs):
-
+        for _ in range(self.num_ppo_updates):
             # For each epoch run through the entire set of experiences and
             # update the policy by sampling mini-batches at random.
             dataset = data.TensorDataset(obs, returns, values_old)
@@ -281,7 +282,7 @@ class PPOAgent(PGAgent):
         state_dict["pi_clip"] = self.pi_clip,
         state_dict["vf_clip"] = self.vf_clip,
         state_dict["tgt_KL"] = self.tgt_KL,
-        state_dict["n_epochs"] = self.n_epochs,
+        state_dict["num_ppo_updates"] = self.num_ppo_updates,
         state_dict["lamb"] = self.lamb
         return state_dict
 
@@ -290,5 +291,5 @@ class PPOAgent(PGAgent):
         self.pi_clip = state_dict["pi_clip"]
         self.vf_clip = state_dict["vf_clip"]
         self.tgt_KL  = state_dict["tgt_KL"]
-        self.n_epochs = state_dict["n_epochs"]
+        self.num_ppo_updates = state_dict["num_ppo_updates"]
         self.lamb = state_dict["lamb"]

@@ -23,8 +23,9 @@ vf_lr: 1e-4
 
 discount: 0.99
 batch_size: 512
-clip_grad: 10.0
+clip_grad: 1.0
 entropy_reg: 0.005
+num_ppo_updates: 96
 
 # Policy network parameters
 transformer_layers: 8
@@ -57,7 +58,7 @@ triggers_levels: [
       },
 
       {
-        min_iterations: 500,
+        min_iterations: 100,
         test_max_steps: 20,
         test_min_subsystem_size: 3,
         test_max_subsystem_size: 3,
@@ -95,4 +96,4 @@ triggers_levels: [
   ]
 ]
 logdir_prefix: "staged_"
-logdir_suffix: "_XL_product"
+logdir_suffix: "_XL_product_v2"

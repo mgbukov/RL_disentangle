@@ -23,10 +23,10 @@ DEFAULT.steps = 64
 DEFAULT.steps_limit = 40
 
 # Threshold below which, the state is considered disentangled
-DEFAULT.epsi = 1e-2
+DEFAULT.epsi = 1e-3
 
 # Observation function used by the RL environment
-DEFAULT.obs_fn = "rdm_2q_mean_real"
+DEFAULT.obs_fn = "rdm2m"
 
 # If `True`, reuse previous RDM observations and re-compute new RDMs only
 # for qubit pairs (i,j) such that either `i` or `j` is modified by an action.
@@ -65,6 +65,9 @@ DEFAULT.vf_warmup_iters = 0
 
 # Discount factor
 DEFAULT.discount = 1.0
+
+# Number of PPO updates
+DEFAULT.num_ppo_updates = 96
 
 # Batch size for PPO
 DEFAULT.batch_size = 512
@@ -134,6 +137,7 @@ DEFAULT.greedy_evaluation_policy = True
 
 # ===---------------- Testing during training ---------------=== #
 DEFAULT.test_every = 1000
+DEFAULT.test_states = []
 DEFAULT.num_tests = 100
 DEFAULT.test_min_subsystem_size = 2
 DEFAULT.test_max_subsystem_size = 4
