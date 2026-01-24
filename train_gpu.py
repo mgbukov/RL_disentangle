@@ -11,6 +11,7 @@ Example usage:
 python3 train.py -c config.yaml
 """
 import argparse
+import datetime
 import json
 import logging.handlers
 import os
@@ -135,7 +136,7 @@ def train_ppo(config):
     # initialization
     checkpointed_state = None
     if config.checkpoint.filepath:
-        checkpointed_state = util.load_checkpoint(config)
+        checkpointed_state = util.load_checkpoint(config.checkpoint.filepath)
         if config.checkpoint.use_policy_fn:
             agent.policy_network.load_state_dict(checkpointed_state["policy_fn"])
         if config.checkpoint.use_value_fn:
@@ -186,7 +187,7 @@ def train_ppo(config):
     tic = time.time()
     envloop(agent, env, config.num_iters, config.steps, start_iter, triggers_list, config)
     toc = time.time()
-    elapsed = time.strftime("%H:%M:%S", time.gmtime(int(toc - tic)))
+    elapsed = datetime.timedelta(seconds=int(toc - tic))
     logging.info(f"\n\nTraining took {elapsed}")
 
     # Close the environment and save the agent and tracker.

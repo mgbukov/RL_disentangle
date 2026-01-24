@@ -207,7 +207,7 @@ if __name__ == "__main__":
         })
         print("Initialized RL agent")
         # Load parameters from checkpoint
-        checkpointed_state = load_checkpoint(config)
+        checkpointed_state = load_checkpoint(args.checkpoint)
         agent.policy_network.load_state_dict(checkpointed_state["policy_fn"])
         print("Loaded parameters from checkpoint")
     else:

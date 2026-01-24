@@ -329,7 +329,7 @@ class UnfreezePolicy:
         self.config = config
         self.agent = agent
         self.env = env
-        self.milestone = config.pi_freeze
+        self.milestone = config.pi_freeze_iters
         self.iteration = 0
         self.frozen = True
         logging.info("Initialized UnfreezePolicy trigger")

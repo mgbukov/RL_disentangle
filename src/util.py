@@ -358,9 +358,9 @@ def save_checkpoint(config, agent, triggers=tuple(), iteration=None):
     logging.info("\nCheckpoint saved!\n")
 
 
-def load_checkpoint(config):
+def load_checkpoint(path):
 
-    with open(config.checkpoint.filepath, mode='rb') as f:
+    with open(path, mode='rb') as f:
         checkpoint_dict = pickle.load(f)
 
     return checkpoint_dict

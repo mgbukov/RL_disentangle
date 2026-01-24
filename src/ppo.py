@@ -57,8 +57,6 @@ class PPOAgent(PGAgent):
                     Advantage estimation discounting factor. Default: 0.95
         """
         super().__init__(policy_network, value_network, config)
-        self.freeze_pf = config.get("freeze_pf", False)
-        self.freeze_vf = config.get("freeze_vf", False)
 
         # PPO-specific args.
         self.pi_clip = config.get("pi_clip", 0.02)
@@ -66,6 +64,7 @@ class PPOAgent(PGAgent):
         self.tgt_KL = config.get("tgt_KL", 0.2)
         self.num_ppo_updates = config.get("num_ppo_updates", 96)
         self.lamb = config.get("lamb", 0.95)
+        self._num_iters = 0
 
     def update(self, obs: torch.Tensor, acts: torch.Tensor,
                rewards: torch.Tensor, done: torch.Tensor, logprobs: torch.Tensor):
@@ -111,13 +110,15 @@ class PPOAgent(PGAgent):
         values = values.reshape(N*T)
         logprobs = logprobs.reshape(N*T)
 
+        self._num_iters += 1
+
         # Update value network.
         returns = adv + values
-        if not self.freeze_vf:
+        if self._num_iters > self.vf_freeze_iters:
             self.update_value(obs, returns)
 
         # Update the policy network.
-        if not self.freeze_pf:
+        if self._num_iters > self.pi_freeze_iters:
             self.update_policy(obs, acts, adv, logprobs)
 
     def update_policy(self, obs: torch.Tensor, acts: torch.Tensor,

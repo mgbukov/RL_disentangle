@@ -259,6 +259,8 @@ def sample_haar_generalized(num_qubits: int, min_subsystem_size: int,
         tensors = []
         try:
             for j in range(num_qubits):
+                # `chivec[j]*2`: on each iteration `j` the leftmost qubit
+                # is being discarded and the factor 2 fixes the shape of matrix `A`
                 A, Lambda, B = np.linalg.svd(Theta.reshape(chivec[j]*2, -1), full_matrices=False)
                 # Identify diagonal tensor Lambda and check if Lambda is to be replaced on bond j
                 if np.any(bonds[1:-1] == (j + 1)):

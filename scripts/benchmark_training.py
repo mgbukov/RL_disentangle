@@ -99,7 +99,7 @@ if __name__ == "__main__":
     agent_config = dict(
         pi_lr=1e-4, vf_lr=1e-4, discount=0.99, batch_size=256,
         clip_grad=10.0, entropy_reg=0.01, pi_clip=0.2, vf_clip=10.0,
-        tgt_KL=float(torch.inf), n_epochs=3, lamb=0.95
+        tgt_KL=float(torch.inf), num_ppo_updates=96, lamb=0.95
     )
 
     for num_qubits in NUM_QUBITS:

@@ -49,10 +49,12 @@ class PGAgent:
         # self.train_history = []
 
         # Unpack the config parameters to configure the agent for training.
+        self.pi_freeze_iters = config.get("pi_freeze_iters", 0)
         pi_lr = config.get("pi_lr", 3e-4)
         pi_lr_milestones = config.get("pi_lr_milestones", None)
         pi_lr_gamma = config.get("pi_lr_gamma", None)
 
+        self.vf_freeze_iters = config.get("vf_freeze_iters", 0)
         vf_lr = config.get("vf_lr", 3e-4)
         vf_lr_milestones = config.get("vf_lr_milestones", None)
         vf_lr_gamma = config.get("vf_lr_gamma", None)
