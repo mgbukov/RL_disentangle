@@ -9,6 +9,8 @@ import os
 import pickle
 from collections import defaultdict
 
+from scipy.optimize import curve_fit
+
 from context import *
 from src.environment_loop import test_agent
 from src.quantum_env import QuantumEnv
@@ -1108,6 +1110,7 @@ def figure_accuracy():
     train_hist_4q = "../logs/4q_final/train_history.pickle"
     train_hist_5q = "../logs/5q_final/train_history.pickle"
     train_hist_6q = "../logs/6q_final/train_history.pickle"
+    train_hist_6q = "../logs/6q_8000iters_haar_unif3/train_history.pickle"
 
     acc_hist_4q = "../logs/4q_400iters_testacc/train_history.pickle"
     acc_hist_5q = "../logs/5q_400iters_testacc/train_history.pickle"
@@ -1200,6 +1203,103 @@ def figure_accuracy():
     axs[0].text(x=0.1, y=0.8, s="$L=4$", transform=axs[0].transAxes)
     axs[1].text(x=0.1, y=0.8, s="$L=5$", transform=axs[1].transAxes)
     axs[2].text(x=0.1, y=0.8, s="$L=6$", transform=axs[2].transAxes)
+
+    mpl.rcParams["font.size"] = old_fontsize
+    return fig
+
+
+def figure_accuracy_big():
+    # Old font size
+    old_fontsize = mpl.rcParams['font.size']
+    mpl.rcParams['font.size'] = 12
+
+    fig, axs = plt.subplots(2, 2, figsize=(6, 6), layout="tight", sharex=False)
+    axA, axB = axs[0]
+    axC, axD = axs[1]
+
+    AREC = (0.25, 0.82, 0.19, 0.13)
+    BREC = (0.75, 0.82, 0.19, 0.13)
+    CREC = (0.25, 0.33, 0.19, 0.13)
+    DREC = (0.75, 0.33, 0.19, 0.13)
+    insetA = fig.add_axes(AREC)
+    insetB = fig.add_axes(BREC)
+    insetC = fig.add_axes(CREC)
+    insetD = fig.add_axes(DREC)
+
+    train_hist_5q = "../logs/5q_final/train_history.pickle"
+    train_hist_6q = "../logs/6q_8000iters_haar_unif3/train_history.pickle"
+
+    acc_hist_5q = "../logs/5q_400iters_testacc/train_history.pickle"
+    acc_hist_6q = "../logs/6q_400iters_testacc/train_history.pickle"
+
+    train_hist_12q = "../logs/staged_12q_10000iters_product3/tracker.pickle"
+    train_hist_16q = "../logs/direct_16q_1000iters_XL_product_v4/tracker.pickle"
+
+    with open(train_hist_5q, mode='rb') as f:
+        stats = pickle.load(f)
+        len_5q_x = []
+        len_5q_y = []
+        for i, x in enumerate(stats):
+            # len_5q_y.append(x["Episode Length"]["avg"])
+            # len_5q_x.append(i)
+            if "test_avg" in x['Episode Length']:
+                len_5q_y.append(x["Episode Length"]["test_avg"])
+                len_5q_x.append(i)
+
+    with open(train_hist_6q, mode='rb') as f:
+        stats = pickle.load(f)
+        len_6q_x = []
+        len_6q_y = []
+        for i, x in enumerate(stats):
+            if "Episode Length" in x and "test_avg" in x['Episode Length']:
+                len_6q_y.append(x["Episode Length"]["test_avg"])
+                len_6q_x.append(i)
+
+    with open(train_hist_12q, mode='rb') as f:
+        data = pickle.load(f)
+        eplen_12q = np.array(data["Episode Length"])
+        ratio_12q = np.array(data["Ratio Terminated"])
+
+    with open(train_hist_16q, mode='rb') as f:
+        data = pickle.load(f)
+        eplen_16q = np.array(data["Episode Length"])
+        ratio_16q = np.array(data["Ratio Terminated"])
+
+    acc_5q = []
+    acc_6q = []
+    with open(acc_hist_5q, mode='rb') as f:
+        stats = pickle.load(f)
+        for i, x in enumerate(stats):
+            acc_5q.append(x["Ratio Terminated"]["test_avg"])
+
+    with open(acc_hist_6q, mode='rb') as f:
+        stats = pickle.load(f)
+        for i, x in enumerate(stats):
+            acc_6q.append(x["Ratio Terminated"]["test_avg"])
+
+    len_5q_x = np.asarray(len_5q_x)[:40]
+    len_6q_x = np.asarray(len_6q_x)[:40]
+
+    len_5q_y = np.asarray(len_5q_y)[:40]
+    len_6q_y = np.asarray(len_6q_y)[:40]
+
+    acc_5q = np.asarray(acc_5q)
+    acc_6q = np.asarray(acc_6q)
+
+    axA.plot(len_5q_x, len_5q_y, label='$L = 5$', lw=1, color='tab:blue')
+    axB.plot(len_6q_x, len_6q_y, label='$L = 6$', lw=1, color='tab:green')
+    axC.plot(eplen_12q[1000:6000,0], eplen_12q[1000:6000,1] + 40, label='$L = 12$', lw=1, color='tab:orange')
+    axD.plot(eplen_16q[:,0], eplen_16q[:,1] + 60, label='$L = 16$', lw=1, color='tab:red')
+
+    insetA.plot(acc_5q, color='tab:blue', linewidth=1)
+    insetB.plot(acc_6q, color='tab:green', linewidth=1)
+    insetC.plot(ratio_12q[:,0], ratio_12q[:,1], color='tab:orange', linewidth=1)
+    insetD.plot(ratio_16q[:,0], ratio_16q[:,1], color='tab:red', linewidth=1)
+
+    axA.text(x=0.1, y=0.8, s="$L=4$", transform=axA.transAxes)
+    axB.text(x=0.1, y=0.8, s="$L=6$", transform=axB.transAxes)
+    axC.text(x=0.1, y=0.8, s="$L=12$", transform=axC.transAxes)
+    axD.text(x=0.1, y=0.8, s="$L=16$", transform=axD.transAxes)
 
     mpl.rcParams["font.size"] = old_fontsize
     return fig
@@ -1509,22 +1609,34 @@ def figure_rl_train_scaling():
     env_timings = np.array([data_cuda["timings"][x]["env"] for x in xs])
     agent_timings = np.array([data_cuda["timings"][x]["agent"] for x in xs])
     xs = np.array([int(x) for x in xs])
+    n1 = env_timings.shape[1]
 
     env_mean = env_timings.mean(axis=1)
     env_err = env_timings.std(axis=1)
     agent_mean = agent_timings.mean(axis=1)
     agent_err = agent_timings.std(axis=1)
 
+    # Fit smooth curves
+    fexp = lambda x, a, b, c: a * (b ** x) + c
+    fquad = lambda x, a, b, c: a * x**2 + b*x + c
+    exp_params, _ = curve_fit(fexp, xs, env_mean)
+    quad_params, _ = curve_fit(fquad, xs, agent_mean)
+
     # Plot
-    fig, ax = plt.subplots(1, 1, figsize=(6, 6))
-    ax.plot(xs, env_timings.mean(axis=1), label="environment simulator", color="tab:blue")
-    ax.plot(xs, agent_timings.mean(axis=1), label="RL agent", color="tab:green")
-    ax.fill_between(xs, env_mean - env_err, env_mean + env_err, color="tab:blue", alpha=0.4, ec=None)
-    ax.fill_between(xs, agent_mean - agent_err, agent_mean + agent_err, color="tab:green", alpha=0.4, ec=None)
+    fig, ax = plt.subplots(1, 1, figsize=(4, 4))
+    smooth_xs = np.linspace(min(xs), max(xs), 100)
+    env_curve = [fexp(x, *exp_params) for x in smooth_xs]
+    agent_curve = [fquad(x, *quad_params) for x in smooth_xs]
+    ax.plot(smooth_xs, env_curve, color="tab:blue", lw=1, ls='--', label="environment")
+    ax.plot(smooth_xs, agent_curve, color="tab:green", lw=1, ls='--', label="RL agent")
+    ax.scatter(np.repeat(xs, n1), env_timings, color="tab:blue", s=2, alpha=0.3)
+    ax.scatter(np.repeat(xs, n1), agent_timings, color="tab:green", s=2, alpha=0.3)
+    errkwargs = dict(capsize=3, color='k', elinewidth=0.5, capthick=0.5, lw=0)
+    ax.errorbar(xs, env_mean, yerr=env_err, **errkwargs)
+    ax.errorbar(xs, agent_mean, yerr=agent_err, **errkwargs)
 
     # Layout
     ax.legend(loc="upper left")
-    # ax.set_yscale("log")
     ax.set_xlabel("number of qubits")
     ax.set_ylabel("elapsed time in seconds")
 
@@ -1536,8 +1648,8 @@ if __name__ == '__main__':
     # fig_rl = figure_rl_train_scaling()
     # fig_rl.savefig(os.path.join(PATH_FIGURES, "rl-scaling.pdf"))
 
-    fig_large_systems = figure_stats_large_systems()
-    fig_large_systems.savefig(os.path.join(PATH_FIGURES, "results-12q16q.pdf"))
+    # fig_large_systems = figure_stats_large_systems()
+    # fig_large_systems.savefig(os.path.join(PATH_FIGURES, "results-12q16q.pdf"))
 
     # # Benchmark agents
     # results = benchmark_agents(1000)
@@ -1618,9 +1730,9 @@ if __name__ == '__main__':
     # plt.close(fig12)
 
     # # Figure Accuracy & Episode Length
-    # fig13 = figure_accuracy()
-    # fig13.savefig('../figures/accuracy-episode-length-final-all-test.pdf')
-    # plt.close(fig13)
+    fig13 = figure_accuracy_big()
+    fig13.savefig('../figures/accuracy-episode-length.pdf')
+    plt.close(fig13)
 
     # fig22 = figure_search_scalability("../data/search-stats.json")
     # fig22.savefig("../figures/search-scalability.pdf")
