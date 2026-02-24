@@ -128,10 +128,18 @@ def test_on_weakly_entangled(agent, num_qubits, subsystem_size, eta,
 
     for L in num_qubits:
         results[L] = {}
+        # Test with variable sybsystem size
+        minS = min(subsystem_size)
+        maxS = max(subsystem_size)
+        for E in eta:
+            states = np.array([sample_haar_generalized(L, minS, maxS, E, E) for _ in range(n_tests)])
+            results[L][f"eta={E}"] = test_agent(agent, states, greedy, **env_kwargs)
+        # Test with fixed subsystem size
         for S in subsystem_size:
             for E in eta:
-                states = np.array([sample_haar_generalized(L, S, S, E, E) for _ in range(n_tests)])
+                states = np.array([sample_haar_generalized(L, minS, maxS, E, E) for _ in range(n_tests)])
                 results[L][f"subsystem_size={S},eta={E}"] = test_agent(agent, states, greedy, **env_kwargs)
+
 
     return results
 
@@ -176,7 +184,7 @@ if __name__ == "__main__":
         config.merge_from_file(args.config)
         config.freeze()
         # Initialize RL environment
-        env = QEnv(config.num_qubits, config.num_envs)
+        env = QEnv(config.num_qubits, config.num_envs, device=device)
         # Initialize policy network
         in_shape = env.single_observation_space.shape
         policy_network = TransformerPE_2qRDM(
@@ -185,10 +193,10 @@ if __name__ == "__main__":
             dim_mlp=        config.dim_mlp,
             n_heads=        config.attn_heads,
             n_layers=       config.transformer_layers
-        ).to(config.model_device)
+        ).to(device)
         print("Initialized policy network")
         # Initialize value network
-        value_network = MLP(in_shape, [128, 256], 1).to(config.model_device)
+        value_network = MLP(in_shape, [128, 256], 1).to(device)
         # Initialize PPOAgent
         agent = PPOAgent(policy_network, value_network, config={
             "pi_lr":        config.pi_lr,
