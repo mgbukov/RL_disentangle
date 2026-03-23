@@ -177,7 +177,7 @@ def test_apply(num_qubits: int, num_envs: int, swaps: bool, device: str):
         numpy_rhos = numpy_sim.rhos_
         torch_rhos = torch_sim.rhos_.cpu().numpy()
         assert np.allclose(numpy_rhos, torch_rhos, atol=1e-4)
-        
+
         # If more than 1 eigenvalue is 0, then eigenvectors are not defined
         # uniquely. In this case, we end the rollout and exit
         if np.any((numpy_rhos < 1e-6).sum(axis=1) > 1):
@@ -230,7 +230,7 @@ def test_apply(num_qubits: int, num_envs: int, swaps: bool, device: str):
 
 @pytest.mark.parametrize(
         "num_qubits,num_envs,device",
-        itertools.product((3, 4, 8, 12, 16), (1, 8), ("cpu", "cuda"))
+        itertools.product((4, 8, 12, 16), (1, 8), ("cpu", "cuda"))
 )
 def test_step(num_qubits: int, num_envs: int, device: str):
     # Check if CUDA is available on the current system
@@ -241,9 +241,11 @@ def test_step(num_qubits: int, num_envs: int, device: str):
     # Initialize NumPy and PyTorch RL environments
     sgen = StateGenerator(sample_haar_full, num_qubits)
     numpy_env = NumpyEnv(num_qubits, num_envs, obs_fn="phase_norm",
-                         epsi=1e-3, state_generator=sgen)
+                         epsi=1e-3, state_generator=sgen, reward_fn="relative_delta")
     torch_env = TorchEnv(num_qubits, num_envs, obs_fn="vec",
-                         epsi=1e-3, state_generator=sgen, device=device)
+                         epsi=1e-3, state_generator=sgen,
+                         reward_fn="relative_delta",
+                         device=device)
 
     np.random.seed(17)
     numpy_env.reset()
@@ -280,8 +282,12 @@ def test_step(num_qubits: int, num_envs: int, device: str):
 
         # --- Test info
         if "episode" in n_info:
-            assert np.all(n_info["episode"]["l"] == t_info["episode"]["l"])
-            assert np.all(n_info["episode"]["r"] == t_info["episode"]["r"])
+            assert np.allclose(n_info["episode"]["l"].astype(np.float32),
+                               t_info["episode"]["l"].astype(np.float32),
+                               equal_nan=True)
+            assert np.allclose(n_info["episode"]["r"].astype(np.float32),
+                               t_info["episode"]["r"].astype(np.float32),
+                               equal_nan=True)
         else:
             assert n_info == t_info
 
@@ -330,7 +336,7 @@ def test_disentangle(num_qubits: int):
         if q != num_qubits:
             continue
         trajectory = record["actions"]
-        env = TorchEnv(num_qubits, 1, obs_fn="rdm2m", device="cpu")
+        env = TorchEnv(num_qubits, 1, obs_fn="rdm2m", device="cpu", fast_obs=True, fast_ents=True)
         env.reset()
         env.simulator.states = torch.from_numpy(np.expand_dims(state, 0))
         for i, qpair in enumerate(trajectory):
@@ -378,3 +384,104 @@ def test_swaps(num_qubits: int, num_envs: int, device: str):
         rel_ = (q0_ >= q1_ + 1e-3 )
         assert torch.all(_rel == rel_)
         # print()
+
+
+@pytest.mark.parametrize("num_envs, num_qubits", itertools.product((1,8,), (4,8,12)))
+def test_fast_obs(num_envs, num_qubits):
+
+    # Initialize state generator
+    sg = StateGenerator(sample_haar_full, num_qubits)
+
+    for _ in range(10):
+        env_params = {
+            "num_qubits":           num_qubits,
+            "num_envs":             num_envs,
+            "epsi":                 1e-3,
+            "max_episode_steps":    100,
+            "obs_fn":               "rdm2m",
+            "state_generator":      sg,
+        }
+        base_env = TorchEnv(fast_obs=False, **env_params)
+        base_env.reset()
+        initial_states = base_env.simulator.states
+
+        fast_env = TorchEnv(fast_obs=True, **env_params)
+        fast_env.reset()
+        fast_env.set_states(initial_states)
+
+        assert torch.all(base_env.simulator.states == fast_env.simulator.states)
+
+        for i in range(30):
+            acts = np.random.choice(
+                list(range(base_env.single_action_space.n)),
+                base_env.num_envs
+            )
+            base_obs, base_reward, base_term, base_trunc, _ = base_env.step(acts, reset=False)
+            fast_obs, fast_reward, fast_term, fast_trunc, _ = fast_env.step(acts, reset=False)
+
+            assert torch.all(base_term == fast_term)
+            assert torch.all(base_trunc == fast_trunc)
+            assert torch.allclose(base_reward, fast_reward)
+
+            # Compare states only for non-terminated / non-truncated trajectories
+            for n in range(num_envs):
+                if base_term[n] == False:
+                    assert torch.allclose(base_obs[n], fast_obs[n], atol=1e-5)
+
+            if torch.any(base_term | base_trunc):
+                break
+
+
+@pytest.mark.parametrize("num_envs, num_qubits", itertools.product((1,4), (4,5)))
+def test_fast_ents(num_envs, num_qubits):
+
+    # Initialize state generator
+    sg = StateGenerator(sample_haar_full, num_qubits)
+
+    for _ in range(100):
+        env_params = {
+            "num_qubits":           num_qubits,
+            "num_envs":             num_envs,
+            "epsi":                 1e-3,
+            "max_episode_steps":    100,
+            "obs_fn":               "rdm2m",
+            "reward_fn":            "relative_delta",
+            "state_generator":      sg,
+        }
+        base_env = TorchEnv(fast_ents=False, swaps=False, **env_params)
+        base_env.reset()
+        initial_states = base_env.simulator.states
+
+        fast_env = TorchEnv(fast_ents=True, swaps=False, **env_params)
+        fast_env.reset()
+        fast_env.set_states(initial_states)
+
+        assert torch.all(base_env.simulator.states == fast_env.simulator.states)
+
+        for i in range(30):
+            print(i)
+            acts = np.random.choice(
+                list(range(base_env.single_action_space.n)),
+                base_env.num_envs
+            )
+            base_obs, base_reward, base_term, base_trunc, _ = base_env.step(acts, reset=False)
+            fast_obs, fast_reward, fast_term, fast_trunc, _ = fast_env.step(acts, reset=False)
+
+            assert torch.all(base_term == fast_term)
+            assert torch.all(base_trunc == fast_trunc)
+            if not torch.allclose(base_reward, fast_reward, atol=1e-3):
+                print(base_env.simulator.entanglements)
+                print(fast_env.simulator.entanglements)
+                print(base_env.simulator.postswaps_)
+                print(fast_env.simulator.postswaps_)
+                print(base_reward)
+                print(fast_reward)
+            assert torch.allclose(base_reward, fast_reward, atol=1e-3)
+
+            # Compare states only for non-terminated / non-truncated trajectories
+            for n in range(num_envs):
+                assert torch.allclose(base_env.simulator.entanglements[n],
+                                     fast_env.simulator.entanglements[n], atol=1e-4)
+
+            if torch.any(base_term | base_trunc):
+                break

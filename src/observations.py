@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple
 import torch
 
 
-def vec(states: torch.Tensor):
+def vec(states: torch.Tensor, device: str|torch.device = "cpu"):
     N = states.shape[0]
     batch = states.reshape(N, -1)
     batch = torch.hstack([batch.real, batch.imag])
