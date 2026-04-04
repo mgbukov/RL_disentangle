@@ -196,6 +196,7 @@ class PPOAgent(PGAgent):
                 KL = logp_old - logp
                 if self.tgt_KL is not None and KL.mean() > 1.5 * self.tgt_KL:
                     early_stop = True
+                    break
             if early_stop:
                 break
 
