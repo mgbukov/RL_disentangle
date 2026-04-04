@@ -48,20 +48,18 @@ def test_agent(agent, states, greedy=False, **env_kwargs):
     o = env.obs_fn(env.simulator.states)
     lengths = np.full(num_envs, np.nan, dtype=np.float32)
     done = np.full(num_envs, False, dtype=bool)
-    solved = 0
     for _ in range(env.max_episode_steps):
         pi = agent.policy(o)    # uses torch.no_grad
         if greedy:
             acts = torch.argmax(pi.probs, dim=1).cpu().numpy()
         else:
             acts = pi.sample().cpu().numpy()
-        o, r, t, tr, infos = env.step(acts)
+        o, r, t, tr, infos = env.step(acts, reset=False)
         if t.any():
             for k in range(env.num_envs):
                 if t[k] and not done[k]:
                     lengths[k] = infos["episode"]["l"][k]
                     done[k] = True
-                    solved += 1
         if np.all(done):
             break
 
@@ -69,8 +67,9 @@ def test_agent(agent, states, greedy=False, **env_kwargs):
         "avg_len": float(np.nanmean(lengths)),
         "std": float(np.nanstd(lengths)),
         "95_percentile": float(np.nanpercentile(lengths, 95.)),
+        "min_len": float(np.nanmin(lengths)),
         "max_len": float(np.nanmax(lengths)),
-        "ratio_solved": float(solved / num_envs),
+        "ratio_solved": float(np.mean(done)),
     }
 
 
@@ -137,7 +136,7 @@ def test_on_weakly_entangled(agent, num_qubits, subsystem_size, eta,
         # Test with fixed subsystem size
         for S in subsystem_size:
             for E in eta:
-                states = np.array([sample_haar_generalized(L, minS, maxS, E, E) for _ in range(n_tests)])
+                states = np.array([sample_haar_generalized(L, S, S, E, E) for _ in range(n_tests)])
                 results[L][f"subsystem_size={S},eta={E}"] = test_agent(agent, states, greedy, **env_kwargs)
 
 
