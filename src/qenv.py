@@ -75,9 +75,10 @@ class QEnv:
     def reset(self):
         """Reset the environment to its initial state."""
         for i in range(self.num_envs):
-            self.reset_sub_environment(i)
-        self.episode_len[:] = 0
-        self.accumulated_return[:] = 0
+            x = torch.from_numpy(self.state_generator()).to(device=self.device)
+            self.simulator[i] = phase_norm(x)
+            self.episode_len[i] = 0.0
+            self.accumulated_return[i] = 0.0
         # Update observations
         obs = self.obs_fn(self.simulator.states, device=self.device)
         self.last_obs = obs if self.fast_obs else None
@@ -85,7 +86,12 @@ class QEnv:
 
     def reset_sub_environment(self, i: int):
         x = torch.from_numpy(self.state_generator()).to(device=self.device)
-        self.simulator[i] = x
+        self.simulator[i] = phase_norm(x)
+        self.episode_len[i] = 0.0
+        self.accumulated_return[i] = 0.0
+        if self.fast_obs:
+            x = self.simulator.states[i:i+1]
+            self.last_obs[i] = self.obs_fn(x, device=self.device)[0]
 
     def set_states(self, x: Union[torch.Tensor, np.ndarray]):
         # Check type
@@ -132,17 +138,14 @@ class QEnv:
             info = {
                 # "final_observation": np.where(d, self._observations(), None),
                 "episode": {
-                    "r": np.where(done, self.accumulated_return, [None]),
-                    "l": np.where(done, self.episode_len, [None]),
+                    "r": np.where(done, self.accumulated_return.numpy(), [None]),
+                    "l": np.where(done, self.episode_len.numpy(), [None]),
                 },
             }
             # Reset only the sub-environments that were done
             for k in range(self.num_envs):
-                if not done[k] or not reset:
-                    continue
-                self.reset_sub_environment(k)
-                self.accumulated_return[k] = 0.0
-                self.episode_len[k] = 0
+                if reset and done[k]:
+                    self.reset_sub_environment(k)
 
         # Finally, get the observations from the next obtained states.
         # Note that we have to do this only after we check for done environments
@@ -267,7 +270,7 @@ class VectorizedQState:
         # positions (0,1)
         # The effective list is the one after appying preswap gate (maybe)
         if self.swaps:
-            # We will apply the action so that the leading quibt is the
+            # We will apply the action so that the leading qubit is the
             # one that has more entanglement entropy.
             ent_q0 = self.entanglements[ax0, input_indices[:, 0]]
             ent_q1 = self.entanglements[ax0, input_indices[:, 1]]
