@@ -155,15 +155,12 @@ class QEnv:
             else:
                 modified = []
                 for n in range(self.num_envs):
-                    if done[n]:
-                        m = tuple()
-                    else:
-                        m = self.actions[acts[n]]
-                    modified.append(m)
-                x = self.simulator.states.to(self.device)
-                obs = self.obs_fn(x, self.last_obs, modified, self.device)
+                    x = indices[n] if not done[n] else tuple(range(self.num_qubits))
+                    modified.append(x)
+                obs = self.obs_fn(
+                    self.simulator.states, self.last_obs, modified, self.device
+                )
             self.last_obs = obs
-            assert torch.allclose(obs, self.obs_fn(self.simulator.states, device=self.device))
         else:
             obs = self.obs_fn(self.simulator.states, device=self.device)
 
@@ -188,6 +185,13 @@ class QEnv:
             truncated.to(self.device),
             info
         )
+
+    def observe(self):
+        return self.obs_fn(self.simulator.states, device=self.device)
+
+    @property
+    def entanglements(self):
+        return self.simulator.entanglements.clone()
 
     def close(self):
         pass

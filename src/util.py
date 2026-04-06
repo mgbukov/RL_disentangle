@@ -165,7 +165,6 @@ def srollout(qstate: np.ndarray, agent: PPOAgent, max_steps: int = 30, epsi=1e-3
     # Append final entangments
     # assert np.all(env.simulator.entanglements <= env.epsi)
     entanglements.append(env.simulator.entanglements.copy().ravel())
-
     return np.array(actions), np.array(entanglements), np.array(probabilities)
 
 
@@ -181,23 +180,18 @@ def srollout2(qstate: np.ndarray, agent: PPOAgent, max_steps: int = 30, **env_kw
     shape = (1,) + (2,) * num_qubits
     env = QEnv(num_qubits, 1, obs_fn='rdm2m', **env_kwargs)
     env.reset()
-    env.simulator.states = np.expand_dims(qstate, 0)
+    env.set_states(np.expand_dims(qstate, 0))
 
     # Set agent to `eval` mode
     agent.policy_network.eval()
 
     # Rollout a trajectory
     actions, entanglements, probabilities = [], [], []
-    o = env.obs_fn(env.simulator.states)
+    o = env.observe()
     for _ in range(max_steps):
-        ent = env.simulator.entanglements.clone().cpu().numpy().ravel()
-        o_new = env.obs_fn(env.simulator.states)
-        print(o.ravel())
-        print(o_new.ravel())
-        assert torch.allclose(o_new, o, atol=1e-4)
+        ent = env.entanglements.cpu().numpy().ravel()
         probs = agent.policy(o).probs.cpu().numpy()
         acts = np.argmax(probs, axis=1)
-        print(env.actions[acts[0]], ent.round(3))
         actions.append(env.actions[acts[0]])
         entanglements.append(ent)
         probabilities.append(probs)
@@ -206,8 +200,7 @@ def srollout2(qstate: np.ndarray, agent: PPOAgent, max_steps: int = 30, **env_kw
             break
     # Append final entangments
     # assert np.all(env.simulator.entanglements <= env.epsi)
-    entanglements.append(env.simulator.entanglements.clone().cpu().numpy().ravel())
-
+    entanglements.append(env.entanglements.cpu().numpy().ravel())
     return np.array(actions), np.array(entanglements), np.array(probabilities)
 
 def apply_actions(qstate: np.ndarray, actions: List[int]):

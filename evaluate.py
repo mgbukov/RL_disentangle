@@ -43,9 +43,9 @@ def test_agent(agent, states, greedy=False, **env_kwargs):
     shape = (num_envs,) + (2,) * num_qubits
     env = QEnv(num_qubits=num_qubits, num_envs=num_envs, **env_kwargs)
     env.reset()
-    env.simulator.states = states.reshape(shape)
+    env.set_states(states.reshape(shape))
 
-    o = env.obs_fn(env.simulator.states)
+    o = env.observe()
     lengths = np.full(num_envs, np.nan, dtype=np.float32)
     done = np.full(num_envs, False, dtype=bool)
     for _ in range(env.max_episode_steps):
