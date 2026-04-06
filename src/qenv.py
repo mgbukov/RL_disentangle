@@ -156,13 +156,14 @@ class QEnv:
                 modified = []
                 for n in range(self.num_envs):
                     if done[n]:
-                        m = tuple(range(self.num_qubits))
+                        m = tuple()
                     else:
                         m = self.actions[acts[n]]
                     modified.append(m)
                 x = self.simulator.states.to(self.device)
                 obs = self.obs_fn(x, self.last_obs, modified, self.device)
             self.last_obs = obs
+            assert torch.allclose(obs, self.obs_fn(self.simulator.states, device=self.device))
         else:
             obs = self.obs_fn(self.simulator.states, device=self.device)
 

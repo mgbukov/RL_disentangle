@@ -21,11 +21,12 @@ from scipy.linalg import sqrtm
 from . import metrics
 from .config import get_logdir
 from .agent import PGAgent
+from .ppo import PPOAgent
 from .quantum_env import QuantumEnv
 from .quantum_state import random_quantum_state
 
 
-def toten(state: Union[np.ndarray, torch.tensor], batched: Optional[bool] = None):
+def toten(state: Union[np.ndarray, torch.Tensor], batched: Optional[bool] = None):
     """Reshapes state vector to tensor with shape (B?, 2, 2, ..., 2)."""
     if batched is None:
         batched = _infer_batch_dim(state)
@@ -41,11 +42,11 @@ def toten(state: Union[np.ndarray, torch.tensor], batched: Optional[bool] = None
     return state.reshape(-1, (2,) * nqubits)
 
 
-def tovec(state: Union[np.ndarray, torch.tensor], batched: Optional[bool] = None):
+def tovec(state: Union[np.ndarray, torch.TensorType], batched: Optional[bool] = None):
     """Reshapes state tensor with shape (B?, 2, 2, ..., 2) to vector"""
 
 
-def _infer_batch_dim(x: Union[np.ndarray, torch.tensor]):
+def _infer_batch_dim(x: Union[np.ndarray, torch.Tensor]):
     ndims = x.ndim
     if ndims == 1:
         return False
@@ -130,7 +131,7 @@ def str2latex(string_descr):
 
 
 
-def srollout(qstate: np.ndarray, agent: PGAgent, max_steps: int = 30, epsi=1e-3, swaps=True):
+def srollout(qstate: np.ndarray, agent: PPOAgent, max_steps: int = 30, epsi=1e-3, swaps=True):
     """
     Performs a single rollout with `agent` for `qstate`.
 
@@ -167,6 +168,60 @@ def srollout(qstate: np.ndarray, agent: PGAgent, max_steps: int = 30, epsi=1e-3,
 
     return np.array(actions), np.array(entanglements), np.array(probabilities)
 
+
+def srollout2(qstate: np.ndarray, agent: PPOAgent, max_steps: int = 30, **env_kwargs):
+    """
+    Performs a single rollout with `agent` for `qstate`.
+
+    Returns action names, entanglements and policy probabilities for each step.
+    """
+    from .qenv import QEnv
+    # Initialize environment
+    num_qubits = int(np.log2(qstate.size))
+    shape = (1,) + (2,) * num_qubits
+    env = QEnv(num_qubits, 1, obs_fn='rdm2m', **env_kwargs)
+    env.reset()
+    env.simulator.states = np.expand_dims(qstate, 0)
+
+    # Set agent to `eval` mode
+    agent.policy_network.eval()
+
+    # Rollout a trajectory
+    actions, entanglements, probabilities = [], [], []
+    o = env.obs_fn(env.simulator.states)
+    for _ in range(max_steps):
+        ent = env.simulator.entanglements.clone().cpu().numpy().ravel()
+        o_new = env.obs_fn(env.simulator.states)
+        print(o.ravel())
+        print(o_new.ravel())
+        assert torch.allclose(o_new, o, atol=1e-4)
+        probs = agent.policy(o).probs.cpu().numpy()
+        acts = np.argmax(probs, axis=1)
+        print(env.actions[acts[0]], ent.round(3))
+        actions.append(env.actions[acts[0]])
+        entanglements.append(ent)
+        probabilities.append(probs)
+        o, r, t, tr, i = env.step(acts, reset=False)
+        if torch.all(t):
+            break
+    # Append final entangments
+    # assert np.all(env.simulator.entanglements <= env.epsi)
+    entanglements.append(env.simulator.entanglements.clone().cpu().numpy().ravel())
+
+    return np.array(actions), np.array(entanglements), np.array(probabilities)
+
+def apply_actions(qstate: np.ndarray, actions: List[int]):
+    # Initialize environment
+    num_qubits = int(np.log2(qstate.size))
+    shape = (2,) * num_qubits
+    qstate = qstate.reshape(shape)
+    env = Qenv(num_qubits, 1, obs_fn='rdm2m', epsi=epsi, swaps=swaps)
+    env.reset()
+    env.simulator.states = np.expand_dims(qstate, 0)
+
+    for a in actions:
+        env.step([a], reset=False)
+    return env.simulator.states[0]
 
 def peek_policy(state):
     """Returns the agent probabilites for this state."""
