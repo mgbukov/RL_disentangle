@@ -110,7 +110,7 @@ def train_ppo(config):
     elif config.vf_family == "mlp":
         value_network = MLP(in_shape[0] * in_shape[1], [128, 256], 1).to(config.model_device)
     elif config.vf_family == "transformer":
-        value_network = TransformerPI_2qRDM_V(in_shape[1], 128, 512, 4, 4)
+        value_network = TransformerPI_2qRDM_V(in_shape[1], 128, 512, 4, 4).to(config.model_device)
     else:
         raise ValueError("Unsupported Value Function family: " + config.vf_family)
     logging.debug("Initialized value network")
