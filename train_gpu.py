@@ -28,7 +28,12 @@ import src.triggers as triggers
 import src.util as util
 from src.config import get_default_config, get_logdir
 from src.envloop import envloop
-from src.networks import TransformerPE_2qRDM, MLP, PermutationInvariantMLP
+from src.networks import (
+    MLP,
+    PermutationInvariantMLP,
+    TransformerPE_2qRDM,
+    TransformerPI_2qRDM_V,
+)
 from src.ppo import PPOAgent
 from src.qenv import QEnv
 
@@ -100,7 +105,14 @@ def train_ppo(config):
 
     # Initialize value function
     in_shape = env.single_observation_space.shape
-    value_network = PermutationInvariantMLP(in_shape[1], [128, 256], 1).to(config.model_device)
+    if config.vf_family == "invariant-mlp":
+        value_network = PermutationInvariantMLP(in_shape[1], [128, 256], 1).to(config.model_device)
+    elif config.vf_family == "mlp":
+        value_network = MLP(in_shape[0] * in_shape[1], [128, 256], 1).to(config.model_device)
+    elif config.vf_family == "transformer":
+        value_network = TransformerPI_2qRDM_V(in_shape[1], 128, 512, 4, 4)
+    else:
+        raise ValueError("Unsupported Value Function family: " + config.vf_family)
     logging.debug("Initialized value network")
 
     # Initialize policy function

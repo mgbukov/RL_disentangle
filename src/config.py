@@ -53,6 +53,12 @@ DEFAULT.pi_freeze_iters = 0
 # Keep Value function frozen (don't update it) for that many iterations
 DEFAULT.vf_freeze_iters = 0
 
+# Value function family:
+#   - invariant-mlp: Permutation Invariant MLP
+#   - mlp: Fully-connected standard MLP
+#   - transformer: Transformer
+DEFAULT.vf_family = "invariant-mlp"
+
 # Policy network learning rate
 DEFAULT.pi_lr = 2e-4
 DEFAULT.pi_lr_milestones = None
