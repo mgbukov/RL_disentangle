@@ -16,6 +16,8 @@ from src.environment_loop import test_agent
 from src.quantum_env import QuantumEnv
 from src.quantum_state import random_quantum_state
 from src.util import str2state, str2latex, srollout
+from src.qenv import VectorizedQState
+from src.stategen import sample_haar_generalized
 from search import GreedyAgent, RandomAgent
 
 mpl.rcParams['text.usetex'] = True
@@ -1681,6 +1683,88 @@ def figure_rl_train_scaling():
     return fig
 
 
+def figure_eta_choice():
+
+    def pool_entanglements(pool: dict, num_qubits: int, trajectory=None, agent=None):
+        qsim = VectorizedQState(num_qubits, 1, fast_ents=True, swaps=False, device="cpu")
+        entanglements = defaultdict(list)
+
+        for eta in pool.keys():
+            for state in pool[eta]:
+                if agent is not None:
+                    _, ents, _ = srollout(state, agent, max_steps=30)
+                    entanglements[eta].append(ents[-1])
+                else:
+                    # Add `num_envs` dimension and set state
+                    qsim.states = np.expand_dims(state, 0)
+                    # Apply trajectory if any
+                    if trajectory is not None:
+                        for pair in trajectory:
+                            qsim.apply([pair])
+                    # Measure entanglements
+                    ents = qsim.entanglements[0].numpy()
+                    entanglements[eta].append(ents)
+        return {k: np.array(v) for k,v in entanglements.items()}
+
+
+    optimal_trajectory_12q = [
+        (0, 1), (2, 3), (0, 2), (1, 3), (2, 3),
+        (4, 5), (6, 7), (4, 6), (5, 7), (6, 7),
+        (8, 9), (10, 11), (8, 10), (9, 11), (10,11)
+    ]
+
+    optimal_trajectory_16q = [
+        (0, 1), (2, 3), (0, 2), (1, 3), (2, 3),
+        (4, 5), (6, 7), (4, 6), (5, 7), (6, 7),
+        (8, 9), (10,11), (8, 10), (9,11), (10,11),
+        (12,13), (14,15), (12, 14), (13,15), (14,15)
+    ]
+
+    etas = [round(float(x), 2) for x in np.arange(3.0, 5.6, 0.2)]
+    statepool_12 = defaultdict(list)
+    # statepool_16 = defaultdict(list)
+    for eta in etas:
+        for _ in range(25):
+            s = sample_haar_generalized(12, 4, 4, eta, eta, permute=False)
+            statepool_12[eta].append(s)
+    # for eta in etas:
+        # for _ in range(25):
+            # s = sample_haar_generalized(16, 4, 4, eta, eta, permute=False)
+            # statepool_16[eta].append(s)
+    entanglements_12 = pool_entanglements(statepool_12, 12, trajectory=optimal_trajectory_12q)
+    # entanglements_16 = pool_entanglements(statepool_16, 16, trajectory=optimal_trajectory_16q)
+
+    fig, ax = plt.subplots(figsize=(4, 4))
+
+    xs = sorted(entanglements_12.keys())
+    ys = []
+    for x in xs:
+        y = entanglements_12[x].max(axis=1)
+        ax.scatter(np.full(len(y), x), y, color="tab:blue", s=5, alpha=0.25, ec=None)
+        ys.append(y)
+    ax.plot(xs, np.mean(ys, axis=1), color="red")
+
+    # xs = sorted(entanglements_16.keys())
+    # ys = []
+    # for x in xs:
+    #     y = entanglements_16[x].max(axis=1)
+    #     ax.scatter(np.full(len(y), x), y, color="tab:green", s=5, alpha=0.25, ec=None)
+    #     ys.append(y)
+    # ax.plot(xs, np.mean(ys, axis=1), color="tab:red")
+
+    ax.set_yscale("log")
+    ax.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.1))
+    ax.axhline(1e-3, ls='--', lw=2, color='k', label=r"$\epsilon$")
+    ax.grid(which="both", alpha=0.3)
+    ax.axvline(4.1, color='k', lw=1)
+    # ax.legend()
+    ax.set_xlabel("$\eta$", fontsize=12)
+    ax.set_ylabel(r"$S_\mathrm{tot}$", fontsize=12)
+    fig.tight_layout()
+    return fig
+
+
+
 if __name__ == '__main__':
 
     # fig_rl = figure_rl_train_scaling()
@@ -1689,6 +1773,11 @@ if __name__ == '__main__':
     # # Figure Results for Large Systems
     # fig_large_systems = figure_stats_large_systems()
     # fig_large_systems.savefig(os.path.join(PATH_FIGURES, "results-12q16q.pdf"))
+
+    # Figure \eta choice
+    fig_eta_choice = figure_eta_choice()
+    fig_eta_choice.savefig(os.path.join(PATH_FIGURES, "eta-choice.pdf"))
+
 
     # # Benchmark agents
     # results = benchmark_agents(1000)
@@ -1768,10 +1857,10 @@ if __name__ == '__main__':
     # fig12.savefig('../figures/cnot-counts-fully-entangled.pdf')
     # plt.close(fig12)
 
-    # Figure Accuracy & Episode Length
-    fig13 = figure_accuracy_big()
-    fig13.savefig('../figures/accuracy-episode-length3.pdf')
-    plt.close(fig13)
+    # # Figure Accuracy & Episode Length
+    # fig13 = figure_accuracy_big()
+    # fig13.savefig('../figures/accuracy-episode-length3.pdf')
+    # plt.close(fig13)
 
     # fig22 = figure_search_scalability("../data/search-stats.json")
     # fig22.savefig("../figures/search-scalability.pdf")
