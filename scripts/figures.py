@@ -734,13 +734,13 @@ def figure_stats_large_systems():
     BOF = 0.6              # Bar offset
 
     # Initialize figure and create axes
-    fig = plt.figure(figsize=(12, 6))
-    ax12 = fig.add_axes((0.1, 0.6, 0.8, 0.2))
-    ax16 = fig.add_axes((0.1, 0.1, 0.8, 0.2))
+    fig = plt.figure(figsize=(8, 4))
+    ax12 = fig.add_axes((0.15, 0.65, 0.75, 0.22))
+    ax16 = fig.add_axes((0.15, 0.20, 0.75, 0.22))
     axs = (ax12, ax16)
 
     # deep slate blue #3D405B medium blue #0077B6 light blue #90E0EF, pale blue #CAF0F8
-    colors = ['#7abacc', '#0077B6', '#3D405B']
+    colors = ['#0077B6', '#3D405B']
 
     greedy_stats = {}
     rl_stats = {}
@@ -786,7 +786,7 @@ def figure_stats_large_systems():
         results = np.array([x["steps"] for x in data["results"]])
         greedy_stats["8x2"] = (results.mean(), results.std())
     #   - RL agent
-    with open(os.path.join(PATH_BENCHMARKS, "agent-16q.json"), mode="rt") as f:
+    with open(os.path.join(PATH_BENCHMARKS, "agent-16q-eta4.1.json"), mode="rt") as f:
         data = json.load(f)
         data4x4 = data["weakly_entangled"]["16"]["subsystem_size=4,eta=4.1"]
         rl_stats["4x4"] = (data4x4["avg_len"], data4x4["std"])
@@ -797,6 +797,14 @@ def figure_stats_large_systems():
 
     keys_12q = ["6x2", "4x3", "3x4"]
     keys_16q = ["8x2", "5x3", "4x4"]
+    labels = {
+        "6x2": r"$\stackrel{\eta}{\sim}|RR\rangle\stackrel{\eta}{\sim}$",
+        "4x3": r"$\stackrel{\eta}{\sim}|RRR\rangle\stackrel{\eta}{\sim}$",
+        "3x4": r"$\stackrel{\eta}{\sim}|RRRR\rangle\stackrel{\eta}{\sim}$",
+        "8x2": r"$\stackrel{\eta}{\sim}|RR\rangle\stackrel{\eta}{\sim}$",
+        "5x3": r"$\stackrel{\eta}{\sim}|RRR\rangle\stackrel{\eta}{\sim}$",
+        "4x4": r"$\stackrel{\eta}{\sim}|RRRR\rangle\stackrel{\eta}{\sim}$",
+    }
 
     offset = 0
     xticks = defaultdict(list)
@@ -805,29 +813,25 @@ def figure_stats_large_systems():
         ax = ax12 if k in keys_12q else ax16
         size = 12 if k in keys_12q else 16
         xs = [offset, offset + BWI]
-        heights = [rl_stats[k][0], greedy_stats[k][0]]
-        stds = [rl_stats[k][1], greedy_stats[k][1]]
-        # TODO Add standard deviation
+        heights = [greedy_stats[k][0], rl_stats[k][0]]
+        stds = [greedy_stats[k][1], rl_stats[k][1]]
         xticks[size].append(offset + BWI)
-        xticklabels[size].append(k)
-        rects = ax.bar(xs, heights, BWI, color=colors, ecolor='red', capsize=5, label=["RL", "Greedy"])
-        labels = [f'{int(h)} ±{int(s)}' for h, s in zip(heights, stds)]
+        xticklabels[size].append(labels[k])
+        rects = ax.bar(xs, heights, BWI, color=colors, ecolor='red', capsize=5, label=["Greedy", "RL"], yerr=stds)
+        bar_labels = [f'{int(h)}' for h in heights]
         # labels = [int(np.round(h,0)) for h in heights]
-        ax.bar_label(rects, labels, rotation=45)
+        ax.bar_label(rects, bar_labels, rotation=45)
         offset += 3 * BWI + BOF
 
     ax12.set_xticks(xticks[12], xticklabels[12], rotation=0)
     ax16.set_xticks(xticks[16], xticklabels[16], rotation=0)
-    # ax12.set_yticks([1, 5, 10, 15, 20])
-    ax12.set_title("$L = 12$")
-    ax16.set_title("$L = 16$")
-    # ax12.text(s="$L = 12$", x=0.1, y=0.95, transform=ax12.transAxes)
-
+    ax12.text(s="$L = 12$", x=0.1, y=0.95, fontsize=16, transform=ax12.transAxes)
+    ax16.text(s="$L = 16$", x=0.1, y=0.95, fontsize=16, transform=ax16.transAxes)
 
     handles, labels = ax16.get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
     # ax16.text(s="$L = 16$", x=0.035, y=0.95, transform=ax12.transAxes)
-    ax16.legend(by_label.values(), by_label.keys(), loc=(0.7, -0.5), ncols=2, frameon=False)
+    ax16.legend(by_label.values(), by_label.keys(), loc=(0.5, -0.9), ncols=2, frameon=False)
 
     # Configure axes
     for ax in axs:
@@ -835,10 +839,9 @@ def figure_stats_large_systems():
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
 
-    # # Add (a), (b), (c) panel titles
-    # ax4.text(-0.09/0.3, 1, "(a)", fontsize=14, transform=ax4.transAxes)
-    # ax5.text(-0.09/0.4, 1, "(b)", fontsize=14, transform=ax5.transAxes)
-    # ax6.text(-0.09/0.85, 1, "(c)", fontsize=14, transform=ax6.transAxes)
+    # # Add (a), (b) panel titles
+    ax12.text(x=-0.18, y=1, s="(a)", fontsize=18, transform=ax12.transAxes)
+    ax16.text(x=-0.18, y=1, s="(b)", fontsize=18, transform=ax16.transAxes)
 
     # Restore old font size
     mpl.rcParams['font.size'] = old_fontsize
@@ -1217,53 +1220,39 @@ def figure_accuracy_big():
     axA, axB = axs[0]
     axC, axD = axs[1]
 
-    AREC = (0.25, 0.82, 0.19, 0.13)
-    BREC = (0.75, 0.82, 0.19, 0.13)
-    CREC = (0.25, 0.33, 0.19, 0.13)
-    DREC = (0.75, 0.33, 0.19, 0.13)
+    AREC = (0.28, 0.79, 0.19, 0.13)
+    BREC = (0.76, 0.79, 0.19, 0.13)
+    CREC = (0.28, 0.30, 0.19, 0.13)
+    DREC = (0.76, 0.30, 0.19, 0.13)
     insetA = fig.add_axes(AREC)
     insetB = fig.add_axes(BREC)
     insetC = fig.add_axes(CREC)
     insetD = fig.add_axes(DREC)
 
     train_hist_5q = "../logs/5q_final/train_history.pickle"
-    train_hist_6q = "../logs/6q_8000iters_haar_unif3/train_history.pickle"
+    tracker_6q = "../logs/6q_8000iters_haar_unif3_2nd/tracker15000.pickle"
 
     acc_hist_5q = "../logs/5q_400iters_testacc/train_history.pickle"
     acc_hist_6q = "../logs/6q_400iters_testacc/train_history.pickle"
 
-    train_hist_12q = "../logs/staged_12q_10000iters_product3/tracker.pickle"
-    train_hist_16q = "../logs/direct_16q_1000iters_XL_product_v4/tracker.pickle"
+    tracker_12q = "../logs/checkpointed_12q_10000iters_XL_eta4.1_v2.1continue/tracker.pickle"
+    tracker_16q = "../logs/checkpointed_16q_20000iters_XL_eta4.1_v2.1continue/tracker19000.pickle"
 
     with open(train_hist_5q, mode='rb') as f:
         stats = pickle.load(f)
-        len_5q_x = []
-        len_5q_y = []
+        eplen_5q_x = []
+        eplen_5q_y = []
         for i, x in enumerate(stats):
-            # len_5q_y.append(x["Episode Length"]["avg"])
-            # len_5q_x.append(i)
-            if "test_avg" in x['Episode Length']:
-                len_5q_y.append(x["Episode Length"]["test_avg"])
-                len_5q_x.append(i)
+            eplen_5q_y.append(x["Episode Length"]["avg"])
+            eplen_5q_x.append(i)
+        eplen_5q_x = np.array(eplen_5q_x)[:10000]
+        eplen_5q_y = np.array(eplen_5q_y)[:10000]
 
-    with open(train_hist_6q, mode='rb') as f:
-        stats = pickle.load(f)
-        len_6q_x = []
-        len_6q_y = []
-        for i, x in enumerate(stats):
-            if "Episode Length" in x and "test_avg" in x['Episode Length']:
-                len_6q_y.append(x["Episode Length"]["test_avg"])
-                len_6q_x.append(i)
-
-    with open(train_hist_12q, mode='rb') as f:
+    with open(tracker_6q, mode='rb') as f:
         data = pickle.load(f)
-        eplen_12q = np.array(data["Episode Length"])
-        ratio_12q = np.array(data["Ratio Terminated"])
-
-    with open(train_hist_16q, mode='rb') as f:
-        data = pickle.load(f)
-        eplen_16q = np.array(data["Episode Length"])
-        ratio_16q = np.array(data["Ratio Terminated"])
+        eplen_6q = np.array(data["Episode Length"])
+        eplen_6q_x = eplen_6q[:12000,0]
+        eplen_6q_y = eplen_6q[:12000,1]
 
     acc_5q = []
     acc_6q = []
@@ -1271,35 +1260,84 @@ def figure_accuracy_big():
         stats = pickle.load(f)
         for i, x in enumerate(stats):
             acc_5q.append(x["Ratio Terminated"]["test_avg"])
-
     with open(acc_hist_6q, mode='rb') as f:
         stats = pickle.load(f)
         for i, x in enumerate(stats):
             acc_6q.append(x["Ratio Terminated"]["test_avg"])
-
-    len_5q_x = np.asarray(len_5q_x)[:40]
-    len_6q_x = np.asarray(len_6q_x)[:40]
-
-    len_5q_y = np.asarray(len_5q_y)[:40]
-    len_6q_y = np.asarray(len_6q_y)[:40]
-
     acc_5q = np.asarray(acc_5q)
     acc_6q = np.asarray(acc_6q)
 
-    axA.plot(len_5q_x, len_5q_y, label='$L = 5$', lw=1, color='tab:blue')
-    axB.plot(len_6q_x, len_6q_y, label='$L = 6$', lw=1, color='tab:green')
-    axC.plot(eplen_12q[1000:6000,0], eplen_12q[1000:6000,1] + 40, label='$L = 12$', lw=1, color='tab:orange')
-    axD.plot(eplen_16q[:,0], eplen_16q[:,1] + 60, label='$L = 16$', lw=1, color='tab:red')
+    with open(tracker_12q, mode='rb') as f:
+        data = pickle.load(f)
+        eplen_12q = np.array(data["Episode Length"])
+        ratio_12q = np.array(data["Ratio Terminated"])
+        eplen_12q_x = eplen_12q[:18000,0]
+        eplen_12q_y = eplen_12q[:18000,1]
+        ratio_12q_x = ratio_12q[:18000,0]
+        ratio_12q_y = ratio_12q[:18000,1]
 
-    insetA.plot(acc_5q, color='tab:blue', linewidth=1)
-    insetB.plot(acc_6q, color='tab:green', linewidth=1)
-    insetC.plot(ratio_12q[:,0], ratio_12q[:,1], color='tab:orange', linewidth=1)
-    insetD.plot(ratio_16q[:,0], ratio_16q[:,1], color='tab:red', linewidth=1)
+    with open(tracker_16q, mode='rb') as f:
+        data = pickle.load(f)
+        eplen_16q = np.array(data["Episode Length"])
+        ratio_16q = np.array(data["Ratio Terminated"])
+        eplen_16q_x = eplen_16q[:18000,0]
+        eplen_16q_y = eplen_16q[:18000,1]
+        ratio_16q_x = ratio_16q[:18000,0]
+        ratio_16q_y = ratio_16q[:18000,1]
 
-    axA.text(x=0.1, y=0.8, s="$L=4$", transform=axA.transAxes)
-    axB.text(x=0.1, y=0.8, s="$L=6$", transform=axB.transAxes)
-    axC.text(x=0.1, y=0.8, s="$L=12$", transform=axC.transAxes)
-    axD.text(x=0.1, y=0.8, s="$L=16$", transform=axD.transAxes)
+    scatter_kwargs = dict(s=2, color='tab:blue', alpha=0.2, ec=None)
+    axA.scatter(eplen_5q_x, eplen_5q_y, label='$L = 5$', **scatter_kwargs)
+    axB.scatter(eplen_6q_x, eplen_6q_y, label='$L = 6$', **scatter_kwargs)
+    axC.scatter(eplen_12q_x, eplen_12q_y, label='$L = 12$', **scatter_kwargs)
+    axD.scatter(eplen_16q_x, eplen_16q_y, label='$L = 16$', **scatter_kwargs)
+
+    insetA.plot(acc_5q, color='tab:red', linewidth=0.5)
+    insetB.plot(acc_6q, color='tab:red', linewidth=0.5)
+    insetC.plot(ratio_12q_x, ratio_12q_y, color='tab:red', linewidth=0.5)
+    insetD.plot(ratio_16q_x, ratio_16q_y, color='tab:red', linewidth=0.5)
+
+    axA.text(x=0.1, y=0.9, s="$L=5$", transform=axA.transAxes)
+    axB.text(x=0.1, y=0.9, s="$L=6$", transform=axB.transAxes)
+    axC.text(x=0.1, y=0.9, s="$L=12$", transform=axC.transAxes)
+    axD.text(x=0.1, y=0.9, s="$L=16$", transform=axD.transAxes)
+
+    xformatter = mpl.ticker.FuncFormatter(lambda x, pos: str(int(x//1000)))
+    axA.xaxis.set_major_formatter(xformatter)
+    axB.xaxis.set_major_formatter(xformatter)
+    axC.xaxis.set_major_formatter(xformatter)
+    axD.xaxis.set_major_formatter(xformatter)
+    axA.xaxis.set_ticks([2000, 5000, 8000])
+    axB.xaxis.set_ticks([3000, 6000, 9000])
+    insetA.xaxis.set_ticks([100, 300])
+    insetB.xaxis.set_ticks([100, 300])
+    insetC.xaxis.set_major_formatter(xformatter)
+    insetD.xaxis.set_major_formatter(xformatter)
+
+    insetA.set_ylim(0, 1.05)
+    insetB.set_ylim(0, 1.05)
+    insetC.set_ylim(0, 1.05)
+    insetD.set_ylim(0, 1.05)
+
+    axA.set_ylabel("episode length")
+    axC.set_ylabel("episode length")
+    axC.set_xlabel(r"iteration ($\times 10^3$)")
+    axD.set_xlabel(r"iteration ($\times 10^3$)")
+
+    insetA.set_ylabel("accuracy", fontsize=10)
+    insetB.set_ylabel("accuracy", fontsize=10)
+    insetC.set_ylabel("accuracy", fontsize=10)
+    insetD.set_ylabel("accuracy", fontsize=10)
+    insetA.set_xlabel(r"iteration", fontsize=10)
+    insetB.set_xlabel(r"iteration", fontsize=10)
+    insetC.set_xlabel(r"iteration ($\times 10^3$)", fontsize=10)
+    insetD.set_xlabel(r"iteration ($\times 10^3$)", fontsize=10)
+
+    for ax in (axA, axB, axC, axD):
+        ax.spines["right"].set_visible(False)
+        ax.spines["top"].set_visible(False)
+    for ax in (insetA, insetB, insetC, insetD):
+        ax.spines["right"].set_visible(False)
+        ax.spines["top"].set_visible(False)
 
     mpl.rcParams["font.size"] = old_fontsize
     return fig
@@ -1648,6 +1686,7 @@ if __name__ == '__main__':
     # fig_rl = figure_rl_train_scaling()
     # fig_rl.savefig(os.path.join(PATH_FIGURES, "rl-scaling.pdf"))
 
+    # # Figure Results for Large Systems
     # fig_large_systems = figure_stats_large_systems()
     # fig_large_systems.savefig(os.path.join(PATH_FIGURES, "results-12q16q.pdf"))
 
@@ -1729,9 +1768,9 @@ if __name__ == '__main__':
     # fig12.savefig('../figures/cnot-counts-fully-entangled.pdf')
     # plt.close(fig12)
 
-    # # Figure Accuracy & Episode Length
+    # Figure Accuracy & Episode Length
     fig13 = figure_accuracy_big()
-    fig13.savefig('../figures/accuracy-episode-length.pdf')
+    fig13.savefig('../figures/accuracy-episode-length3.pdf')
     plt.close(fig13)
 
     # fig22 = figure_search_scalability("../data/search-stats.json")
