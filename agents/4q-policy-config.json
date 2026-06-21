@@ -1,0 +1,6 @@
+{
+    "attn_heads": 2,
+    "transformer_layers": 2,
+    "embed_dim": 128,
+    "dim_mlp": 256
+}
