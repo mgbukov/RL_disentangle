@@ -1,0 +1,53 @@
+attn_heads: 4
+batch_size: 512
+checkpoint_every: 500
+clip_grad: 1.0
+dim_mlp: 1024
+discount: 0.99
+embed_dim: 256
+entropy_reg: 0.05
+env_device: cuda
+epsi: 0.001
+fast_ents: true
+fast_obs: true
+greedy_evaluation_policy: true
+log_every: 100
+logdir_prefix: stage1_
+logdir_suffix: _XL_product_v2.1
+logging: true
+model_device: cuda
+num_envs: 64
+num_iters: 1000
+num_ppo_updates: 96
+num_qubits: 16
+num_tests: 20
+obs_fn: rdm2m
+pi_freeze_iters: 0
+pi_lr: 1.0e-05
+pi_lr_gamma: null
+pi_lr_milestones: null
+reset_optimizers: false
+reset_tracker: false
+reward_fn: relative_delta
+seed: 22
+stategen_fn: sample_haar_product
+stategen_params:
+- - min_subsystem_size
+  - 2
+- - max_subsystem_size
+  - 4
+steps: 30
+steps_limit: 60
+test_every: 500
+test_max_subsystem_size: 4
+test_min_subsystem_size: 2
+test_states: []
+transformer_layers: 8
+trigger_every: 100000
+triggers: []
+triggers_levels: []
+vf_freeze_iters: 0
+vf_lr: 1.0e-05
+vf_lr_gamma: null
+vf_lr_milestones: null
+vf_warmup_iters: 0
