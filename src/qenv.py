@@ -11,18 +11,29 @@ from . import rewards
 from .util import torch_sqe
 
 
+
+DEFAULT_SWAP_THRESHOLD = float(np.finfo(np.float32).eps)
 observation_space   = namedtuple("observation_space", ["shape"])
 action_space        = namedtuple("action_space", ["n"])
 
 
 class QEnv:
 
-    def __init__(self, num_qubits: int, num_envs: int, epsi: float = 1e-3,
-                 max_episode_steps: int = 1000, act_space: str = "reduced",
-                 reward_fn: str = "relative_delta", obs_fn: str = "rdm2m",
+    def __init__(self,
+                 num_qubits: int,
+                 num_envs: int,
+                 epsi: float = 1e-3,
+                 max_episode_steps: int = 1000,
+                 act_space: str = "reduced",
+                 reward_fn: str = "relative_delta",
+                 obs_fn: str = "rdm2m",
                  state_generator: Optional[StateGenerator] = None,
-                 fast_ents: bool = False, fast_obs: bool = False,
-                 swaps: bool = True, device: Union[str, torch.device] = "cpu"):
+                 fast_ents: bool = False,
+                 fast_obs: bool = False,
+                 swaps: bool = True,
+                 swap_threshold=DEFAULT_SWAP_THRESHOLD,
+                 device: Union[str, torch.device] = "cpu"
+    ):
         self.device = device
         self.num_envs = num_envs
         self.num_qubits = num_qubits
@@ -53,7 +64,14 @@ class QEnv:
         self.single_action_space = action_space(n=self.num_actions)
 
         # Initialize state simulator
-        self.simulator = VectorizedQState(num_qubits, num_envs, swaps, fast_ents, device)
+        self.simulator = VectorizedQState(
+            num_qubits=num_qubits,
+            num_envs=num_envs,
+            swaps=swaps,
+            swap_threshold=swap_threshold,
+            fast_ents=fast_ents,
+            device=device
+        )
 
         # Bind reward and observation functions
         self.reward_fn = getattr(rewards, reward_fn)
@@ -199,13 +217,20 @@ class QEnv:
 
 class VectorizedQState:
 
-    def __init__(self, num_qubits: int, num_envs: int, swaps: bool = True,
-                 fast_ents: bool = True, device: str|torch.device = "cpu"):
+    def __init__(self,
+                 num_qubits: int,
+                 num_envs: int,
+                 swaps: bool = True,
+                 fast_ents: bool = True,
+                 swap_threshold: float = DEFAULT_SWAP_THRESHOLD,
+                 device: str|torch.device = "cpu"
+    ):
         assert num_qubits > 1
         self.device = torch.device(device)
         self.num_qubits = num_qubits
         self.num_envs = num_envs
         self.swaps = swaps
+        self.swap_threshold = torch.tensor([swap_threshold], dtype=torch.float32)
         self.fast_ents = fast_ents
 
         # Every system in the vectorized environment is represented as a
@@ -264,8 +289,7 @@ class VectorizedQState:
             raise ValueError(f"Expected list with length {self.num_envs}")
 
         N, Q = self.num_envs, self.num_qubits
-        # eps = torch.tensor([np.finfo(np.float32).eps], dtype=torch.float32)
-        eps = torch.tensor([1e-3], dtype=torch.float32)
+        eps = self.swap_threshold
         batch = self._states
 
         ax0 = np.arange(N)
