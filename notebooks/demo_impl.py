@@ -1,6 +1,7 @@
 import itertools
 import functools
 import os
+from pathlib import Path
 
 import ipywidgets as widgets
 import matplotlib as mpl
@@ -14,6 +15,8 @@ from copy import deepcopy
 from IPython.display import display
 from scipy.linalg import expm
 
+
+import context
 from src.quantum_env import rdm_2q_mean_real as observe
 from src.quantum_state import (
     random_quantum_state,
@@ -29,9 +32,9 @@ SIGMA_X = np.array([[0, 1], [1, 0]], dtype=np.complex64)
 SIGMA_Y = np.array([[0, -1j], [1j, 0]], dtype=np.complex64)
 SIGMA_Z = np.array([[1, 0], [0, -1]], dtype=np.complex64)
 
-PROJECT_DIR = os.path.dirname(__file__)
-PATH_4Q_AGENT = os.path.join(PROJECT_DIR, "agents", "4q-agent.pt")
-PATH_5Q_AGENT = os.path.join(PROJECT_DIR, "agents", "5q-agent.pt")
+PROJECT_DIR = Path(__file__).parent.parent.parent
+PATH_4Q_AGENT = PROJECT_DIR / "models" / "4q-agent.pt"
+PATH_5Q_AGENT = PROJECT_DIR / "models" / "5q-agent.pt"
 
 BUTTON_FONT_SIZE = "11pt"
 COLOR0 = "#60b4e1"  # dark blue
@@ -240,7 +243,7 @@ class RotationControls2q:
         self.alpha_slider.value = 0.0
         self.beta_slider.value = 0.0
         self.gamma_slider.value = 0.0
-        for qubits in self.qubit_indices: 
+        for qubits in self.qubit_indices:
             self.statedict[qubits] = np.zeros(3, dtype=np.float32)
         observe_widgets(self._widgets, self._handlers)
 
@@ -352,7 +355,7 @@ class AmplitudesBox:
                 box = widgets.Text(value='', layout=widgets.Layout(width="90pt"))
                 self.layout[i,j] = box
                 self.textboxes.append(box)
-        
+
         # Initialize vector
         self.vector = np.zeros(2 ** self.n_qubits, dtype=np.complex64)
 
@@ -446,7 +449,7 @@ class InitialStateDropdown:
         if val != self._selected:
             self._selected = val
             self.mediator.update("reset")
-        
+
     def display(self):
         display(self.dropdown)
 
@@ -543,7 +546,7 @@ class History:
 
     def empty(self):
         return not self._checkpoints
-    
+
     def reset(self):
         self._checkpoints.clear()
         self._pointer = 0
@@ -747,7 +750,7 @@ class PolicyFigure:
         else:
             self.ax = ax
             self.figure = None
-        
+
         N = (n_qubits * (n_qubits - 1)) // 2
         self._policy     = np.zeros(N, dtype=np.float32)
         self._reductions = np.zeros(N, dtype=np.float32)
@@ -782,7 +785,7 @@ class PolicyFigure:
         self.ax.text(x=-1.0, y=-1.0,
                      s=r"$\mathrm{action}$", fontsize=12, ha="center")
         self.ax.axhline(0.0, linewidth=1.0, color='k')
-    
+
     def update(self, policy, entanglement_reductions=None):
         self._policy[:] = np.asarray(policy).ravel()
         a = np.argmax(policy)
@@ -914,7 +917,7 @@ class Mediator:
                 # Disable Redo button
                 self._history.edits()
                 self._step_ctrl.redo_button.disabled = True
-        
+
             case "rotate-2q":
                 psi = self._simulator.states[0]
                 phi = apply_2q_rotation(psi, *args, **kwargs)
@@ -1272,7 +1275,7 @@ def start_demo_4q(user_defined_states):
     ax_attn21.set_xticks(np.arange(len(labels)), labels, rotation=45)
     ax_attn22.set_yticks([])
     ax_attn22.set_xticks(np.arange(len(labels)), labels, rotation=45)
-    ax_attn11.text(x=4.0, y=-2.0, s="Attention Scores", fontsize=12) 
+    ax_attn11.text(x=4.0, y=-2.0, s="Attention Scores", fontsize=12)
 
     cmap = mpl.cm.gray
     norm = mpl.colors.Normalize(vmin=0, vmax=1)
