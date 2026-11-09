@@ -48,7 +48,7 @@ def environment_loop(agent, env, num_iters, steps, start_iter=1,
     if config is None:
         config = get_default_config()
 
-    device = torch.device(config.device)
+    device = torch.device(config.model_device)
     num_envs = env.num_envs
     env.reset()
 
