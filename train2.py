@@ -267,4 +267,3 @@ if __name__ == "__main__":
     # Start training
     torch.autograd.set_detect_anomaly(True)
     train_ppo(config)
-
