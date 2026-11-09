@@ -632,24 +632,3 @@ def rdm_2q_rsqr_nisq_mean_real(states, max_angle=np.pi/6, max_rotated_qubits=1,
     """
     rotated_states = rsqr(states, max_angle, max_rotated_qubits)
     return rdm_2q_nisq_mean_real(rotated_states, max_bitflip_noise, ampdeph)
-
-
-#------------------------------ Reward functions ------------------------------#
-def sparse(entanglements, prev_entanglements, epsi):
-    terminated = np.all(entanglements <= epsi, axis=1)
-    rewards = -5. + 10. * terminated
-    return rewards
-
-def relative_delta(entanglements, prev_entanglements, epsi):
-    # We should probably use both deltas. If the agent starts applying a gate
-    # to a disentangled pair it results in swapping the entanglements and thus
-    # can achieve the max reward at each step. So we have to penalize for the
-    # other entanglement.
-    entanglements = np.maximum(entanglements, epsi)
-    prev_entanglements = np.maximum(prev_entanglements, epsi)
-    deltas = (prev_entanglements - entanglements) / np.maximum(prev_entanglements, entanglements)
-    entangled_qubits = (entanglements > epsi).sum(axis=1)
-    rewards = deltas.sum(axis=1) - entangled_qubits
-    return rewards
-
-#
