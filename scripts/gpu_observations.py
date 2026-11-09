@@ -5,7 +5,7 @@ import torch
 import numpy as np
 
 import context
-from src.quantum_env import rdm_2q_complex
+from src.observations import rdm_2q_complex
 from src.stategen import sample_haar_full
 
 

@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 import context
-from src.quantum_env import rdm_2q_mean_real
+from src.observations import rdm_2q_mean_real
 from src.stategen import sample_haar_full
 from src.observations import rdm2m
 

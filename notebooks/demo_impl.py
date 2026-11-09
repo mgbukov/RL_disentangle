@@ -17,7 +17,7 @@ from scipy.linalg import expm
 
 
 import context
-from src.quantum_env import rdm_2q_mean_real as observe
+from src.observations import rdm_2q_mean_real as observe
 from src.quantum_state import (
     random_quantum_state,
     entropy as calc_entanglement,
