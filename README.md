@@ -15,7 +15,7 @@ and a demo of the 4q and 5q RL agents in a form of interactive Jupyter Notebook.
 * **interactive-demo.ipynb**<br>
   The interactive Jupyter Notebook that shows the 4q and 5q agents
 
-* **`agents/`**<br>
+* **`models/`**<br>
  Contains the trained agents, ready for inference.
  Each agent is represented only by it's policy network, stored as a PyTorch
  statedict file and a JSON config with the correct parameters needed to instantiate it.
