@@ -152,7 +152,9 @@ def srollout(qstate: np.ndarray, agent: PPOAgent, max_steps: int = 30, epsi=1e-3
     # Rollout a trajectory
     actions, entanglements, probabilities = [], [], []
     for _ in range(max_steps):
-        ent = env.simulator.entanglements.copy()
+        # Don't optimize this!
+        # fast_ents trick leads to slightly different result than `sqe()`
+        ent = sqe(env.simulator.states, batched=True)
         observation = torch.from_numpy(env.obs_fn(env.simulator.states))
         probs = agent.policy(observation).probs[0].cpu().numpy()
         a = np.argmax(probs)
@@ -164,7 +166,7 @@ def srollout(qstate: np.ndarray, agent: PPOAgent, max_steps: int = 30, epsi=1e-3
             break
     # Append final entangments
     # assert np.all(env.simulator.entanglements <= env.epsi)
-    entanglements.append(env.simulator.entanglements.copy().ravel())
+    entanglements.append(sqe(env.simulator.states, batched=True).ravel())
     return np.array(actions), np.array(entanglements), np.array(probabilities)
 
 
