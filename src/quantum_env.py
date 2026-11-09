@@ -1,9 +1,8 @@
-from itertools import combinations, permutations
 from collections import namedtuple
-import sys
 import numpy as np
 
 from . import observations
+from . import rewards
 from .quantum_state import VectorQuantumState
 from .stategen import StateGenerator, sample_haar_full
 
@@ -84,7 +83,7 @@ class QuantumEnv():
             swaps=swaps,
             swap_threshold=swap_threshold
         )
-        self.reward_fn = getattr(sys.modules[__name__], reward_fn)  # get from this module
+        self.reward_fn = getattr(rewards, reward_fn)
         self.obs_fn = getattr(observations, obs_fn)
         self.obs_dtype = self.obs_fn(self.simulator.states).dtype
         self.fast_obs = fast_obs
