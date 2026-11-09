@@ -1,16 +1,13 @@
 """ Helper functions for disentanglement of 4-qubit systems."""
+import json
 import os
-import sys
 from itertools import cycle, permutations, combinations
 from typing import Sequence, Tuple, Literal
 
 import numpy as np
 import torch
 
-# Find the the absolute path to project directory
-dirname = os.path.dirname(os.path.realpath(__file__))
-project_root = os.path.realpath(os.path.join(dirname, os.path.pardir))
-sys.path.append(project_root)
+from . import networks
 
 
 # Circuit for 4 qubits
@@ -20,7 +17,7 @@ sys.path.append(project_root)
 # For example if gates are applied on qubits
 # (2, 3), (0, 2), (1, 2), (2, 3), (0, 1) in that order
 # one should not expect to disentangle a 4-qubit state in 5 steps !
-# 
+#
 # To disentangle a system in 5 steps, one must apply exactly 5 gates to
 # qubits indices from cycle starting from (0, 1) !
 UNIVERSAL_CIRCUIT = cycle([(0, 1), (2, 3), (0, 2), (1, 2), (2, 3)])
@@ -53,12 +50,26 @@ def get_ij_from_action_index(a, L):
         raise ValueError('Actions are defined only for 4,5,6 qubit systems. ' \
                          'Expected `L` to be one of (4, 5, 6).')
 
-def load_policy(path):
-    agent = torch.load(path, map_location='cpu')
-    for enc in agent.policy_network.net:
-        enc.activation_relu_or_gelu = 1
-    agent.policy_network.eval()
-    return agent.policy_network
+def load_policy(which="4q"):
+    thisdir = os.path.dirname(__file__)
+
+    # This file holds configuration info for our agents
+    with open(os.path.join(thisdir, "agents/init.json"), mode="r") as f:
+        aconf = json.load(f)
+
+    # Get class definition from `networks` module
+    _class_ = getattr(networks, aconf[which]["classname"])
+    # Create instance with arguments specified in `aconf`
+    net = _class_(**aconf[which]["arguments"])
+    # Load trained parameters
+    statedict = torch.load(
+        os.path.join(thisdir, f"agents/policy-{which}-statedict.torch"),
+        map_location="cpu",
+        weights_only=True
+    )
+    net.load_state_dict(statedict)
+    net.eval()
+    return net
 
 @torch.no_grad()
 def eval_policy(inputs, policy):
@@ -76,12 +87,12 @@ def eval_policy(inputs, policy):
 # Policies with transformer network + constrain that preserves the order
 # of entanglements, i.e if S_i < S_j then S_i' < S_j' and vice versa, where
 # S are the entanglements before applying action, S' after action.
-POLICY_4Q = load_policy(os.path.join(project_root, "agents/4q-agent.pt"))
-POLICY_5Q = load_policy(os.path.join(project_root, "agents/5q-agent.pt"))
-POLICY_6Q = load_policy(os.path.join(project_root, "agents/6q-agent.pt"))
+POLICY_4Q = load_policy("4q")
+POLICY_5Q = load_policy("5q")
+POLICY_6Q = load_policy("6q")
 
 
-def get_action_4q(
+def get_action(
         rdms :Sequence[np.ndarray],
         policy :Literal['universal', 'equivariant', \
                         'transformer', 'ordered'] = 'universal') \
@@ -102,6 +113,7 @@ def get_action_4q(
     Returns: Sequence[numpy.ndarray, int, int]
         Gate U_{ij} to be applied, i, j
     """
+    rdms = np.asarray(rdms)
     assert rdms.shape[0] in (6, 10, 15)
     L = {6:4, 10:5, 15:6}[rdms.shape[0]]    # index dictionary with num of RDMs
 
@@ -205,7 +217,7 @@ def get_postswap_gate(rdms :Sequence[np.ndarray], i :int, j :int):
     return P if flag else I
 
 
-def peek_next_4q(state :np.ndarray, U :np.ndarray, i :int, j :int) -> Tuple[np.ndarray, int]:
+def peek_next(state :np.ndarray, U :np.ndarray, i :int, j :int) -> Tuple[np.ndarray, int]:
     """
     Applies gate `U` on qubits `i` and `j` in `state`.
 
@@ -259,7 +271,7 @@ def get_entanglements(state :np.ndarray) -> np.ndarray:
     n = state.size
     if (n & (n - 1)):
         raise ValueError("Expected array with size == power of 2.")
-    
+
     L = int(np.log2(n))
     state = state.reshape((2,) * L)
     entropies = np.array([_qubit_entanglement(state, i) for i in range(L)])

@@ -1,0 +1,34 @@
+{
+    "4q": {
+        "classname": "TransformerPE_2qRDM",
+        "arguments": {
+            "in_dim":       32,
+            "embed_dim":    128,
+            "dim_mlp":      256,
+            "n_heads":      2,
+            "n_layers":     2
+        }
+    },
+
+    "5q": {
+        "classname": "TransformerPE_2qRDM",
+        "arguments": {
+            "in_dim":       32,
+            "embed_dim":    128,
+            "dim_mlp":      512,
+            "n_heads":      4,
+            "n_layers":     4
+        }
+    },
+
+    "6q": {
+        "classname": "TransformerPE_2qRDM",
+        "arguments": {
+            "in_dim":       32,
+            "embed_dim":    256,
+            "dim_mlp":      1024,
+            "n_heads":      4,
+            "n_layers":     4
+        }
+    }
+}
