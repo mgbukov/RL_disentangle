@@ -13,6 +13,7 @@ dependencies:
     - jupyterlab==4.0.3
     - ipywidgets==8.0.7
     - notebook==7.0.0
+    - pytest==8.4.1
     - tqdm==4.66.4
     - yacs==0.1.8
     - torch==2.0.0

@@ -51,6 +51,7 @@ dependencies:
       - fonttools==4.65.0
       - fqdn==1.6.0
       - idna==3.20
+      - iniconfig==2.3.1
       - ipykernel==7.3.0
       - ipympl==0.9.4
       - ipython==8.39.0
@@ -94,6 +95,7 @@ dependencies:
       - pexpect==4.9.0
       - pillow==12.3.0
       - platformdirs==4.12.4
+      - pluggy==1.7.0
       - prometheus-client==0.26.0
       - prompt-toolkit==3.0.53
       - psutil==7.2.2
@@ -102,6 +104,7 @@ dependencies:
       - pycparser==3.11
       - pygments==2.21.0
       - pyparsing==3.0.9
+      - pytest==8.4.1
       - python-dateutil==3.0.0
       - python-json-logger==4.2.0
       - pyyaml==6.0.3
