@@ -12,36 +12,39 @@ and a demo of the 4q and 5q RL agents in a form of interactive Jupyter Notebook.
 
 ### 2. Structure
 ***
-* **interactive-demo.ipynb**<br>
-  The interactive Jupyter Notebook that shows the 4q and 5q agents
+* **notebooks/interactive-demo.ipynb**<br>
+  The interactive Jupyter Notebook that shows the 4q and 5q agents
 
 * **`models/`**<br>
- Contains the trained agents, ready for inference.
- Each agent is represented only by it's policy network, stored as a PyTorch
- statedict file and a JSON config with the correct parameters needed to instantiate it.
-
-* **`configs/`**<br>
-  Contains YAML configs for training of 12q and 16q agents
+ This dir contains symbolic links to trained RL agents.
+ Symbolic links are UNIX-like and are not compatible with Windows OS.
+ If you are using Windows, delete the symbolic links after cloning the repo and
+ copy all `agent.pt` files from `logs/` manually into `agents/`
+ The agents are serialized instances of `src.agent.PPOAgent` class.
 
 * **`data/`**<br>
-  Contains accuracy stats for the RL agents in JSON format. These stats are
-  used to generate the figures in the paper.
+Contains accuracy stats for the RL agents in JSON format. These stats are
+used to generate the figures in the paper.
 
 * **`logs/`**<br>
-  This directory contains the text logs, various plots and checkpointed agents
-  from the RL training.
+  This directory contains the text logs, various plots and checkpointed agents
+  from the RL training.
 
-* **`qiskit/`**<br>
-   Contains interface code for NISQ devices
+* **`notebooks/`**<br>
+  Jupyter notebooks with experiments + interactive demo
+
+* **`qsimh/`**<br>
+   Contains interface code for NISQ devices
 
 * **`scripts/`**<br>
-   Contains Python & Bash scripts + Sample code
+   Contains Python & Bash scripts + Sample code
 
 * **`src/`**<br>
-    Contains the source code
+    Contains the source code
 
 * **`tests/`**<br>
-    Contains tests
+    Contains tests for NISQ interface code
+
 
 ### 3. How to Use?
 ***
@@ -97,9 +100,10 @@ with torch.no_grad():
 
 ### 4. How to Train the Agents?
 ***
-Check & run the script `train_gpu.py` with an argument a YAML config file.
+Check & run the scripts `train.py` or `trainL.py` with an argument a YAML config file.
 The format of the YAML config is defined in `src/config.py`.
-Example configs can be found in `configs/` (for 12q and 16q).
+Example configs can be found in `configs/` (for 4q, 5q, 6q, 12q and 16q).
+
 
 The approximate training times for different system sizes $L$ are:
 
@@ -111,4 +115,4 @@ The approximate training times for different system sizes $L$ are:
 | 12 | 320 hours |
 | 16 | 390 hours |
 
- We've used NVIDIA Tesla T4 GPU for $L\leq 6$ and NVIDIA 4070 Ti Super GPU for $L\geq 12$
+ We've used NVIDIA Tesla T4 GPU for $L\leq 6$ and NVIDIA 4070 Ti Super GPU for $L\geq 12$
