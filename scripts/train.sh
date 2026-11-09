@@ -1,3 +1,6 @@
+# Bash driver script for the old training scripts
+# Don't use this one to train new agents
+
 cd ..
 # python3 run.py \
 #     --seed 7 --num_qubits 6 --num_envs 512 --steps 90 --steps_limit 90 --num_iters 12000 \

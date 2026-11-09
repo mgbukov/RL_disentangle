@@ -1,3 +1,7 @@
+"""
+Source code for all scripts before the Zenodo repo. Deprecated now.
+Check visual_elements/figs/ for the latest code
+"""
 import itertools
 import json
 import numpy as np

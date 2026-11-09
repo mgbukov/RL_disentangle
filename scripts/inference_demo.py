@@ -1,3 +1,4 @@
+"""Script that shows a sample usage of the RL agents (including the 12 and 16q ones)."""
 import json
 import os
 import sys
@@ -10,6 +11,7 @@ from context import project_dir
 from src.qenv import QEnv
 from src.stategen import sample_haar_full, sample_haar_generalized
 from src.networks import TransformerPE_2qRDM
+
 
 if __name__ == "__main__":
 

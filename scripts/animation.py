@@ -1,3 +1,6 @@
+"""
+Script that renders the frames of the RL Movie
+"""
 import itertools
 import pickle
 import numpy as np
@@ -7,6 +10,8 @@ import matplotlib as mpl
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import os
+from pathlib import Path
+
 from tqdm import tqdm
 
 from context import *
@@ -14,17 +19,14 @@ from src.quantum_env import QuantumEnv
 from src.quantum_state import random_quantum_state
 
 
+
 mpl.rcParams['text.usetex'] = True
 mpl.rcParams['font.family'] = 'serif'
 
-AGENTS_PATH = os.path.join(project_dir, "logs", "4q_2000iters_animation")
-TRAIN_HISTORY_PATH = os.path.join(project_dir, "logs", "4q_2000iters_animation")
-
-COLOR0 = "dodgerblue"
-COLOR1 = "lightskyblue"
-COLOR2 = "aqua"
-COLOR3 = "lightgreen"
-EPSI = 1e-3
+ROOT = Path(__file__).parent.parent.parent
+AGENTS_PATH = ROOT / "models" / "4q_2000iters_animation"
+TRAIN_HISTORY_PATH = ROOT / "data" / "raw" / "4q_2000iters_animation"
+OUTPUT_DIR = ROOT / "visual_elements" / "animation"
 
 # /// USER CONSTANTS
 DPI = 240                       # dpi
@@ -46,6 +48,11 @@ PFS = 9                         # gate's probability fontsize
 TLW = 0.4                       # step timeline linewidth
 LFS = 9                         # other labels font size
 END = 10                        # last step show on circuit
+COLOR0 = "dodgerblue"
+COLOR1 = "lightskyblue"
+COLOR2 = "aqua"
+COLOR3 = "lightgreen"
+EPSI = 1e-3
 
 
 def rollout(state, agent, max_steps=30):
@@ -256,7 +263,7 @@ def draw_frame(policy, actions, entanglements, n_qubits=4, draw_percentages=True
         else:
             draw_policy_ax(policy[-1], ax_bright)
         ax_bright.set_xlim(0,6)
-    else: 
+    else:
         ax_bright.set_axis_off()
 
     # Draw S_avg
@@ -318,7 +325,7 @@ def draw_frame(policy, actions, entanglements, n_qubits=4, draw_percentages=True
 
 def draw_trajectory(actions, policy, entanglements, iteration=-1, draw_percentages=True,
                     draw_S_avg=True, draw_policy=True, draw_return=True):
-    
+
     nsteps = len(actions)
     for i in range(0, nsteps+1):
         frame = draw_frame(policy[:i], actions[:i], entanglements[:i+1], n_qubits=4,
@@ -374,14 +381,14 @@ def save_iteration_frames(iteration):
 
 if __name__ == "__main__":
 
-    agent = torch.load("../agents/4q-agent.pt")
+    agent = torch.load("../../models/4q-agent.pt", weights_only=False)
     state = random_quantum_state(4)
     actions, policy, entanglements = rollout(state, agent, 6)
     frame = draw_frame(policy, actions, entanglements, draw_policy=True,
                        draw_return=True, draw_S_avg=True, iteration=1, endswith="ent")
-    frame.savefig("../animation/test.png")
+    frame.savefig("test.png")
 
-    # os.makedirs("../animation/frames", exist_ok=True)
+    # os.makedirs(str(OUTPUT_DIR / "frames"), exist_ok=True)
     # np.random.seed(8)
     # states = [random_quantum_state(4, prob=1.0) for _ in range(10)]
     # states = np.array(states, dtype=np.complex64)
