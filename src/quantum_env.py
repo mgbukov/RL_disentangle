@@ -3,7 +3,10 @@ from collections import namedtuple
 import sys
 import numpy as np
 
+from . import observations
 from .quantum_state import VectorQuantumState
+from .stategen import StateGenerator, sample_haar_full
+
 
 
 observation_space = namedtuple("observation_space", ["shape"])
@@ -12,6 +15,7 @@ action_space = namedtuple("action_space", ["n"])
 SIGMA_X = np.array([[0, 1], [1, 0]], dtype=np.complex64)
 SIGMA_Y = np.array([[0, -1j], [1j, 0]], dtype=np.complex64)
 SIGMA_Z = np.array([[1, 0], [0, -1]], dtype=np.complex64)
+DEFAULT_SWAP_THRESHOLD = float(np.finfo(np.float32).eps)
 
 
 class QuantumEnv():
@@ -19,9 +23,18 @@ class QuantumEnv():
     OpenAI Gym API.
     """
 
-    def __init__(self, num_qubits, num_envs, epsi=1e-3, max_episode_steps=1000,
-                 reward_fn="sparse", obs_fn="phase_norm", state_generator=None,
-                 fast_obs=False, swaps=True):
+    def __init__(self,
+                 num_qubits,
+                 num_envs,
+                 epsi=1e-3,
+                 max_episode_steps=1000,
+                 reward_fn="sparse",
+                 obs_fn="phase_norm",
+                 state_generator=None,
+                 fast_obs=False,
+                 swaps=True,
+                 swap_threshold=DEFAULT_SWAP_THRESHOLD
+    ):
         """Init a Quantum environment.
 
         Args:
@@ -54,6 +67,9 @@ class QuantumEnv():
                 touches.
             swaps (bool, default=True):
                 See VectorQuantumState.__init__()
+            swap_threshold (float, default=np.finfo(np.float32).eps):
+                Minimum single-qubit entanglement entropy difference required
+                for swap gate to be applied
         """
         # Private
         self.num_qubits = num_qubits
@@ -61,12 +77,27 @@ class QuantumEnv():
         self.max_episode_steps = max_episode_steps
         act_space = "reduced"
         self.simulator = VectorQuantumState(
-            num_qubits, num_envs, act_space, state_generator, swaps=swaps)
+            num_qubits=num_qubits,
+            num_envs=num_envs,
+            act_space=act_space,
+            state_generator=state_generator,
+            swaps=swaps,
+            swap_threshold=swap_threshold
+        )
         self.reward_fn = getattr(sys.modules[__name__], reward_fn)  # get from this module
-        self.obs_fn = getattr(sys.modules[__name__], obs_fn)        # get from this module
+        self.obs_fn = getattr(observations, obs_fn)
         self.obs_dtype = self.obs_fn(self.simulator.states).dtype
         self.fast_obs = fast_obs
         self.last_obs = None
+
+        # Every time `self.reset()` is called a new state must be generated.
+        # The generation of new states is handled by a function,
+        # which is selected using `state_generator` and `generator_kwargs`
+        # paratemers.
+        if state_generator is None:
+            self.state_generator = StateGenerator(sample_haar_full, num_qubits)
+        else:
+            self.state_generator = state_generator
 
         # Public attributes conforming to the OpenAI Gym API.
         self.num_envs = num_envs

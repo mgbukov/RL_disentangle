@@ -6,14 +6,24 @@ import numpy as np
 from . import stategen
 
 
+
+DEFAULT_SWAP_THRESHOLD = float(np.finfo(np.float32).eps)
+
+
 class VectorQuantumState:
     """VectorQuantumState is a vectorized quantum state for parallel simulation.
     Each quantum state simulates the evolution of a system of qubits separately.
     All quantum states in the Vector system have the same number of qubits.
     """
 
-    def __init__(self, num_qubits: int, num_envs: int, act_space: Optional[str] = "reduced",
-                 state_generator: Optional[stategen.StateGenerator] = None, swaps: bool =True):
+    def __init__(self,
+                 num_qubits: int,
+                 num_envs: int,
+                 act_space: Optional[str] = "reduced",
+                 state_generator: Optional[stategen.StateGenerator] = None,
+                 swaps: bool = True,
+                 swap_threshold: float=DEFAULT_SWAP_THRESHOLD
+    ):
         """
         Initialize a vector representation of a quantum system
 
@@ -34,11 +44,15 @@ class VectorQuantumState:
                 If S_ent(q_i) < S_ent(q_j), then q_i and q_j will be temporarily swapped before
                 multiplying with U. Denote the next state with s_{t+1}. The relation of single qubit
                 entanglements between q_i and q_j in s_{t+1} will be the same as in s_t.
+            swap_threshold (float, default=np.finfo(np.float32).eps):
+                Minimum single-qubit entanglement entropy difference, required
+                for swap gate to be applied
         """
         assert num_qubits >= 2
         self.num_qubits = num_qubits
         self.num_envs = num_envs
         self.swaps = swaps
+        self.swap_threshold = swap_threshold
 
         # The action space consists of all possible pairs of qubits.
         self.act_space = act_space
@@ -109,7 +123,7 @@ class VectorQuantumState:
         if len(acts) != self.num_envs:
             raise ValueError(f"Expected array with shape=({self.num_envs},)")
         N, Q = self.num_envs, self.num_qubits
-        EPS = 1e-3 #np.finfo(np.float32).eps
+        EPS = self.swap_threshold
         batch = self._states
 
         ax0 = np.arange(N)
@@ -198,7 +212,6 @@ class VectorQuantumState:
         x = self.state_generator()
         self._states[k] = phase_norm(x)
         self.entanglements[k] = entropy(np.expand_dims(self._states[k], axis=0))
-
 
 #------------------------------ Utility functions -----------------------------#
 def random_quantum_state(q, prob=0.95):
