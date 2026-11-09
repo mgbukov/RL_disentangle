@@ -28,9 +28,9 @@ mpl.rcParams['text.usetex'] = True
 mpl.rcParams['font.family'] = 'serif'
 
 
-PATH_4Q_AGENT = os.path.join(project_dir, "agents/4q-agent.pt")
-PATH_5Q_AGENT = os.path.join(project_dir, "agents/5q-agent.pt")
-PATH_6Q_AGENT = os.path.join(project_dir, "agents/6q-agent.pt")
+PATH_4Q_AGENT = os.path.join(project_dir, "models/4q-agent.pt")
+PATH_5Q_AGENT = os.path.join(project_dir, "models/5q-agent.pt")
+PATH_6Q_AGENT = os.path.join(project_dir, "models/6q-agent.pt")
 PATH_BENCHMARKS = os.path.join(project_dir, "data/results/")
 PATH_FIGURES = os.path.join(project_dir, "figures")
 os.makedirs(PATH_FIGURES, exist_ok=True)

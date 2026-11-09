@@ -9,9 +9,9 @@ from src.quantum_state import random_quantum_state
 
 
 # Load agents
-AGENT_4Q = torch.load(os.path.join(project_dir, "agents/4q-agent.pt"))
-AGENT_5Q = torch.load(os.path.join(project_dir, "agents/5q-agent.pt"))
-AGENT_6Q = torch.load(os.path.join(project_dir, "agents/6q-agent.pt"))
+AGENT_4Q = torch.load(os.path.join(project_dir, "models/4q-agent.pt"))
+AGENT_5Q = torch.load(os.path.join(project_dir, "models/5q-agent.pt"))
+AGENT_6Q = torch.load(os.path.join(project_dir, "models/6q-agent.pt"))
 
 
 def get_action(state):
@@ -68,7 +68,7 @@ def get_disentangling_trajectory(state, max_steps=100):
         agent = AGENT_6Q
     else:
         raise ValueError(f"No agent available for {num_qubits}-qubits system.")
-    
+
     trajectory = []
     success = False
     for _ in range(max_steps):
@@ -80,7 +80,7 @@ def get_disentangling_trajectory(state, max_steps=100):
         if np.all(t):
             success = True
             break
-    
+
     return trajectory, success
 
 
