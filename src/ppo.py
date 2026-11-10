@@ -160,7 +160,12 @@ class PPOAgent(PGAgent):
 
             for o, a, ad, lp_old in loader:
                 logits = self.policy_network(o)
-                logp = -F.cross_entropy(logits, a, reduction="none")
+                # The type of `target` parameter must be int64. If left as int32
+                # the following exception is raised:
+                #
+                # RuntimeError: "nll_loss_forward_no_reduce_cuda_kernel_index"
+                # not implemented for 'Int'
+                logp = -F.cross_entropy(logits, a.to(dtype=torch.int64), reduction="none")
                 ro = torch.exp(logp - lp_old)
 
                 # Normalize the advantages and compute the clipped loss.

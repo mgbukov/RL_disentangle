@@ -36,8 +36,6 @@ def gpu_rdm_2q_complex(states: np.ndarray):
     return torch.swapaxes(rdms, 0, 1).reshape(N, Q*(Q-1), 16)
 
 
-
-
 if __name__ == "__main__":
 
     for B in (64, 128, 256):

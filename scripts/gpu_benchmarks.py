@@ -1,4 +1,3 @@
-import itertools
 import time
 import timeit
 from typing import *
@@ -7,10 +6,9 @@ import torch
 import numpy as np
 
 import context
-from src.observations import rdm_2q_complex, rdm_2q_mean_real
+from src.observations import rdm_2q_mean_real
 from src.stategen import sample_haar_full
 from src.observations import rdm2m
-from src.util import sqe, cuda_sqe
 
 GPU_DEVICE = "cuda"
 
@@ -29,7 +27,7 @@ def bench_obs(cpu_obs_fn, cuda_obs_fn):
         torch.cuda.synchronize()
         toc = time.time()
         print(f"Elapsed time on GPU for batch size {B}: {toc-tic:.3f}", flush=True)
-
+        print()
         assert np.allclose(cpu_obs, gpu_obs.cpu().numpy(), atol=1e-6)
 
 
@@ -67,5 +65,11 @@ def bench_sqe(num_envs: Iterable[int], num_qubits: Iterable[int]):
 
 
 if __name__ == "__main__":
+
+    # print("\n\nBenchmarking single-qubit entanglements functions")
+    # print(50 * '-')
     # bench_sqe((1,4,16,32,64), (12,16))
+
+    print("\n\nBenchmarking observation functions")
+    print(50 * '-')
     bench_obs(rdm_2q_mean_real, rdm2m)

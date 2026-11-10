@@ -5,6 +5,12 @@ import numpy as np
 import torch
 
 
+
+SIGMA_X = np.array([[0, 1], [1, 0]], dtype=np.complex64)
+SIGMA_Y = np.array([[0, -1j], [1j, 0]], dtype=np.complex64)
+SIGMA_Z = np.array([[1, 0], [0, -1]], dtype=np.complex64)
+
+
 def vec(states: torch.Tensor, device: str|torch.device = "cpu"):
     N = states.shape[0]
     batch = states.reshape(N, -1)

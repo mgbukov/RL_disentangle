@@ -1,16 +1,18 @@
 """Script that shows a sample usage of the RL agents (including the 12 and 16q ones)."""
 import json
-import os
 import sys
+from pathlib import Path
 
 import numpy as np
 import torch
 from torch.distributions import Categorical
 
-from context import project_dir
+ROOT = Path(__file__).parent.parent
+sys.path.append(str(ROOT))
 from src.qenv import QEnv
 from src.stategen import sample_haar_full, sample_haar_generalized
 from src.networks import TransformerPE_2qRDM
+
 
 
 if __name__ == "__main__":
@@ -30,7 +32,7 @@ if __name__ == "__main__":
     env.set_states(state.reshape((1,) + (2,) * L ))
 
     # Load the policy network
-    with open(os.path.join(project_dir, f"agents/{L}q-policy-config.json"), mode='rt') as f:
+    with open(ROOT / "models" / f"{L}q-policy-config.json", mode='rt') as f:
         policy_config = json.load(f)
     policy = TransformerPE_2qRDM(
         in_dim = env.single_observation_space.shape[1],
@@ -39,7 +41,8 @@ if __name__ == "__main__":
         n_heads=policy_config["attn_heads"],
         n_layers=policy_config["transformer_layers"]
     )
-    state_dict = torch.load(os.path.join(project_dir, f"agents/{L}q-policy-statedict.pt"))
+    state_dict = torch.load(ROOT / "models" / f"{L}q-policy-statedict.pt",
+                            map_location="cpu", weights_only=True)
     policy.load_state_dict(state_dict)
     policy.eval()
 

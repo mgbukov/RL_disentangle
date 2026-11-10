@@ -129,6 +129,8 @@ def sample_haar_unif(num_qubits, min_entangled=1, max_entangled=None, **kwargs):
         return np.array([1.])
     if max_entangled is None:
         max_entangled = num_qubits
+    else:
+        assert max_entangled <= num_qubits
     m = np.random.randint(min_entangled, max_entangled+1)
     psi = sample_haar_full(m).ravel()
     r = num_qubits - m
