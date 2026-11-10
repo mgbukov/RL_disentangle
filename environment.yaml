@@ -16,4 +16,7 @@ dependencies:
     - pytest==8.4.1
     - tqdm==4.66.4
     - yacs==0.1.8
-    - torch==2.0.0
+    # Adds the PyTorch CUDA wheel index as an extra source (does not replace PyPI).
+    # Remove the next two lines and add `- torch==2.0.0` for a CPU-only install.
+    - --extra-index-url https://download.pytorch.org/whl/cu118
+    - torch==2.0.0+cu118
