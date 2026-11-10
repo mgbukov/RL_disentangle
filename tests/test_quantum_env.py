@@ -24,6 +24,7 @@ def test_fast_obs(num_envs, num_qubits):
             "max_episode_steps":    100,
             "obs_fn":               "rdm_2q_mean_real",
             "state_generator":      sg,
+            "swaps":                False
         }
         base_env = QuantumEnv(fast_obs=False, **env_params)
         base_env.reset()
@@ -54,5 +55,3 @@ def test_fast_obs(num_envs, num_qubits):
 
             if np.any(base_term | base_trunc):
                 break
-
-

@@ -1,6 +1,7 @@
 import itertools
 import pickle
 import warnings
+from pathlib import Path
 
 import pytest
 import numpy as np
@@ -25,8 +26,10 @@ from src.stategen import StateGenerator, sample_haar_full, sample_haar_product
 from src.util import fidelity, sqe, torch_sqe
 
 
-PATH_ROLLOUTS_FILE = "data/tests/rollouts.pickle"
 
+ROOT = Path(__file__).parent.parent
+PATH_ROLLOUTS_FILE = ROOT / "data" / "tests" / "rollouts.pickle"
+TEST_SWAP_THRESHOLD = 1e-3
 
 @pytest.mark.parametrize(
     "num_qubits,num_envs,device",
@@ -154,8 +157,11 @@ def test_apply(num_qubits: int, num_envs: int, swaps: bool, device: str):
     states = np.array([sample_haar_full(num_qubits) for _ in range(num_envs)])
 
     # Initialize NumPy & PyTorch quantum state simulators
-    numpy_sim = VectorQuantumState(num_qubits, num_envs, "reduced", swaps=swaps)
-    torch_sim = VectorizedQState(num_qubits, num_envs, swaps=swaps, device=device)
+    numpy_sim = VectorQuantumState(num_qubits, num_envs, "reduced", swaps=swaps,
+                                   swap_threshold=TEST_SWAP_THRESHOLD)
+    torch_sim = VectorizedQState(num_qubits, num_envs, swaps=swaps,
+                                 swap_threshold=TEST_SWAP_THRESHOLD,
+                                 device=device)
     numpy_sim.states = states
     torch_sim.states = torch.from_numpy(states)
     assert np.allclose(numpy_sim.states, torch_sim.states.cpu().numpy())
@@ -228,6 +234,7 @@ def test_apply(num_qubits: int, num_envs: int, swaps: bool, device: str):
         assert np.all(x > 0.999)
 
 
+
 @pytest.mark.parametrize(
         "num_qubits,num_envs,device",
         itertools.product((4, 8, 12, 16), (1, 8), ("cpu", "cuda"))
@@ -240,12 +247,27 @@ def test_step(num_qubits: int, num_envs: int, device: str):
 
     # Initialize NumPy and PyTorch RL environments
     sgen = StateGenerator(sample_haar_full, num_qubits)
-    numpy_env = NumpyEnv(num_qubits, num_envs, obs_fn="phase_norm",
-                         epsi=1e-3, state_generator=sgen, reward_fn="relative_delta")
-    torch_env = TorchEnv(num_qubits, num_envs, obs_fn="vec",
-                         epsi=1e-3, state_generator=sgen,
-                         reward_fn="relative_delta",
-                         device=device)
+    numpy_env = NumpyEnv(
+        num_qubits=num_qubits,
+        num_envs=num_envs,
+        obs_fn="phase_norm",
+        epsi=1e-3,
+        state_generator=sgen,
+        reward_fn="relative_delta",
+        swaps=True,
+        swap_threshold=TEST_SWAP_THRESHOLD
+    )
+    torch_env = TorchEnv(
+        num_qubits=num_qubits,
+        num_envs=num_envs,
+        obs_fn="vec",
+        epsi=1e-3,
+        state_generator=sgen,
+        reward_fn="relative_delta",
+        swaps=True,
+        swap_threshold=TEST_SWAP_THRESHOLD,
+        device=device
+    )
 
     np.random.seed(17)
     numpy_env.reset()
@@ -336,7 +358,15 @@ def test_disentangle(num_qubits: int):
         if q != num_qubits:
             continue
         trajectory = record["actions"]
-        env = TorchEnv(num_qubits, 1, obs_fn="rdm2m", device="cpu", fast_obs=True, fast_ents=True)
+        env = TorchEnv(
+            num_qubits=num_qubits,
+            num_envs=1,
+            obs_fn="rdm2m",
+            device="cpu",
+            fast_obs=True,
+            fast_ents=True,
+            swap_threshold=TEST_SWAP_THRESHOLD
+        )
         env.reset()
         env.simulator.states = torch.from_numpy(np.expand_dims(state, 0))
         for i, qpair in enumerate(trajectory):
@@ -358,11 +388,25 @@ def test_swaps(num_qubits: int, num_envs: int, device: str):
 
     # Initialize NumPy and PyTorch RL environments
     sgen = StateGenerator(sample_haar_full, num_qubits)
-    env = NumpyEnv(num_qubits, num_envs, obs_fn="phase_norm",
-                   epsi=1e-3, state_generator=sgen)
+    env = NumpyEnv(
+        num_qubits=num_qubits,
+        num_envs=num_envs,
+        obs_fn="phase_norm",
+        epsi=1e-3,
+        state_generator=sgen,
+        swap_threshold=TEST_SWAP_THRESHOLD
+    )
     env.reset()
-    env = TorchEnv(num_qubits, num_envs, obs_fn="vec",
-                   epsi=1e-3, state_generator=sgen, fast_ents=False, device=device)
+    env = TorchEnv(
+        num_qubits=num_qubits,
+        num_envs=num_envs,
+        obs_fn="vec",
+        epsi=1e-3,
+        state_generator=sgen,
+        fast_ents=False,
+        swap_threshold=TEST_SWAP_THRESHOLD,
+        device=device
+    )
     env.reset()
 
     ax0 = np.arange(num_envs)
@@ -374,14 +418,14 @@ def test_swaps(num_qubits: int, num_envs: int, device: str):
         _q0 = env.simulator.entanglements[ax0, indices[:, 0]]
         _q1 = env.simulator.entanglements[ax0, indices[:, 1]]
         # print(_q0, _q1)
-        _rel = (_q0 >= _q1 + 1e-3)
+        _rel = (_q0 >= _q1 + TEST_SWAP_THRESHOLD)
         # Step
         env.step(actions, reset=False)
         # Relation after U
         q0_ = env.simulator.entanglements[ax0, indices[:, 0]]
         q1_ = env.simulator.entanglements[ax0, indices[:, 1]]
         # print(q0_, q1_)
-        rel_ = (q0_ >= q1_ + 1e-3 )
+        rel_ = (q0_ >= q1_ + TEST_SWAP_THRESHOLD)
         assert torch.all(_rel == rel_)
         # print()
 
@@ -400,6 +444,7 @@ def test_fast_obs(num_envs, num_qubits):
             "max_episode_steps":    100,
             "obs_fn":               "rdm2m",
             "state_generator":      sg,
+            "swaps":                False
         }
         base_env = TorchEnv(fast_obs=False, **env_params)
         base_env.reset()
