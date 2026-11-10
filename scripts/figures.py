@@ -22,7 +22,7 @@ from src.quantum_state import random_quantum_state
 from src.util import str2state, str2latex, srollout
 from src.qenv import VectorizedQState
 from src.stategen import sample_haar_generalized
-from search import GreedyAgent, RandomAgent
+from src.search import GreedyAgent, RandomAgent
 
 mpl.rcParams['text.usetex'] = True
 mpl.rcParams['font.family'] = 'serif'

@@ -13,7 +13,7 @@ from src.stategen import (
     sample_haar_generalized,
     sample_haar_product
 )
-from search import GreedyAgent
+from src.search import GreedyAgent
 
 
 EPSI = 1e-3

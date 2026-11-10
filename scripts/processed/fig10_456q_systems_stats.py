@@ -7,16 +7,16 @@ import torch
 
 sys.path.append(str(Path(__file__).parent.parent.parent))
 from src.environment_loop import test_agent
-from src.quantum_env import QuantumEnv
+from src.qenv import QEnv
 from src.quantum_state import random_quantum_state
-from search import GreedyAgent, RandomAgent
+from src.search import GreedyAgent, RandomAgent
 
 
 
-ROOT = Path(__file__).parent.parent.parent.parent
-PATH_4Q_AGENT = ROOT / "models" / "4q_agent.pt"
-PATH_5Q_AGENT = ROOT / "models" / "5q_agent.pt"
-PATH_6Q_AGENT = ROOT / "models" / "6q_agent.pt"
+ROOT = Path(__file__).parent.parent.parent
+PATH_4Q_AGENT = ROOT / "models" / "4q-agent.pt"
+PATH_5Q_AGENT = ROOT / "models" / "5q-agent.pt"
+PATH_6Q_AGENT = ROOT / "models" / "6q-agent.pt"
 PATH_PROCESSED = ROOT / "data" / "processed" / "fig10"
 
 
@@ -77,40 +77,32 @@ def benchmark_agents(ntests=1000):
                 obs_fn="rdm_2q_mean_real", max_episode_steps=MAX_STEPS)
             print('\t\tDone testing RL agent.')
 
+            # Initialize environment
+            env = QEnv(num_qubits, 1, epsi=1e-3)
+
             # Test random agent
-            env = QuantumEnv(num_qubits, 1, epsi=1e-3)
             random_len = []
-            random_ent = []
             random_solves = []
             for s in initial_states:
-                env.reset()
-                env.simulator.states = np.expand_dims(s, 0)
-                path, ents = random.start(s, env.simulator)
-                if path is None and ents is None:
+                path = random.start(s, env)
+                if path is None:
                     random_len.append(np.nan)
-                    random_ent.append(np.nan)
                     random_solves.append(np.nan)
                 else:
                     random_len.append(len(path))
-                    random_ent.append(np.mean(ents[-1]))
                     random_solves.append(1)
             print('\t\tDone testing Random agent.')
 
             # Test greedy agent
             greedy_len = []
-            greedy_ent = []
             greedy_solves = []
             for s in initial_states:
-                env.reset()
-                env.simulator.states = np.expand_dims(s, 0)
-                path, ents = greedy.start(s, env.simulator)
-                if path is None and ents is None:
+                path = greedy.start(s, env)
+                if path is None:
                     greedy_len.append(np.nan)
-                    greedy_ent.append(np.nan)
                     greedy_solves.append(np.nan)
                 else:
                     greedy_len.append(len(path))
-                    greedy_ent.append(np.mean(ents[-1]))
                     greedy_solves.append(1)
             print('\t\tDone testing Greedy agent.')
 
@@ -118,19 +110,16 @@ def benchmark_agents(ntests=1000):
                 "rl": {
                     "avg_steps": float(np.nanmean(RL_res["lengths"][RL_res["done"]])),
                     "std_steps": float(np.nanstd(RL_res["lengths"][RL_res["done"]])),
-                    "avg_final_ent": float(np.nanmean(RL_res["entanglements"][RL_res["done"]])),
                     "success": float(np.nanmean(RL_res["done"]))
                 },
                 "random": {
                     "avg_steps": float(np.nanmean(random_len)),
                     "std_steps": float(np.nanstd(random_len)),
-                    "avg_final_ent": float(np.nanmean(random_ent)),
                     "success": float(np.nanmean(random_solves))
                 },
                 "greedy": {
                     "avg_steps": float(np.nanmean(greedy_len)),
                     "std_steps": float(np.nanstd(greedy_len)),
-                    "avg_final_ent": float(np.nanmean(greedy_ent)),
                     "success": float(np.nanmean(greedy_solves))
                 }
             }
@@ -139,8 +128,10 @@ def benchmark_agents(ntests=1000):
 
 
 if __name__ == '__main__':
+    # Set seed
+    np.random.seed(4)
 
     # Benchmark agents
     results = benchmark_agents(1000)
-    with open(PATH_PROCESSED / "_agents-benchmark-final.json", mode='w') as f:
+    with open(PATH_PROCESSED / "__agents-benchmark-final.json", mode='w') as f:
         json.dump(results, f, indent=2)

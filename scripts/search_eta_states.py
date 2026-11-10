@@ -5,9 +5,9 @@ import json
 import numpy as np
 
 import context
-from src.quantum_state import VectorQuantumState
+from src.qenv import QEnv
 from src.stategen import sample_haar_product, eta_perturb
-from search import RandomAgent, BeamSearch, UBSearch
+from src.search import RandomAgent, BeamSearch, UBSearch
 
 
 EPSI = 1e-3
@@ -26,7 +26,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_eta", type=float, default=4.2)
     parser.add_argument("--eta_increment", type=float, default=0.05)
     parser.add_argument("-s", "--samples", type=int, default=10)
-    parser.add_argument("--output", "-o", type=str, default='ttt.json')
+    parser.add_argument("--output", "-o", type=str)
 
     args = parser.parse_args()
     print(args)
@@ -53,7 +53,8 @@ if __name__ == "__main__":
     print("Initialized etas:", etas)
 
     # Initialize Quantum State simmulator
-    qstatesim = VectorQuantumState(args.qubits, 1)
+    env = QEnv(args.qubits, 1)
+    # qstatesim = VectorQuantumState(args.qubits, 1)
 
     # Calculate bond locations
     temp = np.full(args.qubits, False, dtype=bool)
@@ -69,7 +70,7 @@ if __name__ == "__main__":
         for _ in range(args.samples):
             prod = sample_haar_product(args.qubits, args.subsystem_size, args.subsystem_size, False)
             state = eta_perturb(prod, eta, bonds)
-            traj = agent.start(state, qstatesim, num_iters=args.max_iters, verbose=False)
+            traj = agent.start(state, env, num_iters=args.max_iters, verbose=False)
             if traj is None:
                 temp.append(math.nan)
                 print("NaN", end=' ', flush=True)
