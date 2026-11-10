@@ -16,41 +16,38 @@ and a demo of the 4q and 5q RL agents in a form of interactive Jupyter Notebook.
   The interactive Jupyter Notebook that shows the 4q and 5q agents
 
 * **`models/`**<br>
- This dir contains symbolic links to trained RL agents.
- Symbolic links are UNIX-like and are not compatible with Windows OS.
- If you are using Windows, delete the symbolic links after cloning the repo and
- copy all `agent.pt` files from `logs/` manually into `agents/`
- The agents are serialized instances of `src.agent.PPOAgent` class.
+  This dir contains trained agents binaries and policy parameters.
+  The Pickle binaries are serialized instances of `src.agent.PPOAgent` class.
 
 * **`data/`**<br>
-Contains accuracy stats for the RL agents in JSON format. These stats are
-used to generate the figures in the paper.
+  Contains accuracy stats for the RL and Greedy agents in JSON format.
+  The full data is available in the [Zenodo repository](https://doi.org/10.1103/byp8-29dg) of the project.
 
 * **`logs/`**<br>
-  This directory contains the text logs, various plots and checkpointed agents
-  from the RL training.
+  This directory contains the text logs, various plots and checkpointed agents
+  from the RL training.
 
 * **`notebooks/`**<br>
-  Jupyter notebooks with experiments + interactive demo
+  Jupyter notebooks with experiments + interactive demo
 
 * **`qsimh/`**<br>
-   Contains interface code for NISQ devices
+  Contains interface code for NISQ devices
 
 * **`scripts/`**<br>
-   Contains Python & Bash scripts + Sample code
+  Contains Python & Bash scripts + Sample code
 
 * **`src/`**<br>
-    Contains the source code
+  Contains the source code
 
 * **`tests/`**<br>
-    Contains tests for NISQ interface code
+  Contains tests for NISQ interface code
 
 
 ### 3. How to Use?
 ***
 1. Clone the repo
 2. Create Conda environment with dependent packages using `conda env create -f environment.yaml`
-3. Check the demo script in `scripts/inference_demo.py` and the Interative Notebook `demo.ipynb`
+3. Check the demo script in `scripts/inference_demo.py` and the Interative Notebook `notebooks/demo.ipynb`
 
 Essentially you must instantiate the RL environment, load the agent's policy network
 and then do a rollout. The snippet bellow shows a use case for 5 qubits system:
